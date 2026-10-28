@@ -115,7 +115,15 @@ func safeFilename(_ s: String) -> String {
 }
 
 final class Vault {
-  static let service = "local.BiliGlass.session"
+  static let service = sessionService(bundleIdentifier: Bundle.main.bundleIdentifier)
+  static func sessionService(bundleIdentifier: String?) -> String {
+    // Independently signed local QA apps must never request or overwrite the
+    // installed release's credentials. Keep the release service for upgrades.
+    guard let bundleIdentifier, bundleIdentifier.hasSuffix(".FeedbackQA") else {
+      return "local.BiliGlass.session"
+    }
+    return bundleIdentifier + ".session"
+  }
   static func save(_ data: Data, account: String = "cookies") throws {
     let q: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,

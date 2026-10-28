@@ -6,13 +6,14 @@ struct RootView: View {
   @Bindable var store: Store
   @Environment(\.scenePhase) private var phase
   @FocusState private var searchFocused: Bool
+  private var navigation = NavigationCustomization()
   @State private var diagnosticChallenge: InteractionChallenge?
   var body: some View {
     ZStack {
       if !store.fullscreen.isPresented { GlassBackdrop() }
       GeometryReader { viewport in
       HStack(alignment: .top, spacing: 20) {
-        sidebar(compact: viewport.size.height < 820).frame(width: AppLayout.sidebarWidth)
+        sidebar.frame(width: AppLayout.sidebarWidth)
         VStack(spacing: 16) {
           GlassEffectContainer { topbar }
           if let reason = store.loginUpgradeReason, !store.loginUpgradeDismissed {
@@ -36,9 +37,13 @@ struct RootView: View {
       if store.fullscreen.isPresented {
         FullscreenPlayerContent(store: store, close: { store.fullscreen.close() }).ignoresSafeArea()
       }
-      if store.showsMiniPlayer {
-        VStack { Spacer(); HStack { Spacer(); MiniPlayer(store: store) } }.padding(24)
-      }
+    }
+    .overlay(alignment: .bottomTrailing) {
+      ZStack(alignment: .bottomTrailing) {
+        if store.showsMiniPlayer {
+          MiniPlayer(store: store).padding(24).interfaceTransition(mini: true)
+        }
+      }.interfaceAnimation(store.showsMiniPlayer)
     }
     .tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 700, maxHeight: .infinity)
     .background { InitialWindowFocus().frame(width: 0, height: 0) }
@@ -147,8 +152,8 @@ struct RootView: View {
       if !store.showPlayer { searchFocused = false; NSApp.keyWindow?.makeFirstResponder(nil) }
     }
   }
-  private func sidebar(compact: Bool) -> some View {
-    VStack(spacing: compact ? 14 : 20) {
+  private var sidebar: some View {
+    VStack(spacing: 20) {
       HStack(spacing: 10) {
         Image(systemName: "play.rectangle.fill").font(.title2).foregroundStyle(biliPink)
         Text("Bilibili NEXT").font(.title3.weight(.semibold))
@@ -161,9 +166,12 @@ struct RootView: View {
         // container with the fixed account footer lets the scrolled glass/text
         // render through that footer on short windows.
         GlassEffectContainer(spacing: 16) {
-          VStack(spacing: compact ? 14 : 20) {
-            navigationGroup("浏览", items: [.recommend, .popular, .regions, .dynamic, .messages], compact: compact)
-            navigationGroup("资料库", items: [.history, .favorites, .later, .downloads, .profile, .web], compact: compact)
+          VStack(spacing: 20) {
+            let pages = navigation.preferences.visible
+            let browse = pages.filter(\.isBrowse).compactMap { Destination(rawValue: $0.title) }
+            let library = pages.filter { !$0.isBrowse }.compactMap { Destination(rawValue: $0.title) }
+            if !browse.isEmpty { navigationGroup("浏览", items: browse) }
+            if !library.isEmpty { navigationGroup("资料库", items: library) }
           }.padding(2)
         }
       }.frame(minHeight: 0, maxHeight: .infinity)
@@ -171,7 +179,7 @@ struct RootView: View {
       accountButton.fixedSize(horizontal: false, vertical: true)
     }.frame(maxHeight: .infinity)
   }
-  private func navigationGroup(_ title: String, items: [Destination], compact: Bool) -> some View {
+  private func navigationGroup(_ title: String, items: [Destination]) -> some View {
     VStack(alignment: .leading, spacing: 5) {
       Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.leading, 12)
         .padding(.bottom, 8)
@@ -191,7 +199,7 @@ struct RootView: View {
             .system(
               size: 14, weight: store.destination == d && !store.showPlayer ? .semibold : .regular)
           )
-          .padding(.horizontal, 12).padding(.vertical, compact ? 7 : 11).contentShape(
+          .padding(.horizontal, 12).padding(.vertical, 11).contentShape(
             RoundedRectangle(cornerRadius: 12)
           )
           .background(
@@ -235,9 +243,22 @@ struct RootView: View {
     }.buttonStyle(.glass).tint(.primary).padding(.horizontal, 12).frame(height: AppLayout.toolbarHeight).floatingGlass(AppLayout.panelRadius)
   }
   @ViewBuilder private var content: some View {
-    if store.showPlayer {
-      PlayerPage(store: store)
-    } else {
+    ZStack {
+      browsingContent.id(store.destination).interfaceTransition().opacity(store.showPlayer ? 0 : 1)
+        .allowsHitTesting(!store.showPlayer).accessibilityHidden(store.showPlayer)
+      if store.showPlayer { PlayerPage(store: store).transition(.opacity) }
+    }
+    .interfaceAnimation(store.showPlayer)
+    .interfaceAnimation(store.destination)
+    .onChange(of: navigation.preferences) { normalizeDestination() }
+  }
+  private func normalizeDestination() {
+    if let page = StartPage.allCases.first(where: { $0.title == store.destination.rawValue }),
+       !navigation.preferences.allows(page) {
+      store.navigate(Destination(rawValue: navigation.preferences.resolvedStart.title) ?? .profile)
+    }
+  }
+  @ViewBuilder private var browsingContent: some View {
       switch store.destination {
       case .recommend, .popular, .regions, .favorites, .later: browse
       case .dynamic: NativeDynamicsPage(store: store)
@@ -256,7 +277,6 @@ struct RootView: View {
       case .messages: NativeInboxPage(store: store)
       case .web: WebFunctionsPage(store: store)
       }
-    }
   }
   private var accountButton: some View {
     Group {
@@ -335,7 +355,10 @@ struct RootView: View {
           LoadMoreFooter(loading: store.busy, hasMore: store.hasMore, error: store.error, count: store.videos.count + store.searchUsers.count) { store.more() }
         }
       }.padding(AppLayout.pageInset).padding(.vertical, 8)
-    }.overlay { if store.busy && store.videos.isEmpty { ProgressView("正在加载") } }
+    }.modifier(RememberedScroll(memory: store.browsePosition, tracking: !store.showPlayer && !store.busy))
+      .id(store.browseKey)
+      .accessibilityIdentifier("browse-list")
+      .overlay { if store.busy && store.videos.isEmpty { ProgressView("正在加载") } }
   }
   private func videoGrid(_ videos: [Video]) -> some View {
     GlassEffectContainer(spacing: 0) {
@@ -348,7 +371,7 @@ struct RootView: View {
           store.openFeedVideo(video)
         } label: {
           VideoCard(video: video)
-        }.buttonStyle(.plain).contextMenu {
+        }.buttonStyle(InterfacePressStyle()).contextMenu {
           Button("播放") { store.open(video.bvid) }
           Button("稍后再看") { Task { do { let aid = try await store.api.videoAid(video); await store.addLater(aid) } catch { store.interactionMessage = error.localizedDescription } } }
           if store.destination == .later { Button("从稍后再看移除") { Task { do { try await store.api.removeWatchLater(video); store.reload() } catch { store.interactionMessage = error.localizedDescription } } } }
@@ -459,6 +482,7 @@ struct PlayerPage: View {
             if p.isBoosting { Label(p.boostLabel, systemImage: "forward.fill").font(.callout).padding(10).glassEffect(.regular, in: .capsule).padding(16).colorScheme(.dark).allowsHitTesting(false) }
           }
           .overlay { PlaybackDetailsOverlay(playback: p) }
+        if let detail = p.detail, detail.aid > 0 { DanmakuComposer(store: store, aid: detail.aid) }
         PlayerControls(playback: p, toggleFullscreen: { store.fullscreen.open(store: store) }, extras: store.extras)
         PlaybackFeatureControls(store: store)
         if let error = p.error {
@@ -530,7 +554,6 @@ struct PlayerPage: View {
           }
           if d.aid > 0 {
             VideoActionBar(store: store, detail: d)
-            DanmakuComposer(store: store, aid: d.aid)
           }
           HStack {
             Button {
@@ -544,26 +567,6 @@ struct PlayerPage: View {
                 .help("发布时间 · 当前时区")
             }
           }.font(.callout).foregroundStyle(.secondary)
-          if d.pages.count > 1 && !p.isOffline {
-            Text("分集").font(.headline)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 10)], spacing: 10) {
-              ForEach(d.pages) { page in
-                Button {
-                  p.selectPage(
-                    page.id, api: store.api, resume: store.position(d.video.bvid, cid: page.id))
-                } label: {
-                  HStack {
-                    Text("\(page.number)").foregroundStyle(.secondary)
-                    Text(page.title).lineLimit(1)
-                    Spacer()
-                    if p.selectedCID == page.id {
-                      Image(systemName: "waveform").foregroundStyle(biliPink)
-                    }
-                  }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                }.buttonStyle(.glass).disabled(p.loading)
-              }
-            }
-          }
           if !d.description.isEmpty {
             Text(d.description).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
               .lineSpacing(5).padding(.top, 4)

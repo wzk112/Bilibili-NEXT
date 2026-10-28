@@ -106,11 +106,22 @@ private struct FeedSnapshot: Codable {
   private var loginTask: Task<Void, Never>?
   private var feedID = UUID()
   private var loadingFeedKey: String?
-  private var feedSnapshots: [Destination: FeedSnapshot] = [:]
-  private var feedKey: String { destination.rawValue + "|" + activeQuery + "|\(selectedFolder)|\(selectedRegion)|\(searchOptions)|\(libraryQuery)" }
+  private var feedSnapshots: [String: FeedSnapshot] = [:]
+  private var browsePositions: [String: BrowsePosition] = [:]
+  var browseKey: String { feedOwner + "|" + feedKey }
+  var browsePosition: BrowsePosition {
+    if let memory = browsePositions[browseKey] { return memory }
+    let memory = BrowsePosition(); browsePositions[browseKey] = memory; return memory
+  }
+  private var feedKey: String {
+    destination.rawValue + "|" + activeQuery
+      + "|\(destination == .favorites ? selectedFolder : 0)|\(destination == .regions ? selectedRegion : 0)"
+      + "|\(activeQuery.isEmpty ? "" : String(describing: searchOptions))|\(libraryQuery)"
+  }
   private var feedOwner: String { api.cookies["DedeUserID"] ?? "guest" }
   init() {
     guide.store = self
+    destination = Destination(rawValue: BrowsePreferences().resolvedStart.title) ?? .recommend
     if let data = UserDefaults.standard.data(forKey: "history") {
       history = (try? JSONDecoder().decode([HistoryEntry].self, from: data)) ?? []
     }
@@ -124,7 +135,11 @@ private struct FeedSnapshot: Codable {
       guard let self else { return }
       if UserDefaults.standard.bool(forKey: "loopVideo") {
         self.playback.seek(to: 0); self.playback.player.playImmediately(atRate: self.playback.speed)
-      } else if UserDefaults.standard.bool(forKey: "autoPlayNext") { self.playNext(present: self.showPlayer) }
+      } else if let next = PlaybackSequence.next(detail: self.playback.detail, cid: self.playback.selectedCID,
+        queue: self.playQueue, parts: (UserDefaults.standard.object(forKey: "autoPlayParts") == nil || UserDefaults.standard.bool(forKey: "autoPlayParts")),
+        collection: UserDefaults.standard.bool(forKey: "autoPlayNext")) {
+        self.playQueueItem(next, present: self.showPlayer, automatic: true)
+      }
     }
   }
   func start() async {
@@ -136,7 +151,7 @@ private struct FeedSnapshot: Codable {
     if UserDefaults.standard.string(forKey: "danmakuCloudOwner") != feedOwner {
       UserDefaults.standard.removeObject(forKey: "danmakuCloudRules")
     }
-    if let data = UserDefaults.standard.data(forKey: "homeFeedSnapshot"),
+    if destination == .recommend, let data = UserDefaults.standard.data(forKey: "homeFeedSnapshot"),
       let cached = try? JSONDecoder().decode(FeedSnapshot.self, from: data),
       cached.owner == feedOwner, Date().timeIntervalSince(cached.date) < 86_400 {
       videos = cached.items
@@ -155,6 +170,7 @@ private struct FeedSnapshot: Codable {
       return
     }
     guard !busy || loadingFeedKey != feedKey else { return }
+    browsePosition.reset()
     feedTask?.cancel()
     feedID = UUID()
     let token = feedID
@@ -281,7 +297,7 @@ private struct FeedSnapshot: Codable {
     navigationRevision += 1
     profileTarget = ProfileTarget(id: mid)
   }
-  func open(_ bvid: String, initialCID: Int? = nil, keepQueue: Bool = false, present: Bool = true) {
+  func open(_ bvid: String, initialCID: Int? = nil, keepQueue: Bool = false, present: Bool = true, continuing: Bool = false) {
     isPlaybackOpen = true
     if !keepQueue { playQueue = []; queueTitle = "" }
     extras.reset()
@@ -290,35 +306,34 @@ private struct FeedSnapshot: Codable {
     comments.stop()
     danmaku.stop()
     if present { showPlayer = true; playerFocus += 1; playback.focusPlayer() }
-    playback.open(bvid, api: api, initialCID: initialCID) { [weak self] cid in self?.position(bvid, cid: cid) ?? 0 }
+    playback.open(bvid, api: api, initialCID: initialCID, restoring: continuing ? PlaybackResume(position: 0, playing: true) : nil) { [weak self] cid in self?.position(bvid, cid: cid) ?? 0 }
   }
   var currentQueue: [PlaybackQueueItem] {
+    let parts = PlaybackSequence.parts(playback.detail)
+    if !parts.isEmpty { return parts }
     if !playQueue.isEmpty { return playQueue }
-    if let detail = playback.detail, detail.pages.count > 1 {
-      return detail.pages.map { PlaybackQueueItem(bvid: detail.video.bvid, cid: $0.id, title: $0.title) }
-    }
     return playback.detail?.collection?.items ?? playQueue
   }
   var currentQueueTitle: String {
+    if (playback.detail?.pages.count ?? 0) > 1 { return "视频分 P" }
     if !playQueue.isEmpty { return queueTitle.isEmpty ? "播放列表" : queueTitle }
-    if (playback.detail?.pages.count ?? 0) > 1 { return "分集" }
     return playback.detail?.collection?.title ?? "播放列表"
   }
   private var queueIndex: Int? {
     currentQueue.firstIndex { $0.bvid == playback.detail?.video.bvid && ($0.cid == nil || $0.cid == playback.selectedCID) }
   }
-  var hasNextVideo: Bool { queueIndex.map { currentQueue.indices.contains($0 + 1) } ?? false }
-  func playNext(present: Bool = true) {
-    guard let index = queueIndex, currentQueue.indices.contains(index + 1) else { return }
-    let queue = currentQueue, next = queue[index + 1]
-    queueTitle = currentQueueTitle
-    playQueue = queue
-    playQueueItem(next, present: present)
+  var hasNextVideo: Bool {
+    PlaybackSequence.next(detail: playback.detail, cid: playback.selectedCID, queue: playQueue, parts: true, collection: true) != nil
   }
-  func playQueueItem(_ item: PlaybackQueueItem, present: Bool = true) {
+  func playNext(present: Bool = true) {
+    guard let next = PlaybackSequence.next(detail: playback.detail, cid: playback.selectedCID,
+      queue: playQueue, parts: true, collection: true) else { return }
+    playQueueItem(next, present: present, automatic: true)
+  }
+  func playQueueItem(_ item: PlaybackQueueItem, present: Bool = true, automatic: Bool = false) {
     if item.bvid == playback.detail?.video.bvid, let cid = item.cid {
-      playback.selectPage(cid, api: api, resume: position(item.bvid, cid: cid))
-    } else { open(item.bvid, initialCID: item.cid, keepQueue: true, present: present) }
+      playback.selectPage(cid, api: api, resume: automatic ? 0 : position(item.bvid, cid: cid))
+    } else { open(item.bvid, initialCID: item.cid, keepQueue: true, present: present, continuing: automatic) }
   }
   func openFeedVideo(_ video: Video) {
     let queue = videos.map { PlaybackQueueItem(bvid: $0.bvid, title: $0.title) }
@@ -364,6 +379,11 @@ private struct FeedSnapshot: Codable {
     }
   }
   func navigate(_ dest: Destination) {
+    if destination == dest && activeQuery.isEmpty {
+      if showPlayer { leavePlayer() }
+      return
+    }
+    rememberFeed()
     searchUsers = []; libraryQuery = ""
     feedTask?.cancel(); feedID = UUID(); busy = false; loadingFeedKey = nil
     videoActions.clear()
@@ -378,8 +398,8 @@ private struct FeedSnapshot: Codable {
     comments.stop()
     danmaku.stop()
     playback.personAvoidance.stop()
-    if let cached = feedSnapshots[dest], cached.owner == feedOwner,
-      Date().timeIntervalSince(cached.date) < 300 {
+    if let cached = feedSnapshots[browseKey], cached.owner == feedOwner,
+      !(dest == .recommend && UserDefaults.standard.bool(forKey: "refreshHomeOnReturn")) {
       videos = cached.items; page = cached.page; hasMore = cached.hasMore; error = nil
     } else if [.recommend, .popular, .regions, .dynamic, .favorites, .later].contains(dest) { reload() }
   }
@@ -392,6 +412,7 @@ private struct FeedSnapshot: Codable {
     navigationRevision += 1; showPlayer = false
     playback.saveCurrentProgress(); playback.personAvoidance.stop()
     danmaku.stop(); comments.stop()
+    if destination == .recommend && activeQuery.isEmpty && UserDefaults.standard.bool(forKey: "refreshHomeOnReturn") { reload() }
   }
   func closeMiniPlayer() {
     playback.stop(); isPlaybackOpen = false; showPlayer = false
@@ -400,13 +421,18 @@ private struct FeedSnapshot: Codable {
   }
   func selectRegion(_ id: Int) {
     guard selectedRegion != id else { return }
+    rememberFeed()
     selectedRegion = id
-    navigate(.regions)
+    videos = []; error = nil
+    if let cached = feedSnapshots[browseKey], cached.owner == feedOwner {
+      feedTask?.cancel(); feedID = UUID(); busy = false; loadingFeedKey = nil
+      videos = cached.items; page = cached.page; hasMore = cached.hasMore
+    } else { reload() }
   }
   private func rememberFeed() {
-    guard activeQuery.isEmpty, [.recommend, .popular].contains(destination), !videos.isEmpty, !busy else { return }
+    guard activeQuery.isEmpty, [.recommend, .popular, .regions].contains(destination), !videos.isEmpty, !busy else { return }
     let snapshot = FeedSnapshot(items: videos, page: page, hasMore: hasMore, date: Date(), owner: feedOwner)
-    feedSnapshots[destination] = snapshot
+    feedSnapshots[browseKey] = snapshot
     if destination == .recommend, page == 1, let data = try? JSONEncoder().encode(snapshot) {
       UserDefaults.standard.set(data, forKey: "homeFeedSnapshot")
     }
@@ -501,7 +527,7 @@ private struct FeedSnapshot: Codable {
     UserDefaults.standard.removeObject(forKey: "danmakuCloudRules")
     UserDefaults.standard.removeObject(forKey: "danmakuCloudOwner")
     feedTask?.cancel(); feedID = UUID(); busy = false; loadingFeedKey = nil
-    feedSnapshots.removeAll()
+    feedSnapshots.removeAll(); browsePositions.removeAll()
     UserDefaults.standard.removeObject(forKey: "homeFeedSnapshot")
     videoActions.clear()
     inbox.clear(); messageUnread.reset()

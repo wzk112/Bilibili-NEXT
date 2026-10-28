@@ -306,6 +306,7 @@ struct MobileLogin: View {
 }
 struct MobileAccount: View {
   @Bindable var store: Store
+  private var navigation = NavigationCustomization()
   var body: some View {
     List {
       Section {
@@ -338,14 +339,8 @@ struct MobileAccount: View {
           }
         }
       }
-      Section("我的资料库") {
-        NavigationLink("观看记录", systemImage: "clock") { MobileHistory(store: store) }
-        NavigationLink("收藏", systemImage: "star") { MobileFavorites(store: store) }
-        NavigationLink("稍后再看", systemImage: "text.badge.plus") {
-          MobileVideoList(title: "稍后再看", store: store) { page in
-            page == 1 ? try await store.api.later() : []
-          }
-        }
+      if navigation.preferences.visible.contains(where: \.isLibrary) {
+        Section("我的资料库") { MobileLibraryLinks(store: store) }
       }
       Section {
         NavigationLink("设置", systemImage: "gearshape") { MobileSettings(store: store) }
@@ -373,18 +368,34 @@ struct MobileAccount: View {
 struct MobileLibrary: View {
   @Bindable var store: Store
   var body: some View {
-    List {
-      Section {
-        NavigationLink("收藏", systemImage: "star") { MobileFavorites(store: store) }
-        NavigationLink("稍后再看", systemImage: "text.badge.plus") {
-          MobileVideoList(title: "稍后再看", store: store) { page in
-            page == 1 ? try await store.api.later() : []
-          }
-        }
-        NavigationLink("观看记录", systemImage: "clock") { MobileHistory(store: store) }
-        NavigationLink("下载", systemImage: "arrow.down.circle") { MobileDownloadsPage(store: store) }
+    List { Section { MobileLibraryLinks(store: store) } }.navigationTitle("资料库")
+  }
+}
+struct MobileLibraryLinks: View {
+  @Bindable var store: Store
+  private var navigation = NavigationCustomization()
+  var body: some View {
+    ForEach(navigation.preferences.visible.filter(\.isLibrary)) { page in
+      NavigationLink { MobileLibraryDestination(store: store, page: page) } label: {
+        Label(page.title, systemImage: page.symbol)
+      }.accessibilityIdentifier("library-\(page.rawValue)")
+    }
+  }
+}
+struct MobileLibraryDestination: View {
+  @Bindable var store: Store
+  let page: StartPage
+  var body: some View {
+    switch page {
+    case .history: MobileHistory(store: store)
+    case .favorites: MobileFavorites(store: store)
+    case .downloads: MobileDownloadsPage(store: store)
+    case .later:
+      MobileVideoList(title: "稍后再看", store: store) { page in
+        page == 1 ? try await store.api.later() : []
       }
-    }.navigationTitle("资料库")
+    default: MobileAccount(store: store)
+    }
   }
 }
 struct MobileFavorites: View {
@@ -610,9 +621,13 @@ struct MobileProfile: View {
   }
 }
 struct MobileSettings: View {
+  @AppStorage("interfaceAnimations") private var interfaceAnimations = true
   @Bindable var store: Store
   @AppStorage("appearance") private var appearance = "system"
   @AppStorage("autoPlay") private var autoPlay = true
+  @AppStorage("autoPlayParts") private var autoParts = true
+  @AppStorage("autoPlayNext") private var autoNext = false
+  @AppStorage("backgroundPlayback") private var backgroundPlayback = true
   @AppStorage("rememberPosition") private var remember = true
   @AppStorage("syncWatchHistory") private var sync = true
   @AppStorage("videoThreads") private var threads = 4
@@ -632,12 +647,14 @@ struct MobileSettings: View {
   var body: some View {
     Form {
       Section("外观") {
+        Toggle("界面动画", isOn: $interfaceAnimations)
         Picker("颜色模式", selection: $appearance) {
           Text("跟随系统").tag("system")
           Text("浅色").tag("light")
           Text("深色").tag("dark")
         }
       }
+      Section("首页与导航") { BrowsePreferenceFields() }
       Section("播放") {
         Picker("首选编码", selection: $codec) {
           ForEach(VideoCodecPreference.allCases) { Text($0.title).tag($0.rawValue) }
@@ -647,6 +664,12 @@ struct MobileSettings: View {
         Text(VideoCodecPreference.hardwareDecodeSummary + "具体解码方式由系统播放器选择。")
           .font(.caption).foregroundStyle(.secondary)
         Toggle("自动播放", isOn: $autoPlay)
+        Toggle("后台播放", isOn: $backgroundPlayback)
+          .onChange(of: backgroundPlayback) { store.updateBackgroundPlayback() }
+        Toggle("分 P 自动连播", isOn: $autoParts)
+        Toggle("合集与播放列表自动连播", isOn: $autoNext)
+        Text("分 P 按当前视频顺序播放；最后一 P 结束后，仅在开启合集连播时进入下一个视频。单集循环优先于连播。")
+          .font(.caption).foregroundStyle(.secondary)
         Toggle("记住观看位置", isOn: $remember)
         Toggle("同步观看进度到账号", isOn: $sync)
         Stepper("视频加载并发：\(threads)", value: $threads, in: 1...32)
@@ -703,6 +726,7 @@ struct MobileSettings: View {
         Text("面向个人学习与研究，与哔哩哔哩官方无任何关联，未获得官方授权或背书。当前为开发预览版本，源码保留 MIT 授权范围。").font(.footnote)
           .foregroundStyle(.secondary)
         Link("项目主页与版本下载", destination: URL(string: "https://github.com/wzk112/Bilibili-NEXT")!)
+        NavigationLink("更新日志") { MobileChangelog() }
         NavigationLink("开源许可") {
           ScrollView {
             Text(licenses).font(.caption.monospaced()).textSelection(.enabled).padding()
@@ -725,5 +749,30 @@ struct MobileSettings: View {
       Bundle.main.url(forResource: name, withExtension: name == "THIRD_PARTY" ? "md" : "txt")
         .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
     }.joined(separator: "\n\n")
+  }
+}
+
+private struct MobileChangelog: View {
+  @State private var lines: [String] = []
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 12) {
+        ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+          if line.hasPrefix("## ") {
+            Text(String(line.dropFirst(3))).font(.title3.bold()).padding(.top, 12)
+          } else if line.hasPrefix("# ") {
+            Text(String(line.dropFirst(2))).font(.title.bold())
+          } else if line.hasPrefix("- ") {
+            HStack(alignment: .top, spacing: 8) { Text("•"); Text(String(line.dropFirst(2))) }
+          } else if !line.isEmpty { Text(line).foregroundStyle(.secondary) }
+        }
+      }.frame(maxWidth: 840, alignment: .leading).padding(20).frame(maxWidth: .infinity)
+        .textSelection(.enabled)
+    }.navigationTitle("更新日志").navigationBarTitleDisplayMode(.inline)
+      .task {
+        let text = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md")
+          .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? "暂时无法读取更新日志。"
+        lines = text.components(separatedBy: .newlines)
+      }
   }
 }

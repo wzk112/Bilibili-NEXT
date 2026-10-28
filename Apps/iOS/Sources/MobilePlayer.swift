@@ -227,6 +227,7 @@ struct MobileMiniPlayer: View {
   }
 }
 struct MobilePlayerContent: View {
+  @Environment(\.columnNavigation) private var columns
   @Bindable var store: Store
   @Bindable var visit: MobileVideoVisit
   @State private var interaction: String?
@@ -234,10 +235,11 @@ struct MobilePlayerContent: View {
   @State private var details = false
   @State private var danmakuList = false
   @State private var danmakuSettings = false
-  @State private var queueList = false
+  @State private var queueList: MobileQueueKind?
   @State private var dmText = ""
   @AppStorage("danmakuEnabled") private var dmEnabled = true
   @AppStorage("autoPlayNext") private var autoNext = false
+  @AppStorage("autoPlayParts") private var autoParts = true
   @AppStorage("loopVideo") private var loop = false
   private var active: Bool {
     store.playerNavigation.active == visit.id || store.playerNavigation.root == nil
@@ -306,7 +308,7 @@ struct MobilePlayerContent: View {
         }
         .sheet(isPresented: $details) { MobilePlaybackDetails(store: store) }
         .sheet(isPresented: $danmakuSettings) { MobileDanmakuSettings() }
-        .sheet(isPresented: $queueList) { MobileQueueList(store: store) }
+        .sheet(item: $queueList) { MobileQueueList(store: store, kind: $0) }
         .sheet(isPresented: $danmakuList) {
           NavigationStack {
             List {
@@ -348,12 +350,13 @@ struct MobilePlayerContent: View {
     }
   }
   @ViewBuilder private var playerLayout: some View {
-    if UIDevice.current.userInterfaceIdiom == .pad {
+    if columns || UIDevice.current.userInterfaceIdiom == .pad {
       GeometryReader { geometry in
         ScrollView {
           VStack(alignment: .leading, spacing: 20) {
             video.frame(height: min(min(1280, max(0, geometry.size.width - 40)) * 9 / 16,
               max(180, geometry.size.height - 170)))
+            if let detail = displayedDetail, detail.aid > 0 { danmakuInput(detail) }
             information
           }.frame(maxWidth: 1280).padding(20).frame(maxWidth: .infinity)
         }.scrollDismissesKeyboard(.interactively).scrollPosition($visit.scroll)
@@ -363,6 +366,7 @@ struct MobilePlayerContent: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 18) {
           video.aspectRatio(16 / 9, contentMode: .fit)
+          if let detail = displayedDetail, detail.aid > 0 { danmakuInput(detail) }
           information
         }.padding(16)
       }.scrollDismissesKeyboard(.interactively).scrollPosition($visit.scroll)
@@ -417,7 +421,6 @@ struct MobilePlayerContent: View {
         }
         if detail.aid > 0 {
           actionBar(detail)
-          danmakuInput(detail)
         }
         Picker("内容", selection: $visit.section) {
           Text("简介").tag(0)
@@ -443,7 +446,8 @@ struct MobilePlayerContent: View {
     ScrollView(.horizontal, showsIndicators: false) {
       HStack(spacing: 12) {
           Menu {
-            Toggle("自动下一集", isOn: $autoNext)
+            Toggle("分 P 自动连播", isOn: $autoParts)
+            Toggle("合集与播放列表自动连播", isOn: $autoNext)
             Toggle("单集循环", isOn: $loop)
             if store.hasNext { Button("下一集") { store.next() } }
             Button("弹幕列表") { danmakuList = true }
@@ -478,7 +482,7 @@ struct MobilePlayerContent: View {
         TextField(
           "发一条弹幕",
           text: Binding(get: { store.danmaku.message }, set: { store.danmaku.message = $0 })
-        ).textFieldStyle(.roundedBorder)
+        ).textFieldStyle(.roundedBorder).accessibilityIdentifier("danmaku-input")
         Button("发送") {
           if store.account == nil {
             store.login()
@@ -498,6 +502,20 @@ struct MobilePlayerContent: View {
       }
     }
   }
+  private func sequenceButton(_ kind: MobileQueueKind, title: String, subtitle: String) -> some View {
+    Button { queueList = kind } label: {
+      HStack(spacing: 12) {
+        Image(systemName: kind == .parts ? "rectangle.split.3x1" : "rectangle.stack").font(.title2)
+        VStack(alignment: .leading, spacing: 6) {
+          Text(title).font(.headline)
+          Text(subtitle).font(.caption).foregroundStyle(.secondary)
+        }
+        Spacer(minLength: 4)
+        Image(systemName: "chevron.right")
+      }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary, in: .rect(cornerRadius: 14))
+    }.buttonStyle(InterfacePressStyle()).accessibilityIdentifier("sequence-" + kind.rawValue)
+  }
   @ViewBuilder private func description(_ detail: Detail) -> some View {
     let subtitle = store.extras.text(at: store.playback.positionSeconds)
     if !subtitle.isEmpty {
@@ -505,29 +523,14 @@ struct MobilePlayerContent: View {
         .regularMaterial, in: .rect(cornerRadius: 12)
       ).accessibilityLabel("当前字幕：" + subtitle)
     }
-    if !store.currentQueue.isEmpty {
-      Button {
-        queueList = true
-      } label: {
-        HStack(spacing: 12) {
-          Image(systemName: "list.bullet.rectangle").font(.title2)
-          VStack(alignment: .leading, spacing: 6) {
-            Text("\(detail.collection?.title ?? "选集") · \(store.currentQueue.count) 集").font(
-              .headline)
-            if let index = store.currentQueue.firstIndex(where: {
-              $0.bvid == detail.video.bvid
-                && ($0.cid == nil || $0.cid == store.playback.selectedCID)
-            }) {
-              Text("正在播放：第 \(index + 1) 集 · \(store.currentQueue[index].title)")
-                .font(.caption).foregroundStyle(.secondary).lineLimit(2)
-            }
-          }
-          Spacer(minLength: 4)
-          Image(systemName: "chevron.right").foregroundStyle(.secondary)
-        }
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary, in: .rect(cornerRadius: 14))
-      }.buttonStyle(.plain).accessibilityIdentifier("episode-list-button")
+    if detail.pages.count > 1 {
+      sequenceButton(.parts, title: "分 P · \(detail.pages.count) P", subtitle: "当前视频的不同分段")
+    }
+    if let collection = detail.collection, !collection.items.isEmpty {
+      sequenceButton(.collection, title: "合集 · " + collection.title, subtitle: "\(collection.items.count) 个视频")
+    }
+    if !store.queue.isEmpty && detail.collection == nil {
+      sequenceButton(.playlist, title: "播放列表", subtitle: "\(store.queue.count) 个视频")
     }
     Text(detail.description).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
     if !store.extras.tags.isEmpty {
@@ -553,23 +556,48 @@ struct MobilePlayerContent: View {
     }
   }
 }
+enum MobileQueueKind: String, Identifiable {
+  case parts, collection, playlist
+  var id: String { rawValue }
+}
 struct MobileQueueList: View {
   @Bindable var store: Store
+  let kind: MobileQueueKind
+  @AppStorage("autoPlayParts") private var autoParts = true
+  @AppStorage("autoPlayNext") private var autoNext = false
+  private var items: [PlaybackQueueItem] {
+    switch kind {
+    case .parts: PlaybackSequence.parts(store.playback.detail)
+    case .collection: store.playback.detail?.collection?.items ?? []
+    case .playlist: store.queue
+    }
+  }
+  private var title: String {
+    switch kind {
+    case .parts: "分 P"
+    case .collection: "合集 · " + (store.playback.detail?.collection?.title ?? "")
+    case .playlist: "播放列表"
+    }
+  }
   @Environment(\.dismiss) private var dismiss
   private func isCurrent(_ item: PlaybackQueueItem) -> Bool {
     item.bvid == store.playback.detail?.video.bvid
-      && (item.cid == nil || item.cid == store.playback.selectedCID)
+      && (kind != .parts || item.cid == store.playback.selectedCID)
   }
   var body: some View {
     NavigationStack {
       ScrollViewReader { proxy in
         List {
           Section {
-            ForEach(Array(store.currentQueue.enumerated()), id: \.element.id) { index, item in
+            if kind == .parts { Toggle("分 P 自动连播", isOn: $autoParts) }
+            else { Toggle("合集与播放列表自动连播", isOn: $autoNext) }
+          }
+          Section {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
               Button {
                 if !isCurrent(item) {
-                  store.queue = store.currentQueue
-                  store.open(item.bvid, initialCID: item.cid)
+                  if kind != .parts { store.queue = items }
+                  store.advance(to: item)
                 }
                 dismiss()
               } label: {
@@ -589,14 +617,14 @@ struct MobileQueueList: View {
               }.buttonStyle(.plain).id(item.id)
             }
           } header: {
-            Text("共 \(store.currentQueue.count) 集")
+            Text(kind == .parts ? "共 \(items.count) P" : "共 \(items.count) 个视频")
           }
         }.onAppear {
-          if let current = store.currentQueue.first(where: isCurrent) {
+          if let current = items.first(where: isCurrent) {
             proxy.scrollTo(current.id, anchor: .center)
           }
         }
-      }.navigationTitle(store.playback.detail?.collection?.title ?? "选集")
+      }.navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline).toolbar { Button("完成") { dismiss() } }
     }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
   }

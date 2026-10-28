@@ -1,3 +1,35 @@
+# Bilibili NEXT 1.1.3 · 浏览位置、导航自定义与多端体验
+
+2026-10-28。macOS 1.1.3（build 14，Apple silicon，macOS 26+）；iOS / iPadOS 0.1.3 开发预览（build 7，arm64，系统 26+）。
+
+## 本次更新
+
+- 返回推荐、热门和分区时保留列表、分页及浏览位置；新增“返回首页时自动刷新”，默认关闭。
+- Mac／iPad 侧栏与手机导航支持逐项显示／隐藏、排序和选择启动页，始终保留设置入口。
+- iPad 点击侧栏直接进入目标页面，修复详情导航残留；改进常驻标题、玻璃背景和矮窗口滚动。Duo 展开后保留手机导航。
+- 分 P 与合集分开展示，独立控制连播；先播放同一视频的下一 P，再按合集设置决定是否继续下一个视频。
+- 弹幕输入框移到画面下方；移动端补载弹幕时不再挤掉正在显示的文字，小视频按有效高度安排轨道。
+- 统一页面、设置和小窗过渡，支持关闭界面动画和系统“减少动态效果”。
+- 移动端增加后台播放设置、系统播放信息和远程播放控制。
+
+## 下载与安装
+
+- Mac：`Bilibili-NEXT-1.1.3-macOS-arm64.dmg` 或 `.zip`。使用开发签名，未进行 Developer ID 公证。
+- iPhone／iPad：`Bilibili-NEXT-0.1.3-iOS-self-sign.ipa`，需要使用自己的账号或证书重新签名安装。包含无个人证书的临时签名结构；没有 TestFlight／App Store 分发。
+- 源码：`Bilibili-NEXT-source-1.1.3.zip`；下载后可按 `Bilibili-NEXT-1.1.3-SHA256SUMS.txt` 校验。
+
+升级时尽量沿用原 Bundle ID 和签名身份以保留数据。自签说明见 [IOS_INSTALL.md](https://github.com/wzk112/Bilibili-NEXT/blob/main/IOS_INSTALL.md)，构建说明见 [CONTRIBUTING.md](https://github.com/wzk112/Bilibili-NEXT/blob/main/CONTRIBUTING.md)。
+
+## 验证范围与已知限制
+
+已验证浏览位置、导航设置、分 P 与合集入口，检查实际 Mac、iPhone、iPad 播放画面；Duo 开合使用模拟器录制。完整测试及设备证据见 [QA.md](https://github.com/wzk112/Bilibili-NEXT/blob/main/QA.md)。
+
+后台播放已在有限真机／模拟器样本验证；长时锁屏、音频中断及部分在线跨 P 连续后台场景尚未完成完整真机验收。移动端下载仍为前台任务，系统挂起后不保证继续。弹幕下载失败的既有反馈保留，未在本次更新中修复。不同设备、账号、片源和网络的结果可能不同。
+
+项目面向个人学习研究，与哔哩哔哩官方无关联。源码保留 MIT 许可，组件和参考项目见 [THIRD_PARTY.md](https://github.com/wzk112/Bilibili-NEXT/blob/main/THIRD_PARTY.md)。
+
+---
+
 # Bilibili NEXT 1.1.1 · 播放修复与消息改进
 
 2026-10-25。macOS 1.1.1（build 12，Apple silicon，macOS 26+）；iOS / iPadOS 0.1.1 开发预览（build 5，arm64，系统 26+）。

@@ -82,6 +82,17 @@ struct PlaybackResume {
     }
     #endif
   }
+  func pausePlayback() {
+    pendingResume?.playing = false
+    player.pause()
+    saveCurrentProgress()
+  }
+  func continuePlayback() {
+    if pendingResume != nil {
+      pendingResume?.playing = true
+      if player.currentItem?.status == .readyToPlay { player.playImmediately(atRate: speed) }
+    } else if player.rate == 0 { togglePlayback() }
+  }
   func togglePlayback() {
     if pendingResume != nil {
       pendingResume?.playing.toggle()

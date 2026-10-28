@@ -5,6 +5,7 @@
   /// Synthetic UI scenarios. This session intercepts every request; no real account is read or written.
   final class MobileUIFixture: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
+    private static var feedLoads: [String: Int] = [:]
     private static var readKinds: Set<String> = []
     private static var failed = false
     private static var loginPollFailed = false
@@ -51,7 +52,15 @@
           duration: 180, views: 100), description: "用于检查逐层返回、评论草稿和阅读位置。",
         pages: [], aid: first ? 123 : 456, ownerID: 11,
         copyright: ProcessInfo.processInfo.arguments.contains("--qa-repost") ? 2 : 1)
-      store.playback.selectedCID = 0
+      if ProcessInfo.processInfo.arguments.contains("--qa-sequences") {
+        let video = store.playback.detail!.video
+        store.playback.detail = Detail(video: video, description: "分 P 与合集同时存在的测试视频",
+          pages: [Page(id: 101, title: "第一部分", number: 1), Page(id: 102, title: "第二部分", number: 2)], aid: 123, ownerID: 11,
+          collection: VideoCollection(title: "测试合集", items: [
+            PlaybackQueueItem(bvid: visit.bvid, cid: 101, title: "当前视频"),
+            PlaybackQueueItem(bvid: "BV1yy411c7mD", cid: 201, title: "合集下一视频")]))
+      }
+      store.playback.selectedCID = ProcessInfo.processInfo.arguments.contains("--qa-sequences") ? 101 : 0
       store.playback.positionSeconds = visit.resume?.position ?? 42
       store.playback.isPlaying = false
     }
@@ -87,10 +96,17 @@
       let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
       let system = query.contains { $0.name == "session_type" && $0.value == "7" }
       let populated = ProcessInfo.processInfo.arguments.contains("--qa-ui-pages")
-      let videos: [[String: Any]] = (1...6).map { index in
-        [
+      let retention = ProcessInfo.processInfo.arguments.contains("--qa-feed-retention")
+      let page = Int(query.first { ["fresh_idx", "pn", "display_id"].contains($0.name) }?.value ?? "1") ?? 1
+      let feedKey = path + (query.first { $0.name == "from_region" }?.value ?? "")
+      if retention && page == 1 { Self.feedLoads[feedKey, default: 0] += 1 }
+      let generation = Self.feedLoads[feedKey, default: 1]
+      let count = retention ? 24 : 6
+      let videos: [[String: Any]] = (1...count).map { rawIndex in
+        let index = rawIndex + (retention ? (page - 1) * count : 0)
+        return [
           "bvid": index == 1 ? "BV1xx411c7mD" : "BV1yy411c7mD\(index)",
-          "title": index == 1 ? "一条很长的视频标题，用于检查多行截断、封面和上下间距" : "界面测试视频 \(index)",
+          "title": retention ? "浏览测试 \(index) · 刷新 \(generation)" : index == 1 ? "一条很长的视频标题，用于检查多行截断、封面和上下间距" : "界面测试视频 \(index)",
           "owner": ["name": "测试 UP 主"], "duration": 180, "pic": "",
         ]
       }

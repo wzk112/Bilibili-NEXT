@@ -55,9 +55,9 @@ struct GuidePage: Identifiable {
 }
 
 enum GuideContent {
-  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.2"
+  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.3"
   // Increment only when guide content changes, not on every build.
-  static let revision = "2026-10-25-release-1.1.2"
+  static let revision = "2026-10-28-release-1.1.3"
   static let tutorial: [GuidePage] = [
     .init(id: "account", title: "登录与账号", location: "左下角账号菜单", symbol: "person.crop.circle", paragraphs: [
       "点击“登录”，用哔哩哔哩 App 扫描二维码，并在手机上确认。同一次扫码会完成浏览与互动所需的登录，凭证保存在本机钥匙串。",
@@ -113,6 +113,13 @@ enum GuideContent {
       "使用指南和更新说明会在首次安装或对应版本首次打开时展示一次。之后可从“帮助”菜单或“设置 → 关于”重新打开。"], settingsTab: 0)
   ]
   static let currentUpdates: [GuidePage] = [
+    .init(id: "update-browse-navigation", title: "保留浏览位置与导航自定义", location: "1.1.3 · 2026-10-28", symbol: "sidebar.left", paragraphs: [
+      "返回推荐、热门和分区时保留列表与浏览位置。设置中可选择返回推荐首页时自动刷新，默认关闭。",
+      "导航项目支持显示、隐藏、排序与选择启动页。Mac 侧栏保留宽松间距；iPad 点击侧栏直接进入对应页面，首页标题常驻显示。"], settingsTab: 0),
+    .init(id: "update-sequence-motion", title: "分 P、弹幕与界面动效", location: "1.1.3 · 2026-10-28", symbol: "play.rectangle", paragraphs: [
+      "分 P 与合集分开展示，自动连播分别设置。弹幕输入移动到画面下方，选集使用圆角玻璃按钮。",
+      "页面、设置和小窗统一使用非线性过渡，支持关闭动画及减少动态效果。移动端补载弹幕不再挤掉正在滚动的文字。",
+      "移动版新增后台播放设置及系统播放控制；Duo 保留手机导航，iPad 使用分栏布局。长时锁屏与音频中断恢复仍在验证。"], settingsTab: 1),
     .init(id: "update-login", title: "登录恢复与移动版修复", location: "1.1.2 · 2026-10-25", symbol: "person.crop.circle", paragraphs: [
       "恢复本机登录后，不再复用恢复前的游客账号查询结果。iPhone 和 iPad 启动时会等待本机凭据读取完成，再检查登录。",
       "联网检查遇到断网或超时时保留本机登录并重试，只有服务端明确返回未登录才提示重新登录。",

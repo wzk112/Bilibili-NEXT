@@ -81,6 +81,8 @@ struct MobileError: View {
   }
 }
 @MainActor @Observable final class VideoListModel {
+  let scroll = BrowsePosition()
+  var returnRevision = 0
   var items: [Video] = []
   var loading = false
   var hasMore = true
@@ -111,7 +113,7 @@ struct MobileError: View {
         return
       }
       items = reset ? unique : items + unique
-      if reset { loadedAt = Date() }
+      if reset { loadedAt = Date(); scroll.reset() }
       page = next
       hasMore = !rows.isEmpty
     } catch {
@@ -140,7 +142,7 @@ struct MobileVideoGrid: View {
           store.open(video.bvid)
         } label: {
           MobileVideoCard(video: video)
-        }.buttonStyle(.plain)
+        }.buttonStyle(InterfacePressStyle())
           .accessibilityIdentifier("video-card-" + video.bvid)
           .contextMenu {
             Button("播放", systemImage: "play") { store.open(video.bvid) }
@@ -174,14 +176,19 @@ struct MobileVideoGrid: View {
 }
 struct MobileVideoList: View {
   let title: String
+  var refreshOnReturn: Bool
+  var showsNavigationTitle: Bool
   @Bindable var store: Store
   let loader: @MainActor (Int) async throws -> [Video]
   @State private var model: VideoListModel
   init(
-    title: String, store: Store, model: VideoListModel? = nil,
+    title: String, store: Store, model: VideoListModel? = nil, refreshOnReturn: Bool = false,
+    showsNavigationTitle: Bool = true,
     loader: @escaping @MainActor (Int) async throws -> [Video]
   ) {
     self.title = title
+    self.refreshOnReturn = refreshOnReturn
+    self.showsNavigationTitle = showsNavigationTitle
     self.store = store
     self.loader = loader
     _model = State(initialValue: model ?? VideoListModel())
@@ -203,16 +210,28 @@ struct MobileVideoList: View {
           Button("加载更多") { Task { await model.load(loader: loader) } }.buttonStyle(.glass).padding()
         }
       }.padding(16)
-    }.navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+    }.modifier(RememberedScroll(memory: model.scroll, tracking: !store.showPlayer && !model.loading))
+      .accessibilityIdentifier("browse-list")
+      .modifier(BrowseNavigationTitle(title: title, enabled: showsNavigationTitle))
       .refreshable { await model.load(reset: true, loader: loader) }
-      .task {
-        if model.items.isEmpty || Date().timeIntervalSince(model.loadedAt ?? .distantPast) > 600 {
-          await model.load(reset: true, loader: loader)
-        }
+      .task(id: store.homeReturnRevision) {
+        let refresh = refreshOnReturn && store.isRecommendedVisible && !store.showPlayer
+          && UserDefaults.standard.bool(forKey: "refreshHomeOnReturn")
+          && model.returnRevision != store.homeReturnRevision
+        model.returnRevision = store.homeReturnRevision
+        if model.loadedAt == nil || refresh { await model.load(reset: true, loader: loader) }
       }
   }
 }
-@MainActor private final class MobileHomeFeeds {
+private struct BrowseNavigationTitle: ViewModifier {
+  let title: String
+  let enabled: Bool
+  func body(content: Content) -> some View {
+    if enabled { content.navigationTitle(title).navigationBarTitleDisplayMode(.inline) }
+    else { content }
+  }
+}
+@MainActor final class MobileHomeFeeds {
   private var models: [String: VideoListModel] = [:]
   private var order: [String] = []
   func model(for key: String) -> VideoListModel {
@@ -227,42 +246,89 @@ struct MobileVideoList: View {
 }
 struct MobileRoot: View {
   @Bindable var store: Store
-  @State private var selectedTab = 0
+  @State private var windowSize = CGSize.zero
+  @State private var selectedTab = BrowsePreferences().resolvedStart.phoneTab
+  @State private var initialLibraryPage: StartPage? = BrowsePreferences().resolvedStart.isLibrary ? BrowsePreferences().resolvedStart : nil
+  private var navigation = NavigationCustomization()
   @AppStorage("appearance") private var appearance = "system"
   var body: some View {
-    Group {
-      if !store.credentialsRestored {
-        ProgressView("恢复登录中").frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else if UIDevice.current.userInterfaceIdiom == .pad {
-        MobileTabletRoot(store: store)
-      } else {
-        phoneTabs.modifier(MobilePlayerAccessory(store: store))
+    GeometryReader { geometry in
+      let tablet = UIDevice.current.userInterfaceIdiom == .pad
+      let size = windowSize == .zero ? geometry.size : windowSize
+      let columns = AdaptiveNavigationLayout.usesColumns(width: size.width, height: size.height, isTablet: tablet)
+      Group {
+        if !store.credentialsRestored {
+          ProgressView("恢复登录中").frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if columns {
+          MobileTabletRoot(store: store)
+        } else {
+          phoneTabs.modifier(MobilePlayerAccessory(store: store))
+        }
+      }
+      .modifier(MobileRootPresentation(store: store, columns: columns))
+      .environment(\.columnNavigation, columns)
+      .onChange(of: columns) { _, value in
+        if !value {
+          selectedTab = store.browseDestination.phoneTab
+          initialLibraryPage = store.browseDestination.isLibrary ? store.browseDestination : nil
+        }
       }
     }
+    .background(MobileWindowSizeReader { windowSize = $0 })
     .tint(biliPink).preferredColorScheme(
       appearance == "system" ? nil : appearance == "dark" ? .dark : .light
     )
-    .modifier(MobileRootPresentation(store: store))
+  }
+  private func tabTitle(_ tab: Int) -> String {
+    switch tab {
+    case 0: "首页"
+    case 1: "动态"
+    case 2: "消息"
+    case 3: "资料库"
+    default: navigation.preferences.allows(.profile) ? "我的" : "设置"
+    }
+  }
+  private func tabSymbol(_ tab: Int) -> String {
+    switch tab {
+    case 0: "house"
+    case 1: "rectangle.stack"
+    case 2: "bubble.left.and.bubble.right"
+    case 3: "square.stack"
+    default: navigation.preferences.allows(.profile) ? "person.crop.circle" : "gearshape"
+    }
   }
   private var phoneTabs: some View {
     TabView(selection: $selectedTab) {
-      Tab("首页", systemImage: "house", value: 0) {
-        NavigationStack { MobileHome(store: store) }
-      }
-      Tab("动态", systemImage: "rectangle.stack", value: 1) {
-        NavigationStack { MobileDynamics(store: store) }
-      }
-      Tab("消息", systemImage: "bubble.left.and.bubble.right", value: 2) {
-        NavigationStack { MobileInbox(store: store) }
-      }.badge(store.messageUnread.counts.total)
-      Tab("资料库", systemImage: "square.stack", value: 3) {
-        NavigationStack { MobileLibrary(store: store) }
-      }
-      Tab("我的", systemImage: "person.crop.circle", value: 4) {
-        NavigationStack { MobileAccount(store: store) }
+      ForEach(navigation.preferences.phoneTabs, id: \.self) { tab in
+        Tab(tabTitle(tab), systemImage: tabSymbol(tab), value: tab) {
+          NavigationStack {
+            switch tab {
+            case 0: MobileHome(store: store)
+            case 1: MobileDynamics(store: store)
+            case 2: MobileInbox(store: store)
+            case 3:
+              MobileLibrary(store: store)
+                .navigationDestination(item: $initialLibraryPage) { MobileLibraryDestination(store: store, page: $0) }
+            default:
+              if navigation.preferences.allows(.profile) { MobileAccount(store: store) }
+              else { MobileSettings(store: store) }
+            }
+          }
+        }.badge(tab == 2 ? store.messageUnread.counts.total : 0)
       }
     }
+    .onChange(of: navigation.preferences) {
+      if !navigation.preferences.phoneTabs.contains(selectedTab) { selectedTab = navigation.preferences.resolvedStart.phoneTab }
+      if let page = initialLibraryPage, !navigation.preferences.allows(page) { initialLibraryPage = nil }
+      store.isRecommendedVisible = selectedTab == 0 && store.phoneHomeTab == 0
+    }
+    .onChange(of: selectedTab) { old, value in
+      store.isRecommendedVisible = value == 0 && store.phoneHomeTab == 0
+      store.browseDestination = value == 0 ? (store.phoneHomeTab == 0 ? .recommend : store.phoneHomeTab == 1 ? .popular : .regions) : value == 1 ? .dynamic : value == 2 ? .messages : value == 3 ? .history : .profile
+      if old != 0 && value == 0 { store.homeReturnRevision += 1 }
+    }
     .onAppear {
+      store.isRecommendedVisible = selectedTab == 0 && store.phoneHomeTab == 0
       #if DEBUG
         if MobileUIFixture.enabled && ProcessInfo.processInfo.arguments.contains("--qa-inbox") {
           selectedTab = 2
@@ -274,15 +340,16 @@ struct MobileRoot: View {
 }
 private struct MobileRootPresentation: ViewModifier {
   @Bindable var store: Store
+  let columns: Bool
   func body(content: Content) -> some View {
     content
       .fullScreenCover(
         isPresented: Binding(
           get: {
-            UIDevice.current.userInterfaceIdiom != .pad && store.showPlayer
+            !columns && store.showPlayer
               && !store.conversationPresented
           },
-          set: { if !store.conversationPresented { store.showPlayer = $0 } }),
+          set: { if !columns && !store.conversationPresented { store.showPlayer = $0 } }),
         onDismiss: { store.playback.saveCurrentProgress() }
       ) {
         MobilePlayerPage(store: store)
@@ -311,37 +378,60 @@ private struct MobileRootPresentation: ViewModifier {
 struct MobileHome: View {
   @Bindable var store: Store
   var destination: Int? = nil
-  @State private var tab = 0
-  @State private var region = 1005
-  @State private var feeds = MobileHomeFeeds()
+  @State private var tab: Int
+  init(store: Store, destination: Int? = nil) {
+    self.store = store
+    self.destination = destination
+    _tab = State(initialValue: store.phoneHomeTab)
+  }
+  private var navigation = NavigationCustomization()
   var body: some View {
     let tab = destination ?? tab
+    let region = store.homeRegion
+    let title = tab == 0 ? "推荐" : tab == 1 ? "热门" : "分区"
     VStack(spacing: 0) {
+      if destination != nil {
+        Text(title).font(.largeTitle.bold())
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 20).padding(.vertical, 16)
+          .accessibilityAddTraits(.isHeader).accessibilityIdentifier("tablet-page-heading")
+      }
       if destination == nil {
         Picker("浏览", selection: $tab) {
-          Text("推荐").tag(0)
-          Text("热门").tag(1)
-          Text("分区").tag(2)
+          ForEach(navigation.preferences.visible.filter(\.isHome)) { page in
+            Text(page.title).tag(page == .recommend ? 0 : page == .popular ? 1 : 2)
+          }
         }.pickerStyle(.segmented).frame(maxWidth: 640)
           .padding(.horizontal).padding(.bottom, 10).frame(maxWidth: .infinity)
       }
       if tab == 2 {
-        Picker("分区", selection: $region) { ForEach(VideoRegion.all) { Text($0.title).tag($0.id) } }
+        Picker("分区", selection: $store.homeRegion) { ForEach(VideoRegion.all) { Text($0.title).tag($0.id) } }
           .pickerStyle(.menu).padding(.horizontal)
       }
-      MobileVideoList(
-        title: tab == 0 ? "推荐" : tab == 1 ? "热门" : "分区", store: store,
-        model: feeds.model(for: "\(tab):\(tab == 2 ? region : 0):\(store.account?.mid ?? 0)")
-      ) { page in
-        if tab == 0 { return try await store.api.recommendations(page: page) }
-        if tab == 1 { return try await store.api.popular(page: page) }
-        return try await store.api.regionVideos(region, page: page)
-      }.id("\(tab):\(region):\(store.account?.mid ?? 0)")
-    }.navigationTitle(
-      destination == nil ? "Bilibili NEXT" : tab == 0 ? "推荐" : tab == 1 ? "热门" : "分区"
-    )
+      ZStack {
+        MobileVideoList(
+          title: tab == 0 ? "推荐" : tab == 1 ? "热门" : "分区", store: store,
+          model: store.homeFeeds.model(for: "\(tab):\(tab == 2 ? region : 0):\(store.account?.mid ?? 0)"),
+          refreshOnReturn: tab == 0, showsNavigationTitle: false
+        ) { page in
+          if tab == 0 { return try await store.api.recommendations(page: page) }
+          if tab == 1 { return try await store.api.popular(page: page) }
+          return try await store.api.regionVideos(region, page: page)
+        }.id("\(tab):\(region):\(store.account?.mid ?? 0)").interfaceTransition()
+      }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
+        .interfaceAnimation(tab).interfaceAnimation(region)
+    }.navigationTitle(destination == nil ? "Bilibili NEXT" : title)
     .navigationBarTitleDisplayMode(.large)
-    .onChange(of: store.account?.mid) { _, _ in feeds = MobileHomeFeeds() }
+    .toolbar(destination == nil ? .automatic : .hidden, for: .navigationBar)
+    .onChange(of: store.account?.mid) { _, _ in store.homeFeeds = MobileHomeFeeds() }
+    .onChange(of: navigation.preferences) { normalizeTab() }
+    .onChange(of: self.tab) { old, value in
+      store.phoneHomeTab = value
+      store.browseDestination = value == 0 ? .recommend : value == 1 ? .popular : .regions
+      store.isRecommendedVisible = value == 0
+      if old != 0 && value == 0 { store.homeReturnRevision += 1 }
+    }
+    .onAppear { normalizeTab(); store.phoneHomeTab = destination ?? self.tab }
     .toolbar {
       if destination == nil {
         ToolbarItem(placement: .topBarTrailing) {
@@ -352,6 +442,13 @@ struct MobileHome: View {
           }.accessibilityLabel("搜索")
         }
       }
+    }
+  }
+  private func normalizeTab() {
+    guard destination == nil else { return }
+    let page: StartPage = tab == 0 ? .recommend : tab == 1 ? .popular : .regions
+    if !navigation.preferences.allows(page), let first = navigation.preferences.visible.first(where: \.isHome) {
+      tab = first == .recommend ? 0 : first == .popular ? 1 : 2
     }
   }
 }

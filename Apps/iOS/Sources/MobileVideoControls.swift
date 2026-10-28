@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Inline and fullscreen use the same controls and long-press surface.
 struct MobileVideoPlayer: View {
+  @Environment(\.columnNavigation) private var columns
   @Bindable var store: Store
   @State private var fullscreen = false
   @State private var automaticFullscreen = false
@@ -19,7 +20,7 @@ struct MobileVideoPlayer: View {
     }
     .onDisappear { onScreen = false }
     .task {
-      guard UIDevice.current.userInterfaceIdiom == .phone, !checkedInitialOrientation else { return }
+      guard UIDevice.current.userInterfaceIdiom == .phone, !columns, !checkedInitialOrientation else { return }
       checkedInitialOrientation = true
       // Let the presenting player finish its transition before opening another cover.
       do { try await Task.sleep(for: .milliseconds(400)) } catch { return }
@@ -32,7 +33,7 @@ struct MobileVideoPlayer: View {
     }
     .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
       // iPad rotation and multitasking resize the inline player; fullscreen is explicit.
-      guard UIDevice.current.userInterfaceIdiom == .phone else { return }
+      guard UIDevice.current.userInterfaceIdiom == .phone, !columns else { return }
       let orientation = UIDevice.current.orientation
       store.orientationDiagnostics = ["device": String(orientation.rawValue), "onScreen": String(onScreen), "showPlayer": String(store.showPlayer)]
       if orientation.isPortrait {

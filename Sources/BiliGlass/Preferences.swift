@@ -27,6 +27,8 @@ struct PreferencesView: View {
   @AppStorage("rememberPosition") private var rememberPosition = true
   @AppStorage("syncWatchHistory") private var syncWatchHistory = true
   @AppStorage("autoPlay") private var autoPlay = true
+  @AppStorage("autoPlayParts") private var autoParts = true
+  @AppStorage("autoPlayNext") private var autoNext = false
   @AppStorage("videoCodecPreference") private var codec = "auto"
   @AppStorage("commentSort") private var commentSort = 1
   @State private var backgroundError: String?
@@ -69,8 +71,9 @@ struct PreferencesView: View {
         }.padding(14).frame(width: 200).frame(maxHeight: .infinity).floatingGlass(AppLayout.panelRadius)
         VStack(alignment: .leading, spacing: 16) {
           Text(categories[store.preferencesTab].0).font(.title2.weight(.semibold)).padding(.horizontal, 6).padding(.top, 4)
-          ScrollView {
-            GlassEffectContainer(spacing: 16) {
+          ZStack(alignment: .top) {
+            ScrollView {
+              GlassEffectContainer(spacing: 16) {
               VStack(alignment: .leading, spacing: 16) {
                 switch store.preferencesTab {
                 case 0: appearanceSettings
@@ -79,10 +82,12 @@ struct PreferencesView: View {
                 case 3: cacheSettings
                 default: aboutSettings
                 }
-              }.padding(AppLayout.pageInset).id(store.preferencesTab).transition(.opacity)
-                .animation(reduceMotion || !animations ? nil : .smooth(duration: 0.22), value: store.preferencesTab)
-            }
-          }.scrollIndicators(.hidden).clipShape(.rect(cornerRadius: 24))
+                }.padding(AppLayout.pageInset)
+              }
+            }.scrollIndicators(.hidden)
+              .id(store.preferencesTab).interfaceTransition()
+          }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipShape(.rect(cornerRadius: 24)).interfaceAnimation(store.preferencesTab)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
       }.padding(24)
     }.frame(minWidth: 940, idealWidth: 980, minHeight: 700, idealHeight: 740).appAppearance().tint(biliPink)
@@ -106,6 +111,8 @@ struct PreferencesView: View {
         Text(VideoCodecPreference.hardwareDecodeSummary + "具体解码方式由系统播放器选择。")
           .font(.caption).foregroundStyle(.secondary)
         toggleRow("打开视频后自动播放", value: $autoPlay)
+        toggleRow("分 P 自动连播", value: $autoParts)
+        toggleRow("合集与播放列表自动连播", value: $autoNext)
         toggleRow("记住观看位置", value: $rememberPosition)
         toggleRow("同步观看进度到账号", value: $syncWatchHistory)
         Text("登录后同步新观看的视频；关闭后仅保存在本机。历史页始终保留本机记录入口。")
@@ -140,6 +147,7 @@ struct PreferencesView: View {
   }
   private var appearanceSettings: some View {
     VStack(spacing: 18) {
+      section("首页与导航") { BrowsePreferenceFields() }
       section("外观") {
         Picker("颜色模式", selection: $appearance) {
           Text("跟随系统").tag("system"); Text("浅色").tag("light"); Text("深色").tag("dark")

@@ -14,8 +14,7 @@ enum AppLayout {
 /// Neutral press feedback without inheriting the window's accent tint.
 struct NavigationButtonStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
-    configuration.label.foregroundStyle(.primary)
-      .opacity(configuration.isPressed ? 0.72 : 1)
+    InterfacePressStyle().makeBody(configuration: configuration).foregroundStyle(.primary)
   }
 }
 

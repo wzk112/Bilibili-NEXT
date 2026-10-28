@@ -1,4 +1,5 @@
 import AVKit
+import MediaPlayer
 import CoreImage.CIFilterBuiltins
 import SwiftUI
 import WebKit
@@ -70,7 +71,15 @@ struct WebTarget: Identifiable {
   var favoriteRevision = 0
   var danmakuPerformance: [String: Double] = [:]
   var orientationDiagnostics: [String: String] = [:]
-  var showPlayer = false
+  var homeFeeds = MobileHomeFeeds()
+  var homeReturnRevision = 0
+  var browseDestination = BrowsePreferences().resolvedStart
+  var homeRegion = 1005
+  var phoneHomeTab = BrowsePreferences().resolvedStart == .popular ? 1 : BrowsePreferences().resolvedStart == .regions ? 2 : 0
+  var isRecommendedVisible = BrowsePreferences().resolvedStart == .recommend
+  var showPlayer = false {
+    didSet { if oldValue && !showPlayer { homeReturnRevision += 1 } }
+  }
   var conversationPresented = false
   var isPlaybackOpen = false
   var showLogin = false
@@ -91,6 +100,9 @@ struct WebTarget: Identifiable {
   private var qaTransferSamples: [[String: Any]] = []
   private var audioTask: Task<Void, Never>?
   private var audioNotifications: [NSObjectProtocol] = []
+  var nowPlaying: MobileNowPlaying?
+  private var resumeAfterInterruption = false
+  var lastAudioEvent = "none"
   init() {
     UIDevice.current.beginGeneratingDeviceOrientationNotifications()
     #if DEBUG
@@ -121,8 +133,10 @@ struct WebTarget: Identifiable {
       if UserDefaults.standard.bool(forKey: "loopVideo") {
         self.playback.seek(to: 0)
         self.playback.player.playImmediately(atRate: self.playback.speed)
-      } else if UserDefaults.standard.bool(forKey: "autoPlayNext") {
-        self.next()
+      } else if let item = PlaybackSequence.next(detail: self.playback.detail, cid: self.playback.selectedCID,
+        queue: self.queue, parts: (UserDefaults.standard.object(forKey: "autoPlayParts") == nil || UserDefaults.standard.bool(forKey: "autoPlayParts")),
+        collection: UserDefaults.standard.bool(forKey: "autoPlayNext")) {
+        self.advance(to: item)
       }
     }
     audioNotifications.append(
@@ -130,12 +144,21 @@ struct WebTarget: Identifiable {
         forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
       ) { [weak self] note in
         let type = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+        let options = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
         Task { @MainActor in
           guard let self else { return }
+          self.lastAudioEvent = "interruption-\(type ?? 99)-options-\(options)"
           self.playback.endTemporarySpeed()
           if type == AVAudioSession.InterruptionType.began.rawValue {
-            self.playback.player.pause()
-            self.playback.saveCurrentProgress()
+            self.resumeAfterInterruption = self.playback.pendingResume?.playing ?? (self.playback.player.rate != 0)
+            self.playback.pausePlayback()
+          } else {
+            let resume = self.resumeAfterInterruption
+            self.resumeAfterInterruption = false
+            if resume && AVAudioSession.InterruptionOptions(rawValue: options).contains(.shouldResume)
+              && (UIApplication.shared.applicationState != .background || self.backgroundPlaybackEnabled) {
+              self.resumePlayback()
+            }
           }
         }
       })
@@ -146,11 +169,14 @@ struct WebTarget: Identifiable {
         let reason = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
         if reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue {
           Task { @MainActor in
-            self?.playback.player.pause()
-            self?.playback.saveCurrentProgress()
+            self?.lastAudioEvent = "route-old-device-unavailable"
+            self?.resumeAfterInterruption = false
+            self?.playback.pausePlayback()
           }
         }
       })
+    updateBackgroundPlayback()
+    nowPlaying = MobileNowPlaying(store: self)
   }
   func start() async {
     guard !started else { return }
@@ -241,6 +267,10 @@ struct WebTarget: Identifiable {
           guard let self, !Task.isCancelled else { return }
           await self.writeQA()
           #if DEBUG
+            if args.contains("--qa-sequence-check") && sample == 20 && !self.playback.loading && self.playback.durationSeconds > 5 {
+              await self.writeQA(suffix: "-before-next")
+              self.playback.seek(to: self.playback.durationSeconds - 2)
+            }
             // Explicit device regression mode; avoids an additional test-runner
             // app on devices already at the free-signing installation limit.
             if args.contains("--qa-quality-cycle") {
@@ -307,6 +337,7 @@ struct WebTarget: Identifiable {
     } else {
       playerNavigation.root = visit
     }
+    queue = visit.queue
     loadVisit(visit)
     showPlayer = true
   }
@@ -346,6 +377,18 @@ struct WebTarget: Identifiable {
         [weak self] cid in
         self?.position(visit.bvid, cid: cid) ?? 0
       }
+    }
+  }
+  func resumePlayback() {
+    audioTask?.cancel()
+    audioTask = Task { [weak self] in
+      do {
+        try await MobileAudioSession.shared.activate()
+        try Task.checkCancellation()
+        guard let self, self.isPlaybackOpen else { return }
+        self.playback.continuePlayback()
+        self.nowPlaying?.update()
+      } catch { if !Task.isCancelled { self?.message = "音频会话：" + error.localizedDescription } }
     }
   }
   private func activateAudio() {
@@ -388,33 +431,38 @@ struct WebTarget: Identifiable {
     }
   }
   var currentQueue: [PlaybackQueueItem] {
-    if let collection = playback.detail?.collection { return collection.items }
-    if let detail = playback.detail, detail.pages.count > 1 {
-      return detail.pages.map {
-        PlaybackQueueItem(bvid: detail.video.bvid, cid: $0.id, title: $0.title)
-      }
-    }
-    return queue
+    let parts = PlaybackSequence.parts(playback.detail)
+    if !parts.isEmpty { return parts }
+    return queue.isEmpty ? playback.detail?.collection?.items ?? [] : queue
   }
   var hasNext: Bool {
-    guard
-      let index = currentQueue.firstIndex(where: {
-        $0.bvid == playback.detail?.video.bvid && ($0.cid == nil || $0.cid == playback.selectedCID)
-      })
-    else { return false }
-    return index + 1 < currentQueue.count
+    PlaybackSequence.next(detail: playback.detail, cid: playback.selectedCID, queue: queue, parts: true, collection: true) != nil
   }
   func next() {
-    let items = currentQueue
-    guard
-      let index = items.firstIndex(where: {
-        $0.bvid == playback.detail?.video.bvid && ($0.cid == nil || $0.cid == playback.selectedCID)
-      }), items.indices.contains(index + 1)
-    else { return }
-    let item = items[index + 1]
-    let present = showPlayer
-    open(item.bvid, initialCID: item.cid)
-    showPlayer = present
+    guard let item = PlaybackSequence.next(detail: playback.detail, cid: playback.selectedCID,
+      queue: queue, parts: true, collection: true) else { return }
+    advance(to: item)
+  }
+  func advance(to item: PlaybackQueueItem) {
+    if item.bvid == playback.detail?.video.bvid, let cid = item.cid {
+      playerNavigation.current?.cid = cid
+      playback.selectPage(cid, api: api, resume: 0)
+      return
+    }
+    let visit = MobileVideoVisit(bvid: item.bvid, cid: item.cid)
+    visit.resume = PlaybackResume(position: 0, playing: true)
+    visit.queue = queue.isEmpty ? playback.detail?.collection?.items ?? [] : queue
+    // Advancing a sequence replaces the active visit; it must not grow the back stack or present UI in the background.
+    captureVisit()
+    if let current = playerNavigation.current {
+      if playerNavigation.root?.id == current.id { playerNavigation.root = visit }
+      playerNavigation.path = playerNavigation.path.map { $0 == .video(current.id) ? .video(visit.id) : $0 }
+      playerNavigation.visits.removeValue(forKey: current.id)?.comments.stop()
+    } else { playerNavigation.root = visit }
+    playerNavigation.visits[visit.id] = visit
+    playerNavigation.active = visit.id
+    queue = visit.queue
+    loadVisit(visit)
   }
   func openSaved(_ entry: SavedDownload) {
     beginVisit(MobileVideoVisit(bvid: entry.video.bvid, cid: entry.cid, local: entry))
@@ -423,6 +471,8 @@ struct WebTarget: Identifiable {
     mobilePiP.controller?.stopPictureInPicture()
     audioTask?.cancel()
     isPlaybackOpen = false
+    resumeAfterInterruption = false
+    nowPlaying?.update()
     playerNavigation.reset()
     playback.stop()
     comments.stop()
@@ -577,6 +627,13 @@ struct WebTarget: Identifiable {
       "error": playback.error ?? "", "buffering": playback.buffering,
       "danmaku": danmaku.items.count, "ready": playback.player.currentItem?.status == .readyToPlay,
       "boosting": playback.isBoosting, "rate": playback.player.rate, "speed": playback.speed,
+      "applicationState": UIApplication.shared.applicationState.rawValue,
+      "backgroundPlaybackEnabled": backgroundPlaybackEnabled,
+      "lastAudioEvent": lastAudioEvent,
+      "pictureInPictureActive": mobilePiP.controller?.isPictureInPictureActive ?? false,
+      "cid": playback.selectedCID,
+      "partNumber": playback.detail?.pages.first(where: { $0.id == playback.selectedCID })?.number ?? 0,
+      "nowPlayingTitle": MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPMediaItemPropertyTitle] as? String ?? "",
       "specialScripts": specialScripts, "specialLayers": specialLayers,
       "unsupportedScripts": unsupportedScripts,
     ]
@@ -681,6 +738,7 @@ enum AppPaths {
           }
         }
         .onChange(of: phase) { _, value in
+          store.sceneChanged(value)
           if value != .active {
             store.playback.endTemporarySpeed()
             store.playback.saveCurrentProgress()

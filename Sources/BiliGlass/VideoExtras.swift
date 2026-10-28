@@ -214,6 +214,7 @@ struct SubtitleOverlay: View {
 struct PlaybackFeatureControls: View {
   @Bindable var store: Store
   @AppStorage("autoPlayNext") private var autoNext = false
+  @AppStorage("autoPlayParts") private var autoParts = true
   @AppStorage("loopVideo") private var loop = false
   @State private var danmakuManager = false
   var body: some View {
@@ -232,7 +233,8 @@ struct PlaybackFeatureControls: View {
       }
       if store.hasNextVideo { Button { store.playNext() } label: { Label("下一集", systemImage: "forward.end") } }
       Menu {
-        Toggle("自动播放下一集", isOn: $autoNext)
+        Toggle("分 P 自动连播", isOn: $autoParts)
+        Toggle("合集与播放列表自动连播", isOn: $autoNext)
         Toggle("单集循环", isOn: $loop)
       } label: { Label("播放顺序", systemImage: "list.bullet") }
       Button { store.playback.showsSystemControls.toggle() } label: { Label(store.playback.showsSystemControls ? "关闭系统控件" : "画中画…", systemImage: "pip.enter") }
@@ -250,15 +252,13 @@ struct VideoDiscovery: View {
       if !store.extras.tags.isEmpty {
         ScrollView(.horizontal) { HStack { ForEach(store.extras.tags) { tag in Button(tag.title) { store.query = tag.title; store.search() }.buttonStyle(.glass) } } }
       }
-      if !store.currentQueue.isEmpty {
-        Text(store.currentQueueTitle).font(.headline)
-        ScrollView(.horizontal) {
-          HStack { ForEach(store.currentQueue) { item in
-            Button { store.playQueueItem(item) } label: {
-              Text(item.title).font(.callout).lineLimit(2).frame(width: 180, height: 44, alignment: .leading)
-            }.buttonStyle(.glass).tint(item.bvid == store.playback.detail?.video.bvid && (item.cid == nil || item.cid == store.playback.selectedCID) ? biliPink : .primary)
-          } }
-        }
+      let parts = PlaybackSequence.parts(store.playback.detail)
+      if !parts.isEmpty { sequence("分 P · \(parts.count) P", items: parts, parts: true) }
+      if let collection = store.playback.detail?.collection, !collection.items.isEmpty {
+        sequence("合集 · " + collection.title, items: collection.items, parts: false)
+      }
+      if !store.playQueue.isEmpty && store.playback.detail?.collection == nil {
+        sequence("播放列表 · " + store.queueTitle, items: store.playQueue, parts: false)
       }
       HStack { Text("相关推荐").font(.title3.bold()); Spacer(); if store.extras.loading { ProgressView().controlSize(.small) } }
       if let error = store.extras.error {
@@ -271,6 +271,35 @@ struct VideoDiscovery: View {
       }.frame(height: store.extras.related.isEmpty ? 0 : 250)
     }
   }
+  private func sequence(_ title: String, items: [PlaybackQueueItem], parts: Bool) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Label(title, systemImage: parts ? "rectangle.split.3x1" : "rectangle.stack").font(.headline)
+      GlassEffectContainer(spacing: 10) {
+        ScrollView(.horizontal) {
+          LazyHStack(spacing: 10) {
+            ForEach(items) { item in
+              let current = item.bvid == store.playback.detail?.video.bvid
+                && (!parts || item.cid == store.playback.selectedCID)
+              Button {
+                if !parts { store.playQueue = items; store.queueTitle = title }
+                store.playQueueItem(item)
+              } label: {
+                Text(item.title).font(.callout.weight(current ? .semibold : .regular))
+                  .lineLimit(2).frame(width: 180, height: 40, alignment: .leading)
+                  .padding(.horizontal, 12).padding(.vertical, 8).foregroundStyle(.primary)
+                  .contentShape(.rect(cornerRadius: 12))
+              }.buttonStyle(InterfacePressStyle())
+                .glassEffect(.regular.tint(current ? biliPink.opacity(0.22) : .clear).interactive(),
+                  in: .rect(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(current ? biliPink.opacity(0.7) : .clear, lineWidth: 1))
+                .accessibilityAddTraits(current ? .isSelected : [])
+            }
+          }.padding(4)
+        }.scrollIndicators(.hidden).frame(height: 66)
+      }
+    }.padding(14).floatingGlass(16)
+  }
+
 }
 
 #endif

@@ -930,6 +930,224 @@ import UIKit
     XCTAssertFalse(app.buttons["关闭播放器"].exists)
   }
 
+  private func feedbackApp(refresh: Bool = false, sequences: Bool = false) -> XCUIApplication {
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-ui", "--qa-ui-pages", "--qa-feed-retention", "-startPage", "recommend",
+      "-hiddenNavigationItems", "", "-navigationItemOrder", "", "-showRecommended", "YES", "-showPopular", "YES", "-refreshHomeOnReturn", refresh ? "YES" : "NO"]
+      + (sequences ? ["--qa-sequences"] : [])
+    app.launch()
+    if UIDevice.current.userInterfaceIdiom == .pad { maximizeIPadWindow() }
+    XCTAssertTrue(app.buttons["video-card-BV1xx411c7mD"].waitForExistence(timeout: 15))
+    return app
+  }
+
+  func testFeedbackReturnPreservesEachBrowsePosition() {
+    if UIDevice.current.userInterfaceIdiom == .pad { XCUIDevice.shared.orientation = .landscapeLeft }
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let app = feedbackApp()
+    for destination in ["推荐", "热门", "分区"] {
+      if UIDevice.current.userInterfaceIdiom == .pad {
+        let id = destination == "推荐" ? "recommend" : destination == "热门" ? "popular" : "regions"
+        app.buttons["tablet-nav-" + id].tap()
+      } else { app.buttons[destination].firstMatch.tap() }
+      let scroll = app.scrollViews["browse-list"]
+      XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+      for _ in 0..<3 { scroll.swipeUp() }
+      let cards = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "video-card-"))
+      let visible = cards.allElementsBoundByIndex.filter { $0.frame.height > 0 && $0.frame.midY > 200 && $0.frame.maxY < app.frame.maxY - 160 && $0.isHittable }
+      XCTAssertFalse(visible.isEmpty)
+      guard let card = visible.first else { return }
+      let id = card.identifier
+      let y = card.frame.minY
+      card.tap()
+      XCTAssertTrue(app.buttons["收起播放器"].waitForExistence(timeout: 10))
+      app.buttons["收起播放器"].tap()
+      XCTAssertTrue(app.buttons[id].waitForExistence(timeout: 5))
+      XCTAssertTrue(app.buttons[id].isHittable)
+      XCTAssertEqual(app.buttons[id].frame.minY, y, accuracy: 5)
+      XCTAssertFalse(app.buttons["video-card-BV1xx411c7mD"].isHittable)
+      attach("feedback-return-" + destination, app: app)
+      // The list must also survive switching away from its home container.
+      if UIDevice.current.userInterfaceIdiom == .pad {
+        app.buttons["tablet-nav-history"].tap()
+        let dest = destination == "推荐" ? "recommend" : destination == "热门" ? "popular" : "regions"
+        app.buttons["tablet-nav-" + dest].tap()
+      } else {
+        app.buttons["资料库"].tap(); app.buttons["首页"].tap()
+      }
+      XCTAssertTrue(app.buttons[id].waitForExistence(timeout: 5))
+      XCTAssertEqual(app.buttons[id].frame.minY, y, accuracy: 5)
+    }
+  }
+
+  func testFeedbackOptionalHomeRefreshReturnsToTop() {
+    let app = feedbackApp(refresh: true)
+    let scroll = app.scrollViews["browse-list"]
+    scroll.swipeUp(); scroll.swipeUp()
+    let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "video-card-")).allElementsBoundByIndex.first { $0.frame.height > 0 && $0.frame.midY > 200 && $0.frame.maxY < app.frame.maxY - 150 && $0.isHittable }!
+    card.tap()
+    XCTAssertTrue(app.buttons["收起播放器"].waitForExistence(timeout: 10))
+    app.buttons["收起播放器"].tap()
+    let first = app.buttons["video-card-BV1xx411c7mD"]
+    XCTAssertTrue(first.waitForExistence(timeout: 10))
+    let refreshed = NSPredicate(format: "label CONTAINS %@ AND hittable == true", "刷新 2")
+    expectation(for: refreshed, evaluatedWith: first)
+    waitForExpectations(timeout: 10)
+    attach("feedback-home-refreshed", app: app)
+  }
+
+  func testFeedbackPartsCollectionAndDanmakuPlacement() {
+    let app = feedbackApp(sequences: true)
+    app.buttons["video-card-BV1xx411c7mD"].tap()
+    let input = app.textFields["danmaku-input"]
+    XCTAssertTrue(input.waitForExistence(timeout: 10))
+    let viewport = app.descendants(matching: .any)["player-viewport"].firstMatch
+    XCTAssertGreaterThanOrEqual(input.frame.minY, viewport.frame.maxY)
+    XCTAssertLessThan(input.frame.minY - viewport.frame.maxY, 60)
+    let parts = app.buttons["sequence-parts"]
+    for _ in 0..<5 { if parts.isHittable { break }; app.swipeUp() }
+    XCTAssertTrue(parts.isHittable)
+    XCTAssertTrue(app.buttons["sequence-collection"].exists)
+    parts.tap()
+    XCTAssertTrue(app.navigationBars["分 P"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["P2 · 第二部分"].exists)
+    attach("feedback-parts-sheet", app: app)
+    app.buttons["完成"].tap()
+    app.buttons["sequence-collection"].tap()
+    XCTAssertTrue(app.navigationBars["合集 · 测试合集"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["合集下一视频"].exists)
+    attach("feedback-collection-sheet", app: app)
+  }
+
+  func testFeedbackHiddenNavigationAndHistoryStartup() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-ui", "--qa-ui-pages", "-startPage", "history", "-showRecommended", "NO", "-showPopular", "NO"]
+    app.launch()
+    if UIDevice.current.userInterfaceIdiom == .pad { maximizeIPadWindow() }
+    XCTAssertTrue(app.navigationBars["观看记录"].waitForExistence(timeout: 15))
+    if UIDevice.current.userInterfaceIdiom == .pad {
+      XCTAssertFalse(app.buttons["tablet-nav-recommend"].exists)
+      XCTAssertFalse(app.buttons["tablet-nav-popular"].exists)
+      app.buttons["设置"].tap()
+    } else {
+      app.buttons["首页"].tap()
+      XCTAssertFalse(app.segmentedControls.buttons["推荐"].exists)
+      XCTAssertFalse(app.segmentedControls.buttons["热门"].exists)
+      app.buttons["我的"].tap(); app.buttons["设置"].tap()
+    }
+    XCTAssertTrue(app.switches["refresh-home-on-return"].waitForExistence(timeout: 8))
+    attach("feedback-navigation-settings", app: app)
+  }
+
+  func testFeedbackCustomNavigationOrderAndSettingsRecovery() {
+    if UIDevice.current.userInterfaceIdiom == .pad { XCUIDevice.shared.orientation = .landscapeLeft }
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-ui", "--qa-ui-pages", "-startPage", "downloads",
+      "-showRecommended", "YES", "-showPopular", "YES",
+      "-hiddenNavigationItems", "recommend,popular,regions,dynamic,history,favorites,later,profile",
+      "-navigationItemOrder", "downloads,messages"]
+    app.launch()
+    if UIDevice.current.userInterfaceIdiom == .pad { maximizeIPadWindow() }
+    XCTAssertTrue(app.navigationBars["下载"].waitForExistence(timeout: 15))
+    if UIDevice.current.userInterfaceIdiom == .pad {
+      XCTAssertFalse(app.buttons["tablet-nav-recommend"].exists)
+      XCTAssertFalse(app.buttons["tablet-nav-history"].exists)
+      XCTAssertTrue(app.buttons["tablet-nav-downloads"].exists)
+      XCTAssertTrue(app.buttons["tablet-nav-messages"].exists)
+      app.buttons["设置"].tap()
+    } else {
+      XCTAssertFalse(app.tabBars.buttons["首页"].exists)
+      XCTAssertFalse(app.tabBars.buttons["动态"].exists)
+      let library = app.tabBars.buttons["资料库"]
+      let messages = app.tabBars.buttons["消息"]
+      XCTAssertLessThan(library.frame.minX, messages.frame.minX)
+      app.tabBars.buttons["设置"].tap()
+    }
+    XCTAssertTrue(app.switches["refresh-home-on-return"].waitForExistence(timeout: 8))
+    app.buttons["自定义导航项目"].tap()
+    XCTAssertTrue(app.switches["show-downloads"].waitForExistence(timeout: 5))
+    attach("custom-navigation-recovery", app: app)
+  }
+
+  func testTabletSidebarResetsPushedDetailWithoutExtraBack() throws {
+    try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .pad)
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let app = feedbackApp()
+    for target in ["热门", "设置"] {
+      app.buttons["tablet-settings"].tap()
+      XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 5))
+      let license = app.buttons["开源许可"]
+      for _ in 0..<15 { if license.exists && license.isHittable { break }; app.swipeUp() }
+      XCTAssertTrue(license.isHittable)
+      license.tap()
+      XCTAssertTrue(app.navigationBars["开源许可"].waitForExistence(timeout: 5))
+      if target == "热门" { app.buttons["tablet-nav-popular"].tap() }
+      else { app.buttons["tablet-settings"].firstMatch.tap() }
+      if target == "热门" {
+        XCTAssertTrue(app.staticTexts["tablet-page-heading"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["tablet-page-heading"].label, "热门")
+      } else { XCTAssertTrue(app.navigationBars[target].waitForExistence(timeout: 5)) }
+      XCTAssertFalse(app.navigationBars["开源许可"].exists)
+      if target == "热门" { XCTAssertTrue(app.scrollViews["browse-list"].exists) }
+      attach("tablet-sidebar-clears-detail-" + target, app: app)
+    }
+  }
+
+  func testTabletHomeHeaderVisibleWithoutPullingDown() throws {
+    try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .pad)
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let app = feedbackApp()
+    for (key, title) in [("recommend", "推荐"), ("popular", "热门"), ("regions", "分区")] {
+      app.buttons["tablet-nav-" + key].tap()
+      let heading = app.staticTexts["tablet-page-heading"]
+      XCTAssertTrue(heading.waitForExistence(timeout: 5))
+      XCTAssertEqual(heading.label, title)
+      attach("tablet-initial-header-" + key, app: app)
+      XCTAssertTrue(heading.isHittable)
+      XCTAssertGreaterThanOrEqual(heading.frame.height, 30, "Large title should be visible before pulling down")
+      let first = app.buttons["video-card-BV1xx411c7mD"]
+      XCTAssertTrue(first.isHittable)
+      XCTAssertGreaterThanOrEqual(first.frame.minY, heading.frame.maxY)
+      let scroll = app.scrollViews["browse-list"]
+      scroll.swipeUp(); scroll.swipeUp()
+      XCTAssertTrue(heading.isHittable)
+      XCTAssertGreaterThanOrEqual(heading.frame.height, 28, "iPad title should stay visible at desktop size while scrolled")
+      attach("tablet-scrolled-header-" + key, app: app)
+    }
+    XCUIDevice.shared.orientation = .portrait
+    let heading = app.staticTexts["tablet-page-heading"]
+    XCTAssertTrue(heading.waitForExistence(timeout: 5))
+    XCTAssertTrue(heading.isHittable)
+    attach("tablet-header-portrait", app: app)
+    let search = app.textFields["tablet-search"]
+    search.tap()
+    search.typeText("layout")
+    XCTAssertTrue(heading.isHittable)
+    XCTAssertTrue(app.buttons["显示侧栏"].exists)
+    attach("tablet-keyboard-stable-layout", app: app)
+  }
+
+  func testTabletShortSidebarScrollKeepsHeaderAndAccountSeparate() throws {
+    try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .pad)
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let app = feedbackApp()
+    let grabber = app.coordinate(withNormalizedOffset: CGVector(dx: 0.995, dy: 0.99))
+    grabber.press(forDuration: 0.2, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.995, dy: 0.64)))
+    let scroll = app.scrollViews["tablet-navigation-scroll-library"]
+    XCTAssertTrue(scroll.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["tablet-nav-recommend"].isHittable)
+    scroll.swipeUp(); scroll.swipeUp()
+    XCTAssertTrue(app.buttons["tablet-nav-profile"].isHittable)
+    XCTAssertTrue(app.buttons["tablet-account"].isHittable)
+    XCTAssertFalse(app.buttons["tablet-nav-history"].isHittable)
+    attach("tablet-short-sidebar-scrolled", app: app)
+    maximizeIPadWindow()
+  }
+
   private func attach(_ name: String, app: XCUIApplication) {
     // App-only screenshots can be cropped with stale orientation after iPad window resizing.
     let screenshot = UIDevice.current.userInterfaceIdiom == .pad

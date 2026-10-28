@@ -7,7 +7,7 @@ import plistlib
 
 ROOT = Path(__file__).resolve().parent.parent
 APP = ROOT / 'Apps/iOS'
-SHARED = '''API AppCoinAuthorization LoginRestoration Community VideoActions OfficialChallenge CommentPage CommentText CommentVideoLink VideoExtras VideoPreview SearchFeatures Regions AccountHistory MessageShare NativeSpace DynamicPublishing Messaging ImageUpload WatchHistorySync AppDateFormat ThumbnailCache TaskDeadline Player PlaybackProgressDeadline CDNSelection ParallelVideoStream PlaybackDiskCache VideoSignalling MP4Compatibility DanmakuModels Downloads DownloadPiece DownloadPublication NotificationModels EmojiPicker ConversationTimeline DanmakuLayout DanmakuCloudRules DanmakuTextBitmap DanmakuSettings BiliImageURL DynamicAttachment BAS SVGPath SpecialDanmaku'''.split()
+SHARED = '''BrowsePreferences PlaybackSequence InterfaceMotion API AppCoinAuthorization LoginRestoration Community VideoActions OfficialChallenge CommentPage CommentText CommentVideoLink VideoExtras VideoPreview SearchFeatures Regions AccountHistory MessageShare NativeSpace DynamicPublishing Messaging ImageUpload WatchHistorySync AppDateFormat ThumbnailCache TaskDeadline Player PlaybackProgressDeadline CDNSelection ParallelVideoStream PlaybackDiskCache VideoSignalling MP4Compatibility DanmakuModels Downloads DownloadPiece DownloadPublication NotificationModels EmojiPicker ConversationTimeline DanmakuLayout DanmakuCloudRules DanmakuTextBitmap DanmakuSettings BiliImageURL DynamicAttachment BAS SVGPath SpecialDanmaku'''.split()
 
 def uid(key):
     return hashlib.sha256(key.encode()).hexdigest()[:24].upper()
@@ -20,7 +20,8 @@ sources += [(str(p.relative_to(APP)), p.name) for p in sorted((APP / 'Sources').
 resources = [('Resources/Assets.xcassets', 'Assets.xcassets', 'folder.assetcatalog'),
              ('Resources/LICENSE.txt', 'LICENSE.txt', 'text'),
              ('Resources/BiliKit-LICENSE.txt', 'BiliKit-LICENSE.txt', 'text'),
-             ('Resources/THIRD_PARTY.md', 'THIRD_PARTY.md', 'text')]
+             ('Resources/THIRD_PARTY.md', 'THIRD_PARTY.md', 'text'),
+             ('../../CHANGELOG.md', 'CHANGELOG.md', 'text')]
 objects = []
 def add(key, body):
     objects.append(f'\t\t{uid(key)} = {{ {body} }};')

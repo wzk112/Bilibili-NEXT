@@ -21,8 +21,8 @@ Retain the upstream license and identify modifications to vendored code in
 THIRD_PARTY.md. New dependencies need a clear compatible license and provenance.
 
 Release packaging uses `Scripts/package-release.sh` after all source changes are
-committed. It creates a signed macOS ZIP/DMG, unsigned iOS IPA, committed-source ZIP and SHA-256 sums. A clean committed tree is required.
-Use your own `SIGNING_IDENTITY` as appropriate; `APP_DIR` and `OUTPUT_DIR` can isolate packaging from your local install. `Scripts/package-ios.sh` creates a Release device archive with signing disabled and never embeds a provisioning profile. This does not perform notarization.
+committed. It creates a signed macOS ZIP/DMG, self-signable iOS IPA, committed-source ZIP and SHA-256 sums. A clean committed tree is required.
+Use your own `SIGNING_IDENTITY` as appropriate; `APP_DIR` and `OUTPUT_DIR` can isolate packaging from your local install. `Scripts/package-ios.sh` creates a Release device archive with signing disabled and never embeds a provisioning profile. The public IPA receives only a certificate-free ad-hoc resource seal and still needs user signing. This does not perform notarization.
 
 For the iOS / iPadOS preview, use Xcode 27+ (deployment target iOS 26+), clone the
 whole repository, and run `Scripts/build-ios.sh` for an unsigned simulator build.

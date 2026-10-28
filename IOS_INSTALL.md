@@ -1,10 +1,10 @@
 # iOS / iPadOS 安装
 
-当前手机安装包为 **0.1.2 开发预览（build 6）**，随 [v1.1.2 双端版本](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.2) 发布。支持 iPhone / iPad，最低 iOS / iPadOS 26，真机架构 arm64。
+当前手机安装包为 **0.1.3 开发预览（build 7）**，随 [v1.1.3 双端版本](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.3) 发布。支持 iPhone / iPad，最低 iOS / iPadOS 26，真机架构 arm64。
 
 ## 下载 IPA 自行签名
 
-1. 下载 `Bilibili-NEXT-0.1.2-iOS-self-sign.ipa`。文件名中的 `self-sign` 表示需要自行签名，不能直接点击安装。包内只有不含个人证书的临时签名结构，不是有效的设备安装签名。
+1. 下载 `Bilibili-NEXT-0.1.3-iOS-self-sign.ipa`。文件名中的 `self-sign` 表示需要自行签名，不能直接点击安装。包内只有不含个人证书的临时签名结构，不是有效的设备安装签名。
 2. 使用自己的 Apple Account / 开发者证书，以及与设备和 Bundle ID 匹配的描述文件，在所选签名工具中完成签名并安装。发布包不包含作者的证书、描述文件或账号数据。
 3. 如果使用开发签名，按设备提示启用开发者模式、信任开发者。签名的有效期、设备限制、续签与安装方式取决于自己的账号及所用工具。
 4. 打开应用，用哔哩哔哩 App 扫码并确认登录。保存二维码后切换到官方 App 扫码，返回时会继续查询同一个二维码。升级后如果提示缺少客户端互动授权，重新扫码一次即可；取消扫码保留现有登录。
@@ -40,7 +40,7 @@ IOS_PLATFORM=device DEVELOPMENT_TEAM=YOUR_TEAM IOS_DEVICE_ID=YOUR_UDID Scripts/b
 OUTPUT_DIR="$PWD/.build/release-assets" Scripts/package-ios.sh
 
 # 检查打包结构、主程序和临时签名
-python3 Scripts/validate-ipa.py .build/release-assets/Bilibili-NEXT-0.1.2-iOS-self-sign.ipa
+python3 Scripts/validate-ipa.py .build/release-assets/Bilibili-NEXT-0.1.3-iOS-self-sign.ipa
 ```
 
 脚本在 `.build/ios-package.*` 保留归档与日志，默认不上传；IPA 只包含 `Payload/Bilibili NEXT.app`。打包后自动检查 ZIP 完整性、主程序、设备架构、资源和临时签名。不代表所有第三方签名工具都已实测。

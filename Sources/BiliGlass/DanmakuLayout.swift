@@ -17,6 +17,12 @@ struct DanmakuPlacement: Sendable {
   let y: CGFloat
   let fontSize: CGFloat
   let height: CGFloat
+  func x(at time: Double, viewportWidth: CGFloat) -> CGFloat {
+    if [4, 5].contains(item.mode) { return (viewportWidth - width) / 2 }
+    let progress = max(0, min(1, (time - item.time) / duration))
+    return item.mode == 6 ? -width + (viewportWidth + width) * progress
+      : viewportWidth - (viewportWidth + width) * progress
+  }
 }
 struct DanmakuDisplayOptions: Sendable, Equatable {
   var scrolling = true
@@ -70,9 +76,14 @@ struct DanmakuDisplayOptions: Sendable, Equatable {
   }
 }
 enum DanmakuLayout {
+  static func mobileInsets(height: CGFloat, fullscreen: Bool) -> (top: CGFloat, bottom: CGFloat) {
+    // Leave room for the top overlay controls without also reserving a large bottom toolbar inline.
+    (min(fullscreen ? 56 : 44, height * 0.22), min(fullscreen ? 72 : 12, height * 0.20))
+  }
   static func prepare(
     items: [Danmaku], size: CGSize, scale: CGFloat, area: CGFloat, duration: Double, time: Double,
-    topInset: CGFloat = 12, bottomInset: CGFloat = 12, options: DanmakuDisplayOptions = .init()
+    topInset: CGFloat = 12, bottomInset: CGFloat = 12, options: DanmakuDisplayOptions = .init(),
+    retaining previous: [DanmakuPlacement] = []
   ) -> [DanmakuPlacement] {
     guard size.width > 0, size.height > topInset else { return [] }
     let scale = max(0.5, min(2, scale))
@@ -92,9 +103,20 @@ enum DanmakuLayout {
     guard totalLanes > 0 else { return [] }
     let lanes = max(1, min(totalLanes, Int(ceil(CGFloat(totalLanes) * max(0.2, min(1, area))))))
     var occupied = [[DanmakuPlacement]](repeating: [], count: totalLanes)
-    var result: [DanmakuPlacement] = []
+    let validIDs = Set(source.map(\.id))
+    let running = previous.filter {
+      $0.item.time <= time && time < $0.item.time + $0.duration && $0.lane < totalLanes
+        && validIDs.contains($0.item.id)
+    }
+    var result = running
     var lastText: [String: Double] = [:]
+    for placement in running {
+      occupied[placement.lane].append(placement)
+      lastText[placement.item.text] = placement.item.time
+    }
+    let runningIDs = Set(running.map { $0.item.id })
     for item in source {
+      if runningIDs.contains(item.id) || (!previous.isEmpty && item.time < time) { continue }
       if options.deduplicate, let previous = lastText[item.text], item.time - previous < duration {
         continue
       }
@@ -109,6 +131,13 @@ enum DanmakuLayout {
         item.mode == 4 ? Array((totalLanes - lanes..<totalLanes).reversed()) : Array(0..<lanes)
       if let lane = candidates.first(where: { lane in
         occupied[lane].removeAll { $0.item.time + $0.duration <= item.time }
+        let y = topInset + CGFloat(lane) * rowHeight
+        // A newly loaded larger font can change row spacing. Retained text keeps
+        // its original coordinates, so reserve its actual vertical span as well.
+        if running.contains(where: {
+          $0.lane != lane && item.time < $0.item.time + $0.duration
+            && $0.y < y + height && y < $0.y + $0.height
+        }) { return false }
         return occupied[lane].allSatisfy { prior in
           guard rolling, ![4, 5].contains(prior.item.mode),
             (prior.item.mode == 6) == (item.mode == 6)

@@ -17,6 +17,7 @@ import UIKit
   private var duration = 8.0
   private var options = DanmakuDisplayOptions()
   private var invalidated = true
+  private var preserveRunning = false
   private var plannedAt = -Double.infinity
   private var planTask: Task<Void, Never>?
   private var revision = UUID()
@@ -70,7 +71,7 @@ import UIKit
     items: [Danmaku], enabled: Bool, opacity: Double, scale: Double, area: Double, playing: Bool, fullscreen: Bool = false
   ) {
     if self.items != items {
-      invalidatePlan()
+      invalidatePlan(preservingRunning: true)
       compileSpecial(items)
     }
     if self.scale != scale || self.area != area || self.fullscreen != fullscreen { invalidatePlan() }
@@ -93,7 +94,8 @@ import UIKit
     options = next
     return changed
   }
-  private func invalidatePlan() {
+  private func invalidatePlan(preservingRunning: Bool = false) {
+    preserveRunning = preservingRunning
     invalidated = true
     revision = UUID()
     planTask?.cancel()
@@ -104,15 +106,17 @@ import UIKit
     let source = items, token = revision, options = options
     let textScale = scale * max(0.5, min(1, rect.height / 360))
     let area = area, duration = duration
-    // Keep lanes stable when controls appear/disappear; never push running comments down.
-    let inset: CGFloat = 56
-    let bottom: CGFloat = fullscreen ? 100 : 54
-    let clear = invalidated || rect != plannedRect
+    let insets = DanmakuLayout.mobileInsets(height: rect.height, fullscreen: fullscreen)
+    let continuous = rect == plannedRect && (!invalidated || preserveRunning)
+      && time >= lastTime && time - lastTime < 1
+    let previous = continuous ? plan : []
+    let clear = !continuous
     invalidated = false
     planTask = Task { [weak self] in
       let worker = Task.detached(priority: .userInitiated) {
         DanmakuLayout.prepare(items: source, size: rect.size, scale: textScale, area: area,
-          duration: duration, time: time, topInset: inset, bottomInset: bottom, options: options)
+          duration: duration, time: time, topInset: insets.top, bottomInset: insets.bottom,
+          options: options, retaining: previous)
       }
       let result = await withTaskCancellationHandler { await worker.value } onCancel: { worker.cancel() }
       guard let self, !Task.isCancelled, token == self.revision else { return }
@@ -231,6 +235,7 @@ import UIKit
       return
     }
     let rect = videoRect
+    if time < lastTime - 0.1 || time - lastTime > 1 { invalidatePlan() }
     if invalidated || rect != plannedRect || time < plannedAt - 20 || time - plannedAt > 50 {
       requestPlan(time: time, rect: rect)
     }
@@ -264,15 +269,7 @@ import UIKit
         textLayers[item.id] = glyphs
         textLayer = glyphs
       }
-      let elapsed = time - item.time
-      let x: CGFloat
-      if [4, 5].contains(item.mode) {
-        x = (rect.width - placement.width) / 2
-      } else if item.mode == 6 {
-        x = -placement.width + (rect.width + placement.width) * elapsed / placement.duration
-      } else {
-        x = rect.width - (rect.width + placement.width) * elapsed / placement.duration
-      }
+      let x = placement.x(at: time, viewportWidth: rect.width)
       textLayer.position = CGPoint(x: rect.minX + x, y: rect.minY + placement.y)
       textLayer.opacity = Float(max(0.1, min(1, opacity)))
     }
@@ -294,7 +291,6 @@ import UIKit
       wakeTask = Task { [weak self] in
         do { try await Task.sleep(for: .seconds(delay)) } catch { return }
         guard let self else { return }
-        self.invalidated = true
         self.tick()
       }
     }
