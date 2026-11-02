@@ -6,15 +6,16 @@ struct RootView: View {
   @Bindable var store: Store
   @Environment(\.scenePhase) private var phase
   @FocusState private var searchFocused: Bool
+  @AppStorage("macSidebarVisible") private var sidebarVisible = true
   private var navigation = NavigationCustomization()
   @State private var diagnosticChallenge: InteractionChallenge?
   var body: some View {
     ZStack {
       if !store.fullscreen.isPresented { GlassBackdrop() }
       GeometryReader { viewport in
-      HStack(alignment: .top, spacing: 20) {
-        sidebar.frame(width: AppLayout.sidebarWidth)
-        VStack(spacing: 16) {
+      HStack(alignment: .top, spacing: 14) {
+        if sidebarVisible { sidebar.frame(width: AppLayout.sidebarWidth) }
+        VStack(spacing: 12) {
           GlassEffectContainer { topbar }
           if let reason = store.loginUpgradeReason, !store.loginUpgradeDismissed {
             HStack(spacing: 12) {
@@ -29,7 +30,7 @@ struct RootView: View {
           content.frame(maxWidth: .infinity, maxHeight: .infinity).clipShape(
             RoundedRectangle(cornerRadius: 24))
         }
-      }.padding(.horizontal, 20).padding(.bottom, 20).padding(.top, 22)
+      }.padding(.horizontal, 16).padding(.bottom, 16).padding(.top, 16)
         .opacity(store.fullscreen.isPresented ? 0 : 1)
         .allowsHitTesting(!store.fullscreen.isPresented)
         .accessibilityHidden(store.fullscreen.isPresented)
@@ -45,7 +46,7 @@ struct RootView: View {
         }
       }.interfaceAnimation(store.showsMiniPlayer)
     }
-    .tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 700, maxHeight: .infinity)
+    .tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 640, maxHeight: .infinity)
     .background { InitialWindowFocus().frame(width: 0, height: 0) }
     .containerBackground(.black, for: .window)
     .sheet(item: $store.imageGallery) { ImageGallery(target: $0) }
@@ -100,6 +101,12 @@ struct RootView: View {
       LoginSheet(store: store)
     }
     .task {
+      #if DEBUG
+        if let url = LocalPlaybackFixture.url {
+          LocalPlaybackFixture.prepare(store: store, url: url)
+          return
+        }
+      #endif
       await store.start()
       let args = ProcessInfo.processInfo.arguments
       if let i = args.firstIndex(of: "--full-coin-check"), args.indices.contains(i + 2) {
@@ -141,7 +148,11 @@ struct RootView: View {
       store.playback.stop()
       store.danmaku.stop()
       store.comments.stop()
-      store.downloads.persist()
+      #if DEBUG
+        if LocalPlaybackFixture.url == nil { store.downloads.persist() }
+      #else
+        store.downloads.persist()
+      #endif
     }
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
       store.playback.saveCurrentProgress()
@@ -153,7 +164,7 @@ struct RootView: View {
     }
   }
   private var sidebar: some View {
-    VStack(spacing: 20) {
+    VStack(spacing: 14) {
       HStack(spacing: 10) {
         Image(systemName: "play.rectangle.fill").font(.title2).foregroundStyle(biliPink)
         Text("Bilibili NEXT").font(.title3.weight(.semibold))
@@ -166,7 +177,7 @@ struct RootView: View {
         // container with the fixed account footer lets the scrolled glass/text
         // render through that footer on short windows.
         GlassEffectContainer(spacing: 16) {
-          VStack(spacing: 20) {
+          VStack(spacing: 14) {
             let pages = navigation.preferences.visible
             let browse = pages.filter(\.isBrowse).compactMap { Destination(rawValue: $0.title) }
             let library = pages.filter { !$0.isBrowse }.compactMap { Destination(rawValue: $0.title) }
@@ -209,10 +220,36 @@ struct RootView: View {
           .foregroundStyle(.primary)
         }.buttonStyle(NavigationButtonStyle()).tint(.primary)
       }
-    }.padding(12).floatingGlass(24)
+    }.padding(10).floatingGlass(20)
   }
   private var topbar: some View {
-    HStack(spacing: 14) {
+    HStack(spacing: 10) {
+      Button { sidebarVisible.toggle() } label: {
+        Image(systemName: "sidebar.left")
+      }.help(sidebarVisible ? "隐藏侧栏" : "显示侧栏")
+        .accessibilityLabel(sidebarVisible ? "隐藏侧栏" : "显示侧栏")
+        .accessibilityIdentifier("toggle-sidebar")
+      if !sidebarVisible {
+        Menu {
+          ForEach(navigation.preferences.visible) { page in
+            if let destination = Destination(rawValue: page.title) {
+              Button { store.navigate(destination) } label: {
+                Label(page.title, systemImage: page.symbol)
+              }
+            }
+          }
+          Divider()
+          if store.account == nil {
+            Button("登录") { store.login() }.disabled(store.restoring)
+          } else {
+            Button("我的主页") { store.navigate(.profile) }
+            Button("重新登录") { store.login() }
+            Button("退出登录", role: .destructive) { store.logout() }
+          }
+        } label: {
+          Image(systemName: "list.bullet")
+        }.help("导航与账户").accessibilityLabel("导航与账户")
+      }
       if store.showPlayer {
         Button {
           store.leavePlayer()
@@ -232,7 +269,8 @@ struct RootView: View {
             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
           }.buttonStyle(.plain).help("清除搜索")
         }
-      }.padding(.horizontal, 15).frame(maxWidth: 520).frame(height: 44).appGlass(22)
+      }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: 36)
+        .background(.primary.opacity(0.06), in: .capsule)
       Spacer(minLength: 0)
       SettingsLink { Image(systemName: "gearshape") }.help("设置")
       Button {
@@ -324,10 +362,9 @@ struct RootView: View {
   }
   private var browse: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 22) {
+      VStack(alignment: .leading, spacing: 16) {
         HStack(alignment: .firstTextBaseline) {
-          Text(store.activeQuery.isEmpty ? store.destination.rawValue : "搜索结果").font(
-            .system(size: 28, weight: .bold))
+          Text(store.activeQuery.isEmpty ? store.destination.rawValue : "搜索结果").font(AppLayout.pageTitle)
           if !store.activeQuery.isEmpty { Text(store.activeQuery).foregroundStyle(.secondary) }
           Spacer()
           if store.busy { ProgressView().controlSize(.small) }
@@ -361,10 +398,9 @@ struct RootView: View {
       .overlay { if store.busy && store.videos.isEmpty { ProgressView("正在加载") } }
   }
   private func videoGrid(_ videos: [Video]) -> some View {
-    GlassEffectContainer(spacing: 0) {
     LazyVGrid(
-      columns: [GridItem(.adaptive(minimum: 240, maximum: 390), spacing: 18)], alignment: .leading,
-      spacing: 20
+      columns: [GridItem(.adaptive(minimum: 230, maximum: 360), spacing: 14)], alignment: .leading,
+      spacing: 18
     ) {
       ForEach(videos.filter { !store.blockedAuthors.contains($0.ownerID ?? 0) }) { video in
         Button {
@@ -385,36 +421,43 @@ struct RootView: View {
         }
       }
     }
-    }
   }
 }
 struct VideoCard: View {
   let video: Video
   var showsViews = true
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: 8) {
       Thumbnail(url: video.cover, mode: .fill).aspectRatio(16 / 9, contentMode: .fit).clipShape(
         RoundedRectangle(cornerRadius: 12)
-      ).overlay(alignment: .bottomTrailing) {
-        Text(duration(video.duration)).font(.caption.monospacedDigit()).foregroundStyle(.white)
-          .padding(.horizontal, 7).padding(.vertical, 4).background(
-            .black.opacity(0.72), in: Capsule()
-          ).padding(8)
-      }
+      ).overlay(alignment: .bottom) {
+        HStack(spacing: 8) {
+          if showsViews {
+            Label(video.views.formatted(.number.notation(.compactName).locale(Locale(identifier: "zh_CN"))), systemImage: "play.fill")
+              .accessibilityLabel("播放量 \(video.views)")
+          }
+          Spacer(minLength: 4)
+          Text(duration(video.duration)).monospacedDigit()
+        }.font(.caption).foregroundStyle(.white).padding(8)
+          .background(alignment: .bottom) {
+            LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
+              .padding(.top, -12)
+          }
+      }.clipShape(.rect(cornerRadius: 12))
+        .help(showsViews ? "\(video.views.formatted()) 次播放" : "")
       Text(video.title).font(.system(size: 14, weight: .medium)).lineLimit(2)
-        .multilineTextAlignment(.leading).frame(height: 38, alignment: .topLeading).foregroundStyle(
-          .primary)
-      HStack(spacing: 6) {
-        Text(video.author).lineLimit(1)
+        .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 38, alignment: .topLeading).foregroundStyle(.primary)
+      HStack(spacing: 8) {
+        Text(video.author).lineLimit(1).truncationMode(.tail)
         Spacer(minLength: 2)
-        if showsViews {
-          Image(systemName: "play").font(.system(size: 9))
-          Text(
-          video.views >= 10000
-            ? String(format: "%.1f万", Double(video.views) / 10000) : "\(video.views)")
+        if let date = video.publishedAt {
+          Text(date, format: .dateTime.year().month(.twoDigits).day(.twoDigits))
+            .fixedSize().help("发布时间 · " + date.formatted(AppDateFormat.timestamp))
         }
       }.font(.caption).foregroundStyle(.secondary)
-    }.padding(12).floatingGlass(22).contentShape(RoundedRectangle(cornerRadius: 22)).cardHover()
+    }.padding(8).background(.primary.opacity(0.035), in: .rect(cornerRadius: 18))
+      .contentShape(.rect(cornerRadius: 18)).cardHover()
   }
   private func duration(_ t: Int) -> String {
     t >= 3600
@@ -471,10 +514,11 @@ struct PlayerPage: View {
     @Bindable var p = store.playback
     GeometryReader { viewport in
     ScrollView {
-      VStack(alignment: .leading, spacing: 20) {
+      VStack(alignment: .leading, spacing: 14) {
+        if let detail = p.detail { header(detail) }
         ZStack {
           NativePlayer(playback: p, items: store.danmaku.items, enabled: store.danmaku.enabled, toggleFullscreen: { store.fullscreen.open(store: store) })
-            .frame(height: max(270, min((min(viewport.size.width, 1280) - 40) * 9 / 16, viewport.size.height - 210)))
+            .frame(height: max(240, min((min(viewport.size.width, 1280) - 32) * 9 / 16, viewport.size.height - 250)))
           PlaybackStatusOverlay(playback: p)
           SubtitleOverlay(extras: store.extras, playback: p)
         }.background(.black).clipShape(RoundedRectangle(cornerRadius: 16))
@@ -548,25 +592,9 @@ struct PlayerPage: View {
           }
         }.buttonStyle(.glass).controlSize(.regular)
         if let d = p.detail {
-          HStack {
-            Text(d.video.title).font(.title2.weight(.semibold)).textSelection(.enabled)
-            Spacer()
-          }
           if d.aid > 0 {
             VideoActionBar(store: store, detail: d)
           }
-          HStack {
-            Button {
-              store.showProfile(d.ownerID)
-            } label: {
-              Label(d.video.author, systemImage: "person.crop.circle")
-            }.buttonStyle(.plain)
-            Text(d.video.bvid)
-            if let date = d.video.publishedAt {
-              Text("发布于 " + date.formatted(AppDateFormat.timestamp))
-                .help("发布时间 · 当前时区")
-            }
-          }.font(.callout).foregroundStyle(.secondary)
           if !d.description.isEmpty {
             Text(d.description).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
               .lineSpacing(5).padding(.top, 4)
@@ -575,9 +603,15 @@ struct PlayerPage: View {
           Divider().padding(.vertical, 8)
           if d.aid > 0 { CommentsView(store: store, aid: d.aid).padding(.top, 8) }
         }
-      }.padding(20).frame(maxWidth: 1280).frame(maxWidth: .infinity)
+      }.padding(16).frame(maxWidth: 1280).frame(maxWidth: .infinity)
     }.scrollPosition(id: $commentAnchor, anchor: .top)
       .floatingGlass(24).clipShape(RoundedRectangle(cornerRadius: 24)).task(id: p.selectedCID) {
+      #if DEBUG
+        if LocalPlaybackFixture.url != nil {
+          store.danmaku.items = LocalPlaybackFixture.danmaku
+          return
+        }
+      #endif
       if p.isOffline {
         store.danmaku.start(
           cid: p.selectedCID, api: store.api, player: p.player, localSidecar: p.localDanmaku)
@@ -589,7 +623,69 @@ struct PlayerPage: View {
     }
     }
   }
+  private func header(_ detail: Detail) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text(detail.video.title).font(.title2.weight(.semibold)).textSelection(.enabled)
+        .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("player-video-title")
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 12) { author(detail); Spacer(minLength: 8); metadata(detail.video) }
+        VStack(alignment: .leading, spacing: 6) { author(detail); metadata(detail.video) }
+      }.font(.caption).foregroundStyle(.secondary)
+    }
+  }
+  private func author(_ detail: Detail) -> some View {
+    Button { store.showProfile(detail.ownerID) } label: {
+      Label(detail.video.author, systemImage: "person.crop.circle").lineLimit(1)
+    }.buttonStyle(.plain).disabled(detail.ownerID <= 0)
+  }
+  private func metadata(_ video: Video) -> some View {
+    HStack(spacing: 12) {
+      Label("\(video.views.formatted()) 次播放", systemImage: "play")
+      if let date = video.publishedAt {
+        Text(date, format: .dateTime.year().month(.twoDigits).day(.twoDigits))
+          .help("发布时间 · " + date.formatted(AppDateFormat.timestamp))
+          .accessibilityLabel("发布于 " + date.formatted(AppDateFormat.timestamp))
+      }
+      Text(video.bvid).textSelection(.enabled)
+    }.fixedSize(horizontal: true, vertical: false)
+  }
 }
+#if DEBUG
+/// Explicit local-only preview: no login restoration, remote metadata or history writes.
+@MainActor private enum LocalPlaybackFixture {
+  static var url: URL? {
+    let arguments = ProcessInfo.processInfo.arguments
+    guard let index = arguments.firstIndex(of: "--local-playback-fixture"),
+      arguments.indices.contains(index + 1) else { return nil }
+    return URL(fileURLWithPath: arguments[index + 1])
+  }
+  static func prepare(store: Store, url: URL) {
+    store.playback.onProgress = nil
+    store.playback.onEnded = nil
+    store.history = []
+    store.restoring = false
+    store.busy = false
+    store.hasMore = false
+    store.destination = .recommend
+    let video = Video(bvid: "LOCAL-PREVIEW", title: "本地播放与界面检查 · 长标题、发布日期及播放信息", cover: "",
+      author: "本地测试素材", duration: 90, views: 123456, publishedAt: Date(timeIntervalSince1970: 1793491200))
+    store.playback.openLocal(url, video: video)
+    store.isPlaybackOpen = true
+    store.showPlayer = true
+    store.playerFocus += 1
+  }
+  static var danmaku: [Danmaku] {
+    (0..<180).map { (index: Int) -> Danmaku in
+      let mode: Int = index % 19 == 0 ? 5 : (index % 23 == 0 ? 4 : 1)
+      let color: Int = index % 5 == 0 ? 0x66DDFF : 0xFFFFFF
+      let text: String = index.isMultiple(of: 3) ? "本地滚动弹幕 · 暂停、全屏与字号检查 \(index)" : "中文弹幕清晰度 \(index)"
+      return Danmaku(id: "local-preview-\(index)", time: Double(index) * 0.5,
+        mode: mode, size: 25, color: color, text: text)
+    }
+  }
+}
+#endif
 struct LoginSheet: View {
   @Bindable var store: Store
   var body: some View {

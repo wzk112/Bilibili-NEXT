@@ -439,12 +439,18 @@ enum ParallelMediaDownload {
     } catch { message = error.localizedDescription }
   }
   #endif
-  func forget(_ entry: SavedDownload) {
+  @discardableResult func forget(_ entry: SavedDownload) -> Bool {
+    let previous = saved
     saved.removeAll { $0.id == entry.id }
-    persist()
+    guard persist() else {
+      saved = previous
+      message = "任务记录保存失败，记录已保留，请重试"
+      return false
+    }
+    return true
   }
-  func deleteCache(_ entry: SavedDownload) {
-    guard entry.cached == true else { return }
+  @discardableResult func deleteCache(_ entry: SavedDownload) -> Bool {
+    guard entry.cached == true else { return false }
     do {
       if FileManager.default.fileExists(atPath: entry.path) {
         try Self.removeCachedFile(URL(fileURLWithPath: entry.path))
@@ -457,8 +463,15 @@ enum ParallelMediaDownload {
       if FileManager.default.fileExists(atPath: xml.path) {
         try Self.removeCachedFile(xml)
       }
-      forget(entry)
-    } catch { message = error.localizedDescription }
+      guard forget(entry) else {
+        message = "缓存文件已清理，但任务记录保存失败；记录已保留，请重试"
+        return false
+      }
+      return true
+    } catch {
+      message = error.localizedDescription
+      return false
+    }
   }
   private static func removeCachedFile(_ url: URL) throws {
     #if os(macOS)

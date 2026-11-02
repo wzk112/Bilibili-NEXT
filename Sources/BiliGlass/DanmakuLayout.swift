@@ -83,7 +83,7 @@ enum DanmakuLayout {
   static func prepare(
     items: [Danmaku], size: CGSize, scale: CGFloat, area: CGFloat, duration: Double, time: Double,
     topInset: CGFloat = 12, bottomInset: CGFloat = 12, options: DanmakuDisplayOptions = .init(),
-    retaining previous: [DanmakuPlacement] = []
+    retaining previous: [DanmakuPlacement]? = nil
   ) -> [DanmakuPlacement] {
     guard size.width > 0, size.height > topInset else { return [] }
     let scale = max(0.5, min(2, scale))
@@ -100,23 +100,27 @@ enum DanmakuLayout {
     let bottom = max(bottomInset, options.avoidSubtitles ? size.height * 0.15 : 0)
     let usableHeight = max(0, size.height - bottom - topInset)
     let totalLanes = Int(usableHeight / rowHeight)
-    guard totalLanes > 0 else { return [] }
-    let lanes = max(1, min(totalLanes, Int(ceil(CGFloat(totalLanes) * max(0.2, min(1, area))))))
-    var occupied = [[DanmakuPlacement]](repeating: [], count: totalLanes)
     let validIDs = Set(source.map(\.id))
-    let running = previous.filter {
-      $0.item.time <= time && time < $0.item.time + $0.duration && $0.lane < totalLanes
+    // A larger newly loaded font changes the grid, not the coordinates of text
+    // already on screen. Its old lane index may no longer exist in the new grid.
+    let running = (previous ?? []).filter {
+      $0.item.time <= time && time < $0.item.time + $0.duration
+        && $0.y >= topInset && $0.y + $0.height <= size.height - bottom
         && validIDs.contains($0.item.id)
     }
+    guard totalLanes > 0 else { return running }
+    let lanes = max(1, min(totalLanes, Int(ceil(CGFloat(totalLanes) * max(0.2, min(1, area))))))
+    var occupied = [[DanmakuPlacement]](repeating: [], count: totalLanes)
     var result = running
     var lastText: [String: Double] = [:]
     for placement in running {
-      occupied[placement.lane].append(placement)
       lastText[placement.item.text] = placement.item.time
     }
     let runningIDs = Set(running.map { $0.item.id })
     for item in source {
-      if runningIDs.contains(item.id) || (!previous.isEmpty && item.time < time) { continue }
+      // nil starts a new timeline (including seeks); even an empty retained plan
+      // means continuous playback, where late arrivals must not pop in halfway.
+      if runningIDs.contains(item.id) || (previous != nil && item.time < time) { continue }
       if options.deduplicate, let previous = lastText[item.text], item.time - previous < duration {
         continue
       }
@@ -132,13 +136,11 @@ enum DanmakuLayout {
       if let lane = candidates.first(where: { lane in
         occupied[lane].removeAll { $0.item.time + $0.duration <= item.time }
         let y = topInset + CGFloat(lane) * rowHeight
-        // A newly loaded larger font can change row spacing. Retained text keeps
-        // its original coordinates, so reserve its actual vertical span as well.
-        if running.contains(where: {
-          $0.lane != lane && item.time < $0.item.time + $0.duration
+        let retained = running.filter {
+          item.time < $0.item.time + $0.duration
             && $0.y < y + height && y < $0.y + $0.height
-        }) { return false }
-        return occupied[lane].allSatisfy { prior in
+        }
+        return (occupied[lane] + retained).allSatisfy { prior in
           guard rolling, ![4, 5].contains(prior.item.mode),
             (prior.item.mode == 6) == (item.mode == 6)
           else { return false }

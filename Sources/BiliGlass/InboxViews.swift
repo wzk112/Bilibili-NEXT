@@ -90,6 +90,7 @@ struct NativeInboxPage: View {
                     .multilineTextAlignment(.leading)
                 }
               }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
                 .background(
                   inbox.selected?.id == row.id ? biliPink.opacity(0.16) : .clear,
                   in: .rect(cornerRadius: 14))
@@ -242,17 +243,19 @@ struct NativeNotificationsPage: View {
       LazyVStack(alignment: .leading, spacing: 18) {
         if let error { ErrorBanner(text: error) { Task { await load(reset: true) } } }
         ForEach(rows) { notice in
-          HStack(alignment: .top, spacing: 14) {
+          HStack(alignment: .top, spacing: 0) {
             Button {
               store.showProfile(notice.mid)
             } label: {
               Thumbnail(url: notice.face, mode: .fill, placeholder: "person.crop.circle.fill")
                 .frame(width: 38, height: 38).clipShape(
                   Circle())
-            }.buttonStyle(.plain)
-            VStack(alignment: .leading, spacing: 10) {
+            }.buttonStyle(.plain).padding(.leading, 20).padding(.top, 20)
+              .help("查看用户")
+            Button { open(notice) } label: {
+              VStack(alignment: .leading, spacing: 10) {
               Text(notice.headline).font(.headline)
-              if !notice.text.isEmpty { Text(notice.text).textSelection(.enabled) }
+              if !notice.text.isEmpty { Text(notice.text) }
               if !notice.quote.isEmpty {
                 Text(notice.quote).font(.callout).foregroundStyle(.secondary).lineLimit(4)
               }
@@ -261,19 +264,24 @@ struct NativeNotificationsPage: View {
                   .foregroundStyle(.secondary)
                 Spacer()
                 if notice.commentTarget != nil {
-                  Button("查看并回复") { focusedNotice = notice }.buttonStyle(.glass)
-                } else if let url = notice.originalPageURL {
-                  Button("查看原内容") {
-                    if let bvid = videoID(url.absoluteString) {
-                      store.open(bvid)
-                    } else {
-                      NSWorkspace.shared.open(url)
-                    }
-                  }.buttonStyle(.glass)
+                  Label("查看并回复", systemImage: "chevron.right").font(.callout)
+                } else if notice.originalPageURL != nil {
+                  Label("查看原内容", systemImage: "chevron.right").font(.callout)
                 }
               }
-            }
-          }.padding(20).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(22)
+              }.multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 20).padding(.leading, 14).padding(.trailing, 20)
+                .contentShape(Rectangle())
+            }.buttonStyle(.plain)
+              .disabled(notice.commentTarget == nil && notice.originalPageURL == nil)
+              .contextMenu {
+                Button("复制消息") {
+                  NSPasteboard.general.clearContents()
+                  NSPasteboard.general.setString([notice.headline, notice.text, notice.quote].filter { !$0.isEmpty }.joined(separator: "\n"), forType: .string)
+                }
+              }
+          }.frame(maxWidth: .infinity, alignment: .leading).floatingGlass(22)
         }
         if loading {
           ProgressView().frame(maxWidth: .infinity).padding(20)
@@ -289,6 +297,14 @@ struct NativeNotificationsPage: View {
       .sheet(item: $focusedNotice) { notice in
         NativeNoticeComment(store: store, notice: notice)
       }
+  }
+  private func open(_ notice: NativeNotice) {
+    if notice.commentTarget != nil {
+      focusedNotice = notice
+    } else if let url = notice.originalPageURL {
+      if let bvid = videoID(url.absoluteString) { store.open(bvid) }
+      else { NSWorkspace.shared.open(url) }
+    }
   }
   private func load(reset: Bool) async {
     if reset {

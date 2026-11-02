@@ -1,7 +1,112 @@
 import AVKit
 import SwiftUI
+import os
 
-/// Inline and fullscreen use the same controls and long-press surface.
+/// The window is taken from the player view, never from an arbitrary connected scene.
+@MainActor @Observable final class MobilePlayerOrientation {
+  @ObservationIgnored weak var window: UIWindow?
+  @ObservationIgnored private var previous: UIInterfaceOrientation?
+  @ObservationIgnored private var requestID = UUID()
+  @ObservationIgnored private var pending: (UIInterfaceOrientationMask, Bool)?
+  private static let log = Logger(subsystem: "com.wzk112.BilibiliNEXT.iOS", category: "orientation")
+  var error: String?
+  var interfaceOrientation: UIInterfaceOrientation { window?.windowScene?.effectiveGeometry.interfaceOrientation ?? .unknown }
+  func remember() {
+    guard UIDevice.current.userInterfaceIdiom == .phone else { return }
+    previous = interfaceOrientation
+    error = nil
+  }
+  func landscape() {
+    guard previous != nil else { return }
+    request(.landscape, reportFailure: true)
+  }
+  func resumePendingRequest() {
+    guard let pending else { return }
+    request(pending.0, reportFailure: pending.1)
+  }
+  func restore() {
+    guard let previous else { return }
+    self.previous = nil
+    let mask: UIInterfaceOrientationMask
+    switch previous {
+    case .landscapeLeft: mask = .landscapeLeft
+    case .landscapeRight: mask = .landscapeRight
+    case .portrait: mask = .portrait
+    default: mask = .allButUpsideDown
+    }
+    request(mask, reportFailure: false)
+  }
+  private func request(_ mask: UIInterfaceOrientationMask, reportFailure: Bool) {
+    requestID = UUID()
+    let token = requestID
+    pending = (mask, reportFailure)
+    guard UIDevice.current.userInterfaceIdiom == .phone,
+      let scene = window?.windowScene, scene.activationState == .foregroundActive,
+      scene.session.role == .windowApplication else { return }
+    pending = nil
+    var controller = window?.rootViewController
+    while let current = controller {
+      current.setNeedsUpdateOfSupportedInterfaceOrientations()
+      controller = current.presentedViewController
+    }
+    Self.log.info("Request orientation mask \(mask.rawValue) from \(scene.effectiveGeometry.interfaceOrientation.rawValue)")
+    scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { [weak self] failure in
+      Task { @MainActor in
+        Self.log.error("Orientation request rejected: \(failure.localizedDescription, privacy: .public)")
+        guard let self, self.requestID == token, reportFailure else { return }
+        self.error = "当前窗口未允许横向旋转，可旋转设备后重试。"
+      }
+    }
+  }
+}
+private struct MobilePlayerWindowReader: UIViewControllerRepresentable {
+  let orientation: MobilePlayerOrientation
+  var requestLandscape = false
+  final class WindowController: UIViewController {
+    var connect: ((UIWindow) -> Void)?
+    var appeared: (() -> Void)?
+    override func loadView() {
+      view = UIView()
+      view.isUserInteractionEnabled = false
+    }
+    override func viewDidLayoutSubviews() {
+      super.viewDidLayoutSubviews()
+      if let window = view.window { connect?(window) }
+    }
+    override func viewDidAppear(_ animated: Bool) {
+      super.viewDidAppear(animated)
+      // SwiftUI onAppear runs while the fullScreenCover is still being presented.
+      // UIKit temporarily narrows the supported mask during that transition.
+      // Request geometry only after the presentation has finished.
+      let complete = { [weak self] in
+        guard let self, let window = self.view.window else { return }
+        self.connect?(window)
+        self.appeared?()
+      }
+      if let transition = transitionCoordinator {
+        let scheduled = transition.animate(alongsideTransition: nil) { _ in
+          DispatchQueue.main.async(execute: complete)
+        }
+        if !scheduled { DispatchQueue.main.async(execute: complete) }
+      } else { DispatchQueue.main.async(execute: complete) }
+    }
+  }
+  func makeUIViewController(context: Context) -> WindowController {
+    let controller = WindowController()
+    updateUIViewController(controller, context: context)
+    return controller
+  }
+  func updateUIViewController(_ controller: WindowController, context: Context) {
+    controller.connect = { [weak orientation] window in orientation?.window = window }
+    controller.appeared = { [weak orientation] in
+      if requestLandscape { orientation?.landscape() }
+      else { orientation?.resumePendingRequest() }
+    }
+    if let window = controller.viewIfLoaded?.window { orientation.window = window }
+  }
+}
+
+/// Inline and fullscreen use the same controls and gesture surface.
 struct MobileVideoPlayer: View {
   @Environment(\.columnNavigation) private var columns
   @Bindable var store: Store
@@ -10,23 +115,30 @@ struct MobileVideoPlayer: View {
   @State private var onScreen = false
   @State private var checkedInitialOrientation = false
   @State private var suppressAutomaticFullscreen = false
+  @State private var orientation = MobilePlayerOrientation()
   var body: some View {
     ZStack {
       if fullscreen { Color.black }
-      else { MobileVideoSurface(store: store, fullscreen: false) { fullscreen = true } }
+      else {
+        MobileVideoSurface(store: store, fullscreen: false) {
+          automaticFullscreen = false
+          if !columns { orientation.remember() }
+          fullscreen = true
+        }
+      }
     }
-    .onAppear {
-      onScreen = true
+    .background(MobilePlayerWindowReader(orientation: orientation))
+    .onAppear { onScreen = true }
+    .onDisappear {
+      onScreen = false
+      if !fullscreen { orientation.restore() }
     }
-    .onDisappear { onScreen = false }
     .task {
       guard UIDevice.current.userInterfaceIdiom == .phone, !columns, !checkedInitialOrientation else { return }
       checkedInitialOrientation = true
-      // Let the presenting player finish its transition before opening another cover.
       do { try await Task.sleep(for: .milliseconds(400)) } catch { return }
-      let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
       if onScreen && store.showPlayer && !fullscreen && !suppressAutomaticFullscreen
-        && scene?.effectiveGeometry.interfaceOrientation.isLandscape == true {
+        && orientation.interfaceOrientation.isLandscape {
         automaticFullscreen = true
         fullscreen = true
       }
@@ -34,26 +146,37 @@ struct MobileVideoPlayer: View {
     .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
       // iPad rotation and multitasking resize the inline player; fullscreen is explicit.
       guard UIDevice.current.userInterfaceIdiom == .phone, !columns else { return }
-      let orientation = UIDevice.current.orientation
-      store.orientationDiagnostics = ["device": String(orientation.rawValue), "onScreen": String(onScreen), "showPlayer": String(store.showPlayer)]
-      if orientation.isPortrait {
+      let device = UIDevice.current.orientation
+      store.orientationDiagnostics = ["device": String(device.rawValue), "onScreen": String(onScreen), "showPlayer": String(store.showPlayer)]
+      if device.isPortrait {
         suppressAutomaticFullscreen = false
         if automaticFullscreen { fullscreen = false; automaticFullscreen = false }
-      } else if orientation.isLandscape && store.showPlayer && onScreen
+      } else if device.isLandscape && store.showPlayer && onScreen
         && !fullscreen && !suppressAutomaticFullscreen {
         automaticFullscreen = true
         fullscreen = true
       }
     }
-    .fullScreenCover(isPresented: $fullscreen, onDismiss: { store.playback.endTemporarySpeed() }) {
+    .onChange(of: store.showPlayer) { if !store.showPlayer { fullscreen = false } }
+    .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+      orientation.resumePendingRequest()
+    }
+    .fullScreenCover(isPresented: $fullscreen, onDismiss: {
+      store.playback.endTemporarySpeed()
+      orientation.restore()
+    }) {
       GeometryReader { geometry in
-      MobileVideoSurface(store: store, fullscreen: true) {
-        fullscreen = false
-        automaticFullscreen = false
-        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-        suppressAutomaticFullscreen = scene?.effectiveGeometry.interfaceOrientation.isLandscape == true
-      }.frame(width: geometry.size.width, height: geometry.size.height)
-      }.background(Color.black.ignoresSafeArea()).statusBarHidden()
+        MobileVideoSurface(store: store, fullscreen: true) {
+          suppressAutomaticFullscreen = true
+          automaticFullscreen = false
+          fullscreen = false
+        }.frame(width: geometry.size.width, height: geometry.size.height)
+      }
+      .background(Color.black.ignoresSafeArea()).statusBarHidden()
+      .background(MobilePlayerWindowReader(orientation: orientation, requestLandscape: !automaticFullscreen))
+      .alert("无法调整屏幕方向", isPresented: Binding(get: { orientation.error != nil }, set: { if !$0 { orientation.error = nil } })) {
+        Button("好") { orientation.error = nil }
+      } message: { Text(orientation.error ?? "") }
     }
   }
 }
@@ -69,9 +192,14 @@ struct MobileVideoSurface: View {
   @State private var settings = false
   @AppStorage("danmakuEnabled") private var danmaku = true
   @Environment(\.scenePhase) private var scenePhase
+  private var duration: Double {
+    store.playback.durationSeconds.isFinite ? max(0, store.playback.durationSeconds) : 0
+  }
   var body: some View {
     ZStack {
-      MobileNativePlayer(store: store, pip: pip, fullscreen: fullscreen)
+      MobileNativePlayer(store: store, pip: pip, fullscreen: fullscreen, onSwipeDown: {
+        if fullscreen { toggleFullscreen() } else { store.returnFromPlayer() }
+      })
         .ignoresSafeArea(edges: fullscreen ? .all : [])
         .onTapGesture { visible.toggle() }
       if visible {
@@ -128,10 +256,15 @@ struct MobileVideoSurface: View {
               .accessibilityValue(store.playback.isPlaying ? "正在播放" : "已暂停")
               .accessibilityIdentifier("player-play-pause")
             Text(clock(seeking ? position : store.playback.positionSeconds)).font(.caption.monospacedDigit())
-            Slider(value: $position, in: 0...max(1, store.playback.durationSeconds), onEditingChanged: { editing in
+            Slider(value: $position, in: 0...max(1, duration), onEditingChanged: { editing in
               seeking = editing
-              if !editing { store.playback.seek(to: position) }
+              if !editing && store.playback.durationSeconds.isFinite && store.playback.durationSeconds > 0 {
+                store.playback.seek(to: position)
+              }
             }).accessibilityLabel("播放进度")
+              .accessibilityValue(clock(seeking ? position : store.playback.positionSeconds))
+              .accessibilityIdentifier("player-progress")
+              .disabled(!store.playback.durationSeconds.isFinite || store.playback.durationSeconds <= 0)
             Text(clock(store.playback.durationSeconds)).font(.caption.monospacedDigit())
             Button(action: toggleFullscreen) {
               Image(systemName: fullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right").frame(width: 44, height: 44).contentShape(.rect)
@@ -155,7 +288,9 @@ struct MobileVideoSurface: View {
           .padding(.horizontal, 24).padding(.vertical, 50)
       }
     }.background(.black)
-      .onChange(of: store.playback.positionSeconds, initial: true) { if !seeking { position = min(max(0, store.playback.positionSeconds), max(1, store.playback.durationSeconds)) } }
+      .onChange(of: store.playback.positionSeconds, initial: true) {
+        if !seeking { position = store.playback.positionSeconds.isFinite ? min(max(0, store.playback.positionSeconds), max(1, duration)) : 0 }
+      }
       .onChange(of: scenePhase) { if scenePhase != .active { store.playback.endTemporarySpeed() } }
       .sheet(isPresented: $settings) { MobileDanmakuSettings() }
   }

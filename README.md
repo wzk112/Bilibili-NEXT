@@ -6,7 +6,7 @@ macOS 新手指南和更新说明可从“帮助”菜单或“设置 → 关于
 
 <img src="Assets/Bilibili-NEXT-macOS.svg" width="128" alt="Bilibili NEXT icon">
 
-面向 macOS 26+、iOS / iPadOS 26+ 的非官方哔哩哔哩客户端，主要使用 SwiftUI、Liquid Glass 和 AVPlayer。本次双端发布包含 macOS 1.1.3（Apple silicon）与 iOS / iPadOS 0.1.3 开发预览（需要自签的 IPA）。
+面向 macOS 26+、iOS / iPadOS 26+ 的非官方哔哩哔哩客户端，主要使用 SwiftUI、Liquid Glass 和 AVPlayer。本次双端版本为 macOS 1.1.4（build 15，Apple silicon）与 iOS / iPadOS 0.1.4 开发预览（build 8，需要自签的 IPA）。安装文件以 [v1.1.4 发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.4) 的 Assets 为准。
 
 从 [GitHub Releases](https://github.com/wzk112/Bilibili-NEXT/releases/latest) 下载 Apple silicon 发布包，解压后将 `Bilibili NEXT.app` 放入应用程序目录。扫码登录后，登录信息保存在 macOS 钥匙串。开发构建使用本机已有的 Apple Development 签名；从早期临时签名版本迁移时，系统可能要求重新授权一次。
 
@@ -14,9 +14,9 @@ macOS 新手指南和更新说明可从“帮助”菜单或“设置 → 关于
 
 ## 本次更新
 
-返回推荐、热门和分区时保留列表、分页与浏览位置；新增可选的返回首页自动刷新。Mac、iPad 和 iPhone 的导航支持显示／隐藏、排序和启动页选择；iPad 改进侧栏跳转、常驻标题、玻璃背景与矮窗口滚动。Duo 展开后保留手机导航。
+移动端增加返回时继续／停止小窗播放选项、单双列视频布局和下载批量管理；删除缓存不会删除外部导出文件，索引保存失败保留记录供重试。iPhone 视频画面贴齐两侧，标题先于播放选项；支持横拖调进度、下滑返回及手动全屏请求横屏。iPad 宽窗口可手动收起和恢复侧栏。
 
-分 P 与合集分别展示并独立设置连播；弹幕输入移到画面下方，移动端补载弹幕时保留正在滚动的文字。统一页面、设置和小窗过渡，尊重关闭动画与系统减少动态效果。移动端增加后台播放设置、系统播放信息和远程控制；长时锁屏、音频中断及部分在线连续后台场景仍待完整真机验收。
+Mac 收紧页面、搜索栏和视频卡片布局，增加侧栏显隐、动态类型筛选和 `F` 全屏快捷键，扩大消息点击区域。两端改进普通弹幕连续补载，Mac 弹幕设置在明亮画面上保持文字对比。真机方向锁、长时锁屏、音频中断及部分在线连续后台场景仍待完整验收。
 
 详细变化见 [CHANGELOG.md](CHANGELOG.md)，验证与限制见 [QA.md](QA.md) 和 [IOS_STATUS.md](IOS_STATUS.md)。弹幕下载失败的既有反馈仍在待修列表，未据本次更新宣称解决。
 
@@ -27,7 +27,7 @@ macOS 功能：31 个视频主分区；播放页相关推荐、标签、合集�
 私信使用每个会话独立的滚动位置，加载历史时保持当前阅读位置；会话分页使用服务端最后一条记录的时间戳，重复分页或网络失败会显示提示。人物防挡默认关闭，使用本机 Vision 分割，开启时会增加播放处理开销；与网页端算法不完全相同。表情图片目前显示静态帧。分区沿用当前网页公开的主分区，未启用的子分类不显示。
 
 - 搜索关键词、BV 号或视频链接；支持推荐、热门、关注视频动态。
-- 播放页可切换分集、清晰度、速度，提供常驻原生进度、暂停、音量控制，全屏沿用当前窗口和播放器；双击画面或按 ⌃⌘F 切换全屏，Esc 退出。播放器区域的鼠标滚轮交给页面滚动，避免误触进度。
+- 播放页可切换分集、清晰度、速度，提供常驻原生进度、暂停、音量控制，全屏沿用当前窗口和播放器；双击画面或按 F / ⌃⌘F 切换全屏，Esc 退出。播放器区域的鼠标滚轮交给页面滚动，避免误触进度。
 - 播放时切换页面，右下角出现 Liquid Glass 迷你播放器，视频继续播放。可暂停/继续、返回播放页或关闭；返回保留当前进度，关闭才停止播放。
 - 空格暂停/继续，左右方向键单击跳转 5 秒，按住右方向键临时加速，松开恢复原速；支持快速播放的本地媒体使用 3×，在线 HLS 使用 2× 并明确提示，避免系统退化为关键帧快进而卡住音画；输入文字时不接管这些按键。
 - 播放页显示视频发布时间。打开视频后焦点转入播放器，避免搜索框截走快捷键；主动编辑文字时保留输入行为。
@@ -92,7 +92,7 @@ Scripts/build-app.sh
 
 <img src="Assets/Bilibili-NEXT-iOS.svg" width="112" alt="Bilibili NEXT iOS icon">
 
-从 [v1.1.3 双端发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.3) 下载 `Bilibili-NEXT-0.1.3-iOS-self-sign.ipa`。**此 IPA 需要自行签名后安装，不能直接点击安装。** 包内仅含不带个人证书的临时签名结构，方便签名工具识别。使用自己的 Apple Account / 开发者证书和适用的描述文件完成签名；开发签名按系统提示启用开发者模式并信任开发者。签名有效期、设备限制和续签要求由自己的签名方式决定。当前没有 TestFlight / App Store 版本。安装与构建说明见 [IOS_INSTALL.md](IOS_INSTALL.md)。
+本次 IPA 文件为 [v1.1.4 双端发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.4) 的 `Bilibili-NEXT-0.1.4-iOS-self-sign.ipa`，从 Assets 下载。**此 IPA 需要自行签名后安装，不能直接点击安装。** 包内仅含不带个人证书的临时签名结构，方便签名工具识别。使用自己的 Apple Account / 开发者证书和适用的描述文件完成签名；开发签名按系统提示启用开发者模式并信任开发者。签名有效期、设备限制和续签要求由自己的签名方式决定。当前没有 TestFlight / App Store 版本。安装与构建说明见 [IOS_INSTALL.md](IOS_INSTALL.md)。
 
 已有独立的原生 iOS Xcode 工程：[Apps/iOS/BilibiliNEXT.xcodeproj](Apps/iOS/BilibiliNEXT.xcodeproj)。当前实现、真机验证和待迁移功能见 [IOS_STATUS.md](IOS_STATUS.md)；完整目标范围见 [IOS_APP_PLAN.md](IOS_APP_PLAN.md)。
 

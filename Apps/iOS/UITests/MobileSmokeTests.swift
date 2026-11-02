@@ -767,6 +767,10 @@ import UIKit
     app.launchArguments = ["--qa-ui", "--qa-navigation"]
     app.launch()
     maximizeIPadWindow()
+    let sidebarToggle = app.buttons["tablet-sidebar-toggle"]
+    XCTAssertTrue(sidebarToggle.waitForExistence(timeout: 5))
+    // Restore the real saved sidebar preference through UI, without fixing it via launch arguments.
+    if app.frame.width >= 900 && sidebarToggle.label == "显示侧栏" { sidebarToggle.tap() }
     let title = app.staticTexts["player-title"]
     XCTAssertTrue(title.waitForExistence(timeout: 15))
     let surface = app.otherElements["player-viewport"].firstMatch
@@ -930,14 +934,190 @@ import UIKit
     XCTAssertFalse(app.buttons["关闭播放器"].exists)
   }
 
-  private func feedbackApp(refresh: Bool = false, sequences: Bool = false) -> XCUIApplication {
+  func testFeedbackReturnPreferenceKeepsOrClosesMiniPlayer() {
+    for keep in [true, false] {
+      let app = XCUIApplication()
+      app.launchArguments = ["--qa-ui", "--qa-navigation", "-continuePlaybackOnReturn", keep ? "YES" : "NO",
+        "-tabletSidebarCollapsed", "NO"]
+      app.launch()
+      if UIDevice.current.userInterfaceIdiom == .pad { maximizeIPadWindow() }
+      let back = app.buttons["return-from-player"]
+      XCTAssertTrue(back.waitForExistence(timeout: 15))
+      back.tap()
+      XCTAssertTrue(back.waitForNonExistence(timeout: 5))
+      let mini = app.buttons["mini-player-open"]
+      if keep {
+        XCTAssertTrue(mini.waitForExistence(timeout: 5))
+        mini.tap()
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+      } else {
+        XCTAssertFalse(mini.exists)
+        XCTAssertFalse(app.buttons["关闭播放器"].exists)
+      }
+      attach(keep ? "return-keeps-mini-player" : "return-stops-playback", app: app)
+      app.terminate()
+    }
+  }
+
+  func testPhonePlayerUsesFullWidthAndShowsTitleBeforeDanmakuInput() throws {
+    guard UIDevice.current.userInterfaceIdiom == .phone else { throw XCTSkip("Phone layout") }
+    XCUIDevice.shared.orientation = .portrait
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-ui", "--qa-navigation"]
+    app.launch()
+    let viewport = app.descendants(matching: .any)["player-viewport"].firstMatch
+    let title = app.staticTexts["player-title"]
+    let input = app.textFields["danmaku-input"]
+    XCTAssertTrue(viewport.waitForExistence(timeout: 10))
+    XCTAssertTrue(title.waitForExistence(timeout: 5))
+    XCTAssertTrue(input.waitForExistence(timeout: 5))
+    XCTAssertEqual(viewport.frame.width, app.frame.width, accuracy: 2)
+    XCTAssertGreaterThanOrEqual(title.frame.minY, viewport.frame.maxY)
+    XCTAssertLessThan(title.frame.minY - viewport.frame.maxY, 36)
+    XCTAssertGreaterThan(input.frame.minY, title.frame.maxY)
+    attach("phone-player-full-width-title-first", app: app)
+  }
+
+  func testVideoHorizontalDragSeeksAndKeepsPauseWithLocalFixture() throws {
+    let fixture = ProcessInfo.processInfo.environment["BILI_IOS_FIXTURE"] ?? "gesture.mp4"
+    XCUIDevice.shared.orientation = .portrait
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-fixture", fixture]
+    app.launch()
+    XCTAssertTrue(app.buttons["播放详情"].waitForExistence(timeout: 15))
+    app.buttons["播放详情"].tap()
+    XCTAssertTrue(waitForValue("rendered-frame-status", "是", app: app))
+    app.buttons["完成"].tap()
+    let pause = app.buttons["player-play-pause"]
+    if pause.value as? String == "正在播放" { pause.tap() }
+    XCTAssertEqual(pause.value as? String, "已暂停")
+    let progress = app.sliders["player-progress"]
+    XCTAssertTrue(progress.waitForExistence(timeout: 5))
+    progress.adjust(toNormalizedSliderPosition: 0.25)
+    func seconds() -> Int {
+      (progress.value as? String ?? "0").split(separator: ":").reduce(0) { $0 * 60 + (Int($1) ?? 0) }
+    }
+    let start = seconds()
+    let viewport = app.descendants(matching: .any)["player-viewport"].firstMatch
+    viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).press(forDuration: 0.05,
+      thenDragTo: viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.65, dy: 0.5)))
+    expectation(for: NSPredicate { _, _ in seconds() > start + 1 }, evaluatedWith: progress)
+    waitForExpectations(timeout: 5)
+    let advanced = seconds()
+    XCTAssertEqual(pause.value as? String, "已暂停")
+    viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.65, dy: 0.5)).press(forDuration: 0.05,
+      thenDragTo: viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)))
+    expectation(for: NSPredicate { _, _ in seconds() < advanced - 1 }, evaluatedWith: progress)
+    waitForExpectations(timeout: 5)
+    XCTAssertEqual(pause.value as? String, "已暂停")
+    XCTAssertFalse(app.staticTexts["gesture-seek-preview"].exists)
+    attach("video-horizontal-seek-paused", app: app)
+  }
+
+  func testPhoneManualFullscreenAndSwipeReturnRestorePortrait() throws {
+    guard UIDevice.current.userInterfaceIdiom == .phone else { throw XCTSkip("Phone orientation") }
+    XCUIDevice.shared.orientation = .portrait
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let app = XCUIApplication()
+    func attachScreen(_ name: String) {
+      let screenshot = XCUIScreen.main.screenshot()
+      let attachment = XCTAttachment(screenshot: screenshot)
+      attachment.name = name
+      attachment.lifetime = .keepAlways
+      add(attachment)
+      print("\(name): app bounds \(app.frame), screenshot size \(screenshot.image.size), image orientation \(screenshot.image.imageOrientation.rawValue)")
+    }
+    func waitForSettledOrientation(landscape: Bool, control: XCUIElement) {
+      var stableSince: Date?
+      var lastWindow = CGRect.null
+      var lastControl = CGRect.null
+      expectation(for: NSPredicate { _, _ in
+        let window = app.frame
+        let frame = control.frame
+        guard (window.width > window.height) == landscape, control.isHittable,
+          !frame.isEmpty, window.contains(frame) else { stableSince = nil; return false }
+        if window != lastWindow || frame != lastControl || stableSince == nil {
+          lastWindow = window
+          lastControl = frame
+          stableSince = Date()
+        }
+        return Date().timeIntervalSince(stableSince!) >= 0.75
+      }, evaluatedWith: control)
+      waitForExpectations(timeout: 10)
+    }
+    app.launchArguments = ["--qa-ui", "--qa-navigation", "-continuePlaybackOnReturn", "YES"]
+    app.launch()
+    XCTAssertTrue(app.buttons["全屏"].waitForExistence(timeout: 10))
+    app.buttons["全屏"].tap()
+    XCTAssertTrue(app.buttons["退出全屏"].waitForExistence(timeout: 5))
+    attachScreen("manual-fullscreen-before-orientation-check")
+    print(app.debugDescription)
+    waitForSettledOrientation(landscape: true, control: app.buttons["退出全屏"])
+    attachScreen("manual-fullscreen-landscape-screen-settled")
+    app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).press(forDuration: 0.05,
+      thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)))
+    XCTAssertTrue(app.buttons["退出全屏"].waitForNonExistence(timeout: 5))
+    waitForSettledOrientation(landscape: false, control: app.buttons["return-from-player"])
+    XCTAssertTrue(app.buttons["return-from-player"].exists)
+    attachScreen("manual-fullscreen-restored-portrait-screen-settled")
+    let viewport = app.descendants(matching: .any)["player-viewport"].firstMatch
+    viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).press(forDuration: 0.05,
+      thenDragTo: viewport.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85)))
+    XCTAssertTrue(app.buttons["mini-player-open"].waitForExistence(timeout: 5))
+    attachScreen("swipe-return-to-mini-player")
+  }
+
+  func testIPadSidebarCanCollapseAndRestore() throws {
+    guard UIDevice.current.userInterfaceIdiom == .pad else { throw XCTSkip("iPad sidebar") }
+    XCUIDevice.shared.orientation = .landscapeLeft
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let app = feedbackApp()
+    let navigation = app.buttons["tablet-nav-recommend"]
+    XCTAssertTrue(navigation.waitForExistence(timeout: 5))
+    let list = app.scrollViews["browse-list"]
+    let width = list.frame.width
+    app.buttons["tablet-sidebar-toggle"].tap()
+    XCTAssertTrue(navigation.waitForNonExistence(timeout: 5))
+    XCTAssertGreaterThan(list.frame.width, width + 150)
+    XCTAssertTrue(app.buttons["video-card-BV1xx411c7mD"].isHittable)
+    attach("ipad-sidebar-collapsed", app: app)
+    app.buttons["tablet-sidebar-toggle"].tap()
+    XCTAssertTrue(navigation.waitForExistence(timeout: 5))
+    XCTAssertEqual(list.frame.width, width, accuracy: 3)
+  }
+
+  func testFeedbackSingleAndDoubleColumnPreference() {
+    XCUIDevice.shared.orientation = .portrait
+    for columns in [1, 2] {
+      let app = feedbackApp(columns: columns)
+      let cards = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "video-card-"))
+      XCTAssertGreaterThanOrEqual(cards.count, 2)
+      let first = cards.element(boundBy: 0).frame
+      let second = cards.element(boundBy: 1).frame
+      if columns == 1 { XCTAssertGreaterThan(second.minY, first.maxY) }
+      else { XCTAssertEqual(second.minY, first.minY, accuracy: 3) }
+      attach("video-grid-\(columns)-columns", app: app)
+      app.terminate()
+    }
+  }
+
+  private func feedbackApp(refresh: Bool = false, sequences: Bool = false, columns: Int = 0) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments = ["--qa-ui", "--qa-ui-pages", "--qa-feed-retention", "-startPage", "recommend",
-      "-hiddenNavigationItems", "", "-navigationItemOrder", "", "-showRecommended", "YES", "-showPopular", "YES", "-refreshHomeOnReturn", refresh ? "YES" : "NO"]
+      "-hiddenNavigationItems", "", "-navigationItemOrder", "", "-showRecommended", "YES", "-showPopular", "YES", "-refreshHomeOnReturn", refresh ? "YES" : "NO",
+      "-mobileHomeColumns", String(columns), "-continuePlaybackOnReturn", "YES"]
       + (sequences ? ["--qa-sequences"] : [])
     app.launch()
     if UIDevice.current.userInterfaceIdiom == .pad { maximizeIPadWindow() }
     XCTAssertTrue(app.buttons["video-card-BV1xx411c7mD"].waitForExistence(timeout: 15))
+    if UIDevice.current.userInterfaceIdiom == .pad, app.frame.width >= 900 {
+      let toggle = app.buttons["tablet-sidebar-toggle"]
+      XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+      // A launch-argument override would prevent the sidebar button from saving a new value.
+      // Normalize its starting state through the same UI that this suite exercises.
+      if toggle.label == "显示侧栏" { toggle.tap() }
+      XCTAssertTrue(app.buttons["tablet-nav-recommend"].waitForExistence(timeout: 5))
+    }
     return app
   }
 
@@ -1002,8 +1182,9 @@ import UIKit
     let input = app.textFields["danmaku-input"]
     XCTAssertTrue(input.waitForExistence(timeout: 10))
     let viewport = app.descendants(matching: .any)["player-viewport"].firstMatch
+    let title = app.staticTexts["player-title"]
     XCTAssertGreaterThanOrEqual(input.frame.minY, viewport.frame.maxY)
-    XCTAssertLessThan(input.frame.minY - viewport.frame.maxY, 60)
+    XCTAssertGreaterThan(input.frame.minY, title.frame.maxY)
     let parts = app.buttons["sequence-parts"]
     for _ in 0..<5 { if parts.isHittable { break }; app.swipeUp() }
     XCTAssertTrue(parts.isHittable)
@@ -1068,6 +1249,64 @@ import UIKit
     app.buttons["自定义导航项目"].tap()
     XCTAssertTrue(app.switches["show-downloads"].waitForExistence(timeout: 5))
     attach("custom-navigation-recovery", app: app)
+  }
+
+  func testDownloadBatchManagementCancelsAndPreservesExports() {
+    XCUIDevice.shared.orientation = .portrait
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-ui", "--qa-downloads", "-startPage", "downloads",
+      "-hiddenNavigationItems", "", "-navigationItemOrder", "downloads,history,favorites,later"]
+    app.launch()
+    if UIDevice.current.userInterfaceIdiom == .pad { maximizeIPadWindow() }
+    XCTAssertTrue(app.navigationBars["下载"].waitForExistence(timeout: 15))
+    let probe = app.staticTexts["qa-download-state"]
+    func expectState(records: Int, cacheFiles: Int) {
+      let expected = "records=\(records);index=\(records);cache-files=\(cacheFiles);intact-exports=6;pending=1"
+      let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", expected), object: probe)
+      XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
+    }
+    func cancelConfirmation(action: String) {
+      attach("downloads-cancel-" + action, app: app)
+      let cancel = app.buttons["取消"]
+      if cancel.waitForExistence(timeout: 2) { cancel.tap() }
+      else {
+        // Confirmation popovers can omit Cancel on either phone or tablet.
+        // Use the system's dismissal target instead of assuming a device idiom.
+        let dismiss = app.otherElements["PopoverDismissRegion"]
+        XCTAssertTrue(dismiss.waitForExistence(timeout: 2))
+        dismiss.tap()
+      }
+      XCTAssertTrue(app.buttons[action].waitForNonExistence(timeout: 5))
+    }
+    expectState(records: 3, cacheFiles: 3)
+    app.buttons["downloads-selection"].tap()
+    app.buttons["downloads-select-all"].tap()
+    XCTAssertTrue(app.buttons["移除记录（3）"].exists)
+    let delete = app.buttons["downloads-delete-selected"]
+    XCTAssertEqual(delete.label, "删除缓存（1）")
+
+    delete.tap()
+    XCTAssertTrue(app.buttons["删除缓存文件"].waitForExistence(timeout: 5))
+    cancelConfirmation(action: "删除缓存文件")
+    expectState(records: 3, cacheFiles: 3)
+    XCTAssertTrue(app.buttons["移除记录（3）"].exists)
+
+    delete.tap()
+    app.buttons["删除缓存文件"].tap()
+    expectState(records: 2, cacheFiles: 0)
+    XCTAssertTrue(app.buttons["移除记录（2）"].exists)
+    XCTAssertFalse(delete.isEnabled)
+    attach("downloads-cache-only-deleted", app: app)
+
+    app.buttons["移除记录（2）"].tap()
+    XCTAssertTrue(app.buttons["移除记录"].waitForExistence(timeout: 5))
+    cancelConfirmation(action: "移除记录")
+    expectState(records: 2, cacheFiles: 0)
+    app.buttons["移除记录（2）"].tap()
+    app.buttons["移除记录"].tap()
+    expectState(records: 0, cacheFiles: 0)
+    XCTAssertTrue(app.staticTexts["批量测试暂停任务"].exists)
+    attach("downloads-records-removed-exports-intact", app: app)
   }
 
   func testTabletSidebarResetsPushedDetailWithoutExtraBack() throws {

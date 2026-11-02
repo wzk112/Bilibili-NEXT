@@ -4,11 +4,11 @@ import UniformTypeIdentifiers
 import CoreImage
 
 enum AppLayout {
-  static let sidebarWidth: CGFloat = 224
-  static let toolbarHeight: CGFloat = 68
-  static let panelRadius: CGFloat = 24
+  static let sidebarWidth: CGFloat = 212
+  static let toolbarHeight: CGFloat = 56
+  static let panelRadius: CGFloat = 20
   static let pageInset: CGFloat = 8
-  static let pageTitle: Font = .system(size: 28, weight: .bold)
+  static let pageTitle: Font = .system(size: 26, weight: .bold)
 }
 
 /// Neutral press feedback without inheriting the window's accent tint.

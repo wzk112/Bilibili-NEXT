@@ -628,6 +628,8 @@ struct MobileSettings: View {
   @AppStorage("autoPlayParts") private var autoParts = true
   @AppStorage("autoPlayNext") private var autoNext = false
   @AppStorage("backgroundPlayback") private var backgroundPlayback = true
+  @AppStorage("continuePlaybackOnReturn") private var continuePlaybackOnReturn = true
+  @AppStorage("mobileHomeColumns") private var homeColumns = 0
   @AppStorage("rememberPosition") private var remember = true
   @AppStorage("syncWatchHistory") private var sync = true
   @AppStorage("videoThreads") private var threads = 4
@@ -654,7 +656,14 @@ struct MobileSettings: View {
           Text("深色").tag("dark")
         }
       }
-      Section("首页与导航") { BrowsePreferenceFields() }
+      Section("首页与导航") {
+        BrowsePreferenceFields()
+        Picker("视频列表布局", selection: $homeColumns) {
+          Text("自动").tag(0)
+          Text("单列").tag(1)
+          Text("双列").tag(2)
+        }.accessibilityIdentifier("video-list-columns")
+      }
       Section("播放") {
         Picker("首选编码", selection: $codec) {
           ForEach(VideoCodecPreference.allCases) { Text($0.title).tag($0.rawValue) }
@@ -664,6 +673,10 @@ struct MobileSettings: View {
         Text(VideoCodecPreference.hardwareDecodeSummary + "具体解码方式由系统播放器选择。")
           .font(.caption).foregroundStyle(.secondary)
         Toggle("自动播放", isOn: $autoPlay)
+        Toggle("返回时继续小窗播放", isOn: $continuePlaybackOnReturn)
+          .accessibilityIdentifier("continue-playback-on-return")
+        Text("关闭后，收起播放页或切换侧栏页面会停止当前视频。退出全屏仍返回播放页。")
+          .font(.caption).foregroundStyle(.secondary)
         Toggle("后台播放", isOn: $backgroundPlayback)
           .onChange(of: backgroundPlayback) { store.updateBackgroundPlayback() }
         Toggle("分 P 自动连播", isOn: $autoParts)

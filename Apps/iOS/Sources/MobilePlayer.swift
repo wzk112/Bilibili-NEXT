@@ -27,6 +27,7 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
   @Bindable var store: Store
   var pip: MobilePiPSession? = nil
   var fullscreen = false
+  var onSwipeDown: (() -> Void)? = nil
   @AppStorage("danmakuEnabled") private var enabled = true
   @AppStorage("danmakuOpacity") private var opacity = 0.85
   @AppStorage("danmakuScale") private var scale = 1.0
@@ -44,6 +45,12 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
     hold.allowableMovement = 20
     hold.delegate = context.coordinator
     surface.addGestureRecognizer(hold)
+    let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.panVideo(_:)))
+    pan.maximumNumberOfTouches = 1
+    pan.delegate = context.coordinator
+    surface.addGestureRecognizer(pan)
+    context.coordinator.onSwipeDown = onSwipeDown
+    surface.accessibilityHint = "横向拖动调整进度，向下滑动返回，长按临时加速"
     surface.accessibilityIdentifier = "video-player"
     context.coordinator.ready = surface.videoLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) { [weak store] _, change in
       let rendered = change.newValue ?? false
@@ -77,7 +84,14 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
       let boost = context.coordinator.boost
       boost.translatesAutoresizingMaskIntoConstraints = false
       overlay.addSubview(boost)
+      let preview = context.coordinator.seekPreview
+      preview.translatesAutoresizingMaskIntoConstraints = false
+      overlay.addSubview(preview)
       NSLayoutConstraint.activate([
+        preview.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+        preview.centerYAnchor.constraint(equalTo: overlay.centerYAnchor),
+        preview.leadingAnchor.constraint(greaterThanOrEqualTo: overlay.leadingAnchor, constant: 12),
+        preview.trailingAnchor.constraint(lessThanOrEqualTo: overlay.trailingAnchor, constant: -12),
         caption.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
         caption.leadingAnchor.constraint(greaterThanOrEqualTo: overlay.leadingAnchor, constant: 16),
         caption.trailingAnchor.constraint(lessThanOrEqualTo: overlay.trailingAnchor, constant: -16),
@@ -91,6 +105,8 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
     return controller
   }
   func updateUIViewController(_ controller: UIViewController, context: Context) {
+    context.coordinator.onSwipeDown = onSwipeDown
+    if UIApplication.shared.applicationState != .active { context.coordinator.cancelPan() }
     context.coordinator.canvas.configure(items: store.danmaku.items, enabled: enabled, opacity: opacity, scale: scale, area: area, playing: store.playback.isPlaying, fullscreen: fullscreen)
     context.coordinator.caption.text = store.extras.text(at: store.playback.positionSeconds)
     context.coordinator.caption.isHidden = context.coordinator.caption.text?.isEmpty != false
@@ -100,6 +116,8 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
   static func dismantleUIViewController(_ controller: UIViewController, coordinator: Coordinator) {
     coordinator.ready = nil
     coordinator.canvas.stop()
+    coordinator.cancelPan()
+    coordinator.onSwipeDown = nil
     coordinator.store.playback.endTemporarySpeed()
     if coordinator.picture?.isPictureInPictureActive != true {
       (controller.view as? VideoLayerView)?.videoLayer.player = nil
@@ -142,6 +160,83 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
       label.accessibilityIdentifier = "temporary-speed-indicator"
       return label
     }()
+    var onSwipeDown: (() -> Void)?
+    private var panAxis: NSLayoutConstraint.Axis?
+    private var seekStart = 0.0
+    private var seekDuration = 0.0
+    private var seekTarget = 0.0
+    private var seekItem: AVPlayerItem?
+    let seekPreview: UILabel = {
+      let label = UILabel()
+      label.font = .monospacedDigitSystemFont(ofSize: 19, weight: .semibold)
+      label.textColor = .white
+      label.backgroundColor = UIColor.black.withAlphaComponent(0.8)
+      label.textAlignment = .center
+      label.layer.cornerRadius = 10
+      label.clipsToBounds = true
+      label.isHidden = true
+      label.accessibilityIdentifier = "gesture-seek-preview"
+      return label
+    }()
+    private var canSeek: Bool {
+      store.playback.durationSeconds.isFinite && store.playback.durationSeconds > 0
+        && store.playback.positionSeconds.isFinite && !store.playback.loading
+        && store.playback.player.currentItem?.status == .readyToPlay
+    }
+    func cancelPan() {
+      panAxis = nil
+      seekItem = nil
+      seekPreview.isHidden = true
+    }
+    @objc func panVideo(_ gesture: UIPanGestureRecognizer) {
+      guard let view = gesture.view else { cancelPan(); return }
+      switch gesture.state {
+      case .began:
+        store.playback.endTemporarySpeed()
+        let velocity = gesture.velocity(in: view)
+        panAxis = abs(velocity.x) > abs(velocity.y) ? .horizontal : .vertical
+        if panAxis == .horizontal {
+          guard canSeek else { cancelPan(); return }
+          seekStart = max(0, min(store.playback.positionSeconds, store.playback.durationSeconds))
+          seekDuration = store.playback.durationSeconds
+          seekTarget = seekStart
+          seekItem = store.playback.player.currentItem
+          seekPreview.isHidden = false
+        }
+      case .changed:
+        guard panAxis == .horizontal else { return }
+        guard canSeek, seekItem === store.playback.player.currentItem else { cancelPan(); return }
+        let delta = Double(gesture.translation(in: view).x / max(1, view.bounds.width)) * min(120, seekDuration)
+        seekTarget = max(0, min(seekDuration, seekStart + delta))
+        let seconds = Int((seekTarget - seekStart).rounded())
+        seekPreview.text = "  \(clock(seekTarget)) / \(clock(seekDuration))  \(seconds >= 0 ? "+" : "")\(seconds) 秒  "
+      case .ended:
+        defer { cancelPan() }
+        guard UIApplication.shared.applicationState == .active else { return }
+        if panAxis == .horizontal {
+          guard canSeek, seekItem === store.playback.player.currentItem,
+            abs(gesture.translation(in: view).x) > 12 else { return }
+          store.playback.seek(to: seekTarget)
+        } else if panAxis == .vertical {
+          let travel = gesture.translation(in: view)
+          if travel.y > 72 && travel.y > abs(travel.x) * 1.3 { onSwipeDown?() }
+        }
+      case .cancelled, .failed: cancelPan()
+      default: break
+      }
+    }
+    func gestureRecognizerShouldBegin(_ gesture: UIGestureRecognizer) -> Bool {
+      guard let pan = gesture as? UIPanGestureRecognizer, let view = pan.view else { return true }
+      guard UIApplication.shared.applicationState == .active, !store.playback.isBoosting else { return false }
+      func editing(_ view: UIView) -> Bool {
+        if view.isFirstResponder && (view is UITextField || view is UITextView) { return true }
+        return view.subviews.contains(where: editing)
+      }
+      if let window = view.window, editing(window) { return false }
+      let velocity = pan.velocity(in: view)
+      if abs(velocity.x) > abs(velocity.y) * 1.3 { return canSeek }
+      return velocity.y > abs(velocity.x) * 1.3 && onSwipeDown != nil
+    }
     init(store: Store) { self.store = store }
     @objc func holdSpeed(_ gesture: UILongPressGestureRecognizer) {
       switch gesture.state {
@@ -170,7 +265,7 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
     func gestureRecognizer(
       _ gesture: UIGestureRecognizer,
       shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
-    ) -> Bool { true }
+    ) -> Bool { !(gesture is UIPanGestureRecognizer) && !(other is UIPanGestureRecognizer) }
     func pictureInPictureController(_ controller: AVPictureInPictureController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
       store.showPlayer = true
       completionHandler(true)
@@ -253,20 +348,20 @@ struct MobilePlayerContent: View {
           if store.playerNavigation.root?.id == visit.id || store.playerNavigation.root == nil {
             ToolbarItem(placement: .topBarLeading) {
               Button {
-                store.showPlayer = false
+                store.returnFromPlayer()
               } label: {
                 Image(systemName: "chevron.down")
-              }.accessibilityLabel("收起播放器")
+              }.accessibilityLabel("收起播放器").accessibilityIdentifier("return-from-player")
             }
           }
           ToolbarItem(placement: .topBarTrailing) {
             if store.playerNavigation.root?.id != visit.id && store.playerNavigation.root != nil {
               Button {
-                store.showPlayer = false
+                store.returnFromPlayer()
               } label: {
                 Image(systemName: "chevron.down")
               }
-              .accessibilityLabel("收起播放器")
+              .accessibilityLabel("收起播放器").accessibilityIdentifier("return-from-player")
             }
             Button {
               details = true
@@ -356,7 +451,6 @@ struct MobilePlayerContent: View {
           VStack(alignment: .leading, spacing: 20) {
             video.frame(height: min(min(1280, max(0, geometry.size.width - 40)) * 9 / 16,
               max(180, geometry.size.height - 170)))
-            if let detail = displayedDetail, detail.aid > 0 { danmakuInput(detail) }
             information
           }.frame(maxWidth: 1280).padding(20).frame(maxWidth: .infinity)
         }.scrollDismissesKeyboard(.interactively).scrollPosition($visit.scroll)
@@ -366,16 +460,15 @@ struct MobilePlayerContent: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 18) {
           video.aspectRatio(16 / 9, contentMode: .fit)
-          if let detail = displayedDetail, detail.aid > 0 { danmakuInput(detail) }
-          information
-        }.padding(16)
+          information.padding(.horizontal, 16).padding(.bottom, 16)
+        }
       }.scrollDismissesKeyboard(.interactively).scrollPosition($visit.scroll)
     }
   }
   private var video: some View {
     Group {
       if active { MobileVideoPlayer(store: store) } else { Color.black }
-    }.background(.black).clipShape(.rect(cornerRadius: 16))
+    }.background(.black).clipShape(.rect(cornerRadius: UIDevice.current.userInterfaceIdiom == .pad ? 16 : 0))
       .accessibilityElement(children: .contain)
       .accessibilityIdentifier("player-viewport")
   }
@@ -387,13 +480,6 @@ struct MobilePlayerContent: View {
       }
       if let error = store.playback.error {
         MobileError(text: error) { store.playback.retry(api: store.api) }
-      }
-      playbackOptions
-      if let error = store.extras.subtitleError {
-        Text("字幕：" + error).font(.caption).foregroundStyle(.secondary)
-      }
-      if let error = store.danmaku.error ?? store.danmaku.specialError {
-        Text("弹幕：" + error).font(.caption).foregroundStyle(.secondary)
       }
       if let detail = displayedDetail {
         Text(detail.video.title).font(.title3.bold()).textSelection(.enabled)
@@ -421,6 +507,14 @@ struct MobilePlayerContent: View {
         }
         if detail.aid > 0 {
           actionBar(detail)
+          danmakuInput(detail)
+        }
+        playbackOptions
+        if let error = store.extras.subtitleError {
+          Text("字幕：" + error).font(.caption).foregroundStyle(.secondary)
+        }
+        if let error = store.danmaku.error ?? store.danmaku.specialError {
+          Text("弹幕：" + error).font(.caption).foregroundStyle(.secondary)
         }
         Picker("内容", selection: $visit.section) {
           Text("简介").tag(0)

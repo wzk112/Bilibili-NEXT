@@ -140,7 +140,7 @@ struct PreferencesView: View {
         settingLine("空格", "暂停 / 继续")
         settingLine("← / →", "快退 / 快进 5 秒")
         settingLine("按住 →", "在线 2× / 本地 3×，松开恢复")
-        settingLine("⌃⌘F / Esc", "进入 / 退出全屏")
+        settingLine("F / ⌃⌘F", "切换全屏，Esc 退出")
         Text("输入文字时不触发播放快捷键。").font(.caption).foregroundStyle(.secondary)
       }
     }

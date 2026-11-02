@@ -55,9 +55,9 @@ struct GuidePage: Identifiable {
 }
 
 enum GuideContent {
-  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.3"
+  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.4"
   // Increment only when guide content changes, not on every build.
-  static let revision = "2026-10-28-release-1.1.3"
+  static let revision = "2026-11-03-release-1.1.4"
   static let tutorial: [GuidePage] = [
     .init(id: "account", title: "登录与账号", location: "左下角账号菜单", symbol: "person.crop.circle", paragraphs: [
       "点击“登录”，用哔哩哔哩 App 扫描二维码，并在手机上确认。同一次扫码会完成浏览与互动所需的登录，凭证保存在本机钥匙串。",
@@ -70,7 +70,7 @@ enum GuideContent {
     .init(id: "player", title: "播放与画质", location: "播放页 · 播放器下方控制栏", symbol: "play.rectangle", paragraphs: [
       "可切换分集、清晰度、倍速和音量。切换清晰度会保留播放位置与暂停状态；可选画质由视频、账号权限和设备决定。",
       "拖动进度条跳转，鼠标悬停时显示对应时间。有预览图的视频会显示缩略图；没有图片时保留时间提示。",
-      "双击画面或按 ⌃⌘F 切换全屏，Esc 退出。播放详情显示编码、分辨率、下载速度、前向缓冲和连接状态。"]),
+      "双击画面或按 F / ⌃⌘F 切换全屏，Esc 退出。播放详情显示编码、分辨率、下载速度、前向缓冲和连接状态。"]),
     .init(id: "keys", title: "播放快捷键", location: "播放器获得焦点时", symbol: "keyboard", paragraphs: [
       "空格暂停或继续。左右方向键单击跳转 5 秒。按住右方向键临时加速，松开后恢复原倍速；在线播放使用 2×，支持快速播放的本地视频使用 3×。",
       "⌘F 聚焦搜索框，⌘R 刷新当前列表或重试播放。输入文字时不会触发播放快捷键。",
@@ -113,6 +113,25 @@ enum GuideContent {
       "使用指南和更新说明会在首次安装或对应版本首次打开时展示一次。之后可从“帮助”菜单或“设置 → 关于”重新打开。"], settingsTab: 0)
   ]
   static let currentUpdates: [GuidePage] = [
+    .init(id: "update-114-danmaku", title: "弹幕补载与文字对比度", location: "macOS 1.1.4 · 2026-11-03", symbol: "text.bubble", paragraphs: [
+      "Mac 与移动版补载普通弹幕时保留正在显示的文字，减少补载过程中弹幕突然消失或重新出现的情况。",
+      "Mac 弹幕设置弹出面板使用清晰的文字和背景，在明亮视频画面及浅色外观下更容易阅读。"], settingsTab: 2),
+    .init(id: "update-114-mac-navigation", title: "动态筛选与 Mac 界面调整", location: "macOS 1.1.4 · 2026-11-03", symbol: "sidebar.left", paragraphs: [
+      "关注动态和用户主页的动态页可切换“全部”“视频”“图文”。筛选作用于已加载内容，仍可继续加载更多动态。",
+      "顶部新增侧栏开关，收起后为内容留出更多空间。主内容区减少重复的玻璃容器、收紧页面间距，消息正文的点击区域也已扩大。",
+      "播放器支持按 F 切换全屏，也可继续使用双击画面或 ⌃⌘F。输入文字时不会触发播放快捷键。"]),
+    .init(id: "update-014-player", title: "手机全屏与播放手势", location: "iOS 0.1.4 · 2026-11-03", symbol: "arrow.up.left.and.arrow.down.right", paragraphs: [
+      "iPhone 点击全屏会请求横屏，退出后恢复进入前的方向。iPad 保留手动全屏，旋转设备时继续显示播放页内容。",
+      "在视频画面上横向拖动可预览目标时间，松开后跳转；向下滑动可退出全屏，或从播放页返回小窗。长按临时加速仍可使用。",
+      "手机竖屏画面铺满页面宽度，标题、UP 主和投稿日期移到弹幕输入与播放选项之前。"]),
+    .init(id: "update-014-layout", title: "返回播放偏好与移动端布局", location: "iOS 0.1.4 · 2026-11-03", symbol: "rectangle.split.2x1", paragraphs: [
+      "设置新增“返回时继续小窗播放”，默认开启。关闭后，收起播放页或切换侧栏页面会停止当前视频；退出全屏仍返回播放页。",
+      "视频列表可选择自动、单列或双列布局，卡片补充播放量和可用的投稿日期。辅助功能大字号优先使用单列。",
+      "iPad 宽屏侧栏现在可以收起和重新展开，窄窗口仍通过侧栏按钮打开导航。"]),
+    .init(id: "update-014-downloads", title: "移动端下载批量管理", location: "iOS 0.1.4 · 2026-11-03", symbol: "checklist", paragraphs: [
+      "下载页可多选或全选已完成的下载，批量移除记录或删除应用缓存。进行中的任务保留独立的暂停、继续与移除入口。",
+      "“移除记录”保留文件；“删除缓存”会删除选中的视频和弹幕文件。批量操作前会请求确认，取消后保留选择和文件。",
+      "部分操作失败时保留失败项的选择并显示原因，方便重试；不会把未完成的清理显示为成功。"]),
     .init(id: "update-browse-navigation", title: "保留浏览位置与导航自定义", location: "1.1.3 · 2026-10-28", symbol: "sidebar.left", paragraphs: [
       "返回推荐、热门和分区时保留列表与浏览位置。设置中可选择返回推荐首页时自动刷新，默认关闭。",
       "导航项目支持显示、隐藏、排序与选择启动页。Mac 侧栏保留宽松间距；iPad 点击侧栏直接进入对应页面，首页标题常驻显示。"], settingsTab: 0),

@@ -80,6 +80,7 @@ struct MobileTabletRoot: View {
   @State private var search = ""
   @State private var submittedSearch = ""
   @State private var showingSidebar = false
+  @AppStorage("tabletSidebarCollapsed") private var sidebarCollapsed = false
   @State private var loginAfterSidebar = false
   @State private var navigationRevision = 0
   @FocusState private var searchFocused: Bool
@@ -88,8 +89,9 @@ struct MobileTabletRoot: View {
   var body: some View {
     GeometryReader { geometry in
       let expanded = geometry.size.width >= 900 && !textSize.isAccessibilitySize
-      HStack(alignment: .top, spacing: expanded ? 20 : 0) {
-        if expanded { sidebar.frame(width: 224) }
+      let sidebarVisible = expanded && !sidebarCollapsed
+      HStack(alignment: .top, spacing: sidebarVisible ? 20 : 0) {
+        if sidebarVisible { sidebar.frame(width: 224) }
         VStack(spacing: 16) {
           topbar(expanded: expanded)
           ZStack {
@@ -251,13 +253,15 @@ struct MobileTabletRoot: View {
 
   private func topbar(expanded: Bool) -> some View {
     HStack(spacing: 12) {
-      if !expanded {
-        Button {
-          showingSidebar = true
-        } label: {
-          Image(systemName: "sidebar.left").frame(width: 44, height: 44)
-        }.accessibilityLabel("显示侧栏")
+      Button {
+        searchFocused = false
+        if expanded { sidebarCollapsed.toggle() }
+        else { showingSidebar = true }
+      } label: {
+        Image(systemName: "sidebar.left").frame(width: 44, height: 44)
       }
+      .accessibilityLabel(expanded && !sidebarCollapsed ? "收起侧栏" : "显示侧栏")
+      .accessibilityIdentifier("tablet-sidebar-toggle")
       HStack(spacing: 8) {
         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
         TextField("搜索视频或粘贴 BV 号", text: $search)
@@ -307,7 +311,7 @@ struct MobileTabletRoot: View {
     let returning = selection != .recommend && item == .recommend
     store.isRecommendedVisible = item == .recommend
     let wasShowingPlayer = store.showPlayer
-    store.showPlayer = false
+    if store.showPlayer { store.returnFromPlayer() }
     if returning && !wasShowingPlayer { store.homeReturnRevision += 1 }
     selection = item
     if let page = StartPage.allCases.first(where: { $0.title == item.rawValue }) { store.browseDestination = page }

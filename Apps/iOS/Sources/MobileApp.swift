@@ -48,7 +48,7 @@ struct WebTarget: Identifiable {
   let api: API
   let playback = Playback()
   let mobilePiP = MobilePiPSession()
-  let downloads = Downloads()
+  let downloads: Downloads
   let extras = VideoExtras()
   var comments = Comments()
   let playerNavigation = MobilePlayerNavigation()
@@ -106,11 +106,13 @@ struct WebTarget: Identifiable {
   init() {
     UIDevice.current.beginGeneratingDeviceOrientationNotifications()
     #if DEBUG
+      downloads = MobileUIFixture.downloadsEnabled ? MobileUIFixture.makeDownloads() : Downloads()
       api =
         MobileUIFixture.sessionRestorationEnabled ? MobileUIFixture.makeSessionAPI() : MobileFavoriteFixture.enabled
         ? MobileFavoriteFixture.makeAPI()
         : MobileUIFixture.enabled ? MobileUIFixture.makeAPI() : API(loadCredentials: false)
     #else
+      downloads = Downloads()
       api = API(loadCredentials: false)
     #endif
     UserDefaults.standard.register(defaults: [
@@ -467,6 +469,18 @@ struct WebTarget: Identifiable {
   func openSaved(_ entry: SavedDownload) {
     beginVisit(MobileVideoVisit(bvid: entry.video.bvid, cid: entry.cid, local: entry))
   }
+  /// Leaving the page is distinct from ending a playback session.
+  func returnFromPlayer() {
+    playback.endTemporarySpeed()
+    playback.saveCurrentProgress()
+    let defaults = UserDefaults.standard
+    if defaults.object(forKey: "continuePlaybackOnReturn") == nil
+      || defaults.bool(forKey: "continuePlaybackOnReturn") {
+      showPlayer = false
+    } else {
+      closePlayback()
+    }
+  }
   func closePlayback() {
     mobilePiP.controller?.stopPictureInPicture()
     audioTask?.cancel()
@@ -717,6 +731,13 @@ enum AppPaths {
   var body: some Scene {
     WindowGroup {
       MobileRoot(store: store).tint(biliPink)
+        .overlay(alignment: .bottomLeading) {
+          #if DEBUG
+            if MobileUIFixture.downloadsEnabled {
+              MobileUIDownloadProbe(downloads: store.downloads)
+            }
+          #endif
+        }
         .task { await store.start() }
         .task(id: "\(phase):\(store.accountNeedsRetry)") {
           guard phase == .active, store.accountNeedsRetry else { return }

@@ -16,7 +16,9 @@ import SwiftUI
   private var wakeTask: Task<Void, Never>?
   private var clockTicks = 0
   var compilationCache: SpecialDanmakuCache?
-  var items: [Danmaku] = [] { didSet { invalidatePlan(); compileSpecial() } }
+  var items: [Danmaku] = [] {
+    didSet { invalidatePlan(preservingRunning: true); compileSpecial(); refreshClock() }
+  }
   let specialRenderer = SpecialDanmakuRenderer()
   var onSpecialStatus: ((Int, Int) -> Void)?
   private var specialTask: Task<Void, Never>?
@@ -39,7 +41,10 @@ import SwiftUI
   private var plan: [DanmakuPlacement] = []
   private var textLayers: [String: CALayer] = [:]
   private var lastTime = -1.0
+  private var lastPlaybackTime: Double?
   private var planning = false
+  private var invalidated = true
+  private var preserveRunning = false
   private var style = ""
   private var sampleStart = CACurrentMediaTime()
   private var sampleFrames = 0
@@ -124,6 +129,8 @@ import SwiftUI
         MainActor.assumeIsolated { if self?.frameLink?.isPaused == true { self?.refreshClock() } }
       }
     }
+    lastPlaybackTime = nil
+    invalidatePlan()
     lastTime = -1
     refreshClock()
   }
@@ -179,7 +186,11 @@ import SwiftUI
   private var textScale: CGFloat {
     max(0.5, min(2, UserDefaults.standard.object(forKey: "danmakuScale") as? Double ?? 1))
   }
-  private func invalidatePlan() {
+  private func invalidatePlan(preservingRunning: Bool = false) {
+    // Keep a reset sticky until a compatible plan finishes, even if another
+    // segment arrives while the replacement is being computed.
+    if !preservingRunning { preserveRunning = false }
+    invalidated = true
     revision = UUID()
     task?.cancel()
     planning = false
@@ -205,17 +216,28 @@ import SwiftUI
       0.2, min(1, UserDefaults.standard.object(forKey: "danmakuArea") as? Double ?? 0.5))
     let duration = max(
       3, min(15, UserDefaults.standard.object(forKey: "danmakuDuration") as? Double ?? 8))
+    let continuous = size == plannedSize && preserveRunning
+      && lastPlaybackTime.map { time >= $0 && time - $0 < 1 } == true
+    let previous: [DanmakuPlacement]? = continuous ? plan : nil
+    invalidated = false
     task = Task { [weak self] in
-      let result = await Task.detached(priority: .userInitiated) {
+      let worker = Task.detached(priority: .userInitiated) {
         DanmakuLayout.prepare(
-          items: source, size: size, scale: scale, area: area, duration: duration, time: time, topInset: inset, bottomInset: bottom, options: options)
-      }.value
+          items: source, size: size, scale: scale, area: area, duration: duration, time: time,
+          topInset: inset, bottomInset: bottom, options: options, retaining: previous)
+      }
+      let result = await withTaskCancellationHandler { await worker.value } onCancel: { worker.cancel() }
       guard let self, !Task.isCancelled, token == revision else { return }
       guard size == bounds.size else {
         planning = false
         return
       }
       plan = result
+      preserveRunning = true
+      if !continuous {
+        textLayers.values.forEach { $0.removeFromSuperlayer() }
+        textLayers = [:]
+      }
       plannedWidth = size.width
       plannedSize = size
       windowStart = max(0, time - 20)
@@ -249,9 +271,13 @@ import SwiftUI
     guard player.timeControlStatus != .waitingToPlayAtSpecifiedRate else { frameLink?.isPaused = true; return }
     let time = player.currentTime().seconds
     guard time.isFinite else { return }
-    if plannedWidth != bounds.width || plannedSize != bounds.size || time < windowStart || time > windowEnd - 10 {
+    if let previousTime = lastPlaybackTime, time < previousTime - 0.1 || time - previousTime > 1 {
+      invalidatePlan()
+    }
+    if invalidated || plannedWidth != bounds.width || plannedSize != bounds.size || time < windowStart || time > windowEnd - 10 {
       requestPlan(time: time)
     }
+    lastPlaybackTime = time
     let hasVisible = plan.contains { $0.item.time <= time && time < $0.item.time + $0.duration }
       || specialRenderer.compilation.scripts.contains { $0.item.time <= time && time < $0.item.time + $0.duration }
     frameLink?.isPaused = player.timeControlStatus != .playing || !hasVisible
@@ -289,17 +315,7 @@ import SwiftUI
     where placement.item.time <= time && time - placement.item.time < placement.duration {
       guard visible.count < 150 else { break }
       let item = placement.item
-      let elapsed = time - item.time
       let text = DanmakuLayout.displayText(item.text)
-      let opacity: Float = 1
-      var x: CGFloat
-      var y: CGFloat
-      x = item.mode == 4 || item.mode == 5
-        ? (bounds.width-placement.width)/2
-        : item.mode == 6
-          ? -placement.width+(bounds.width+placement.width)*elapsed/placement.duration
-          : bounds.width-(bounds.width+placement.width)*elapsed/placement.duration
-      y = placement.y
       visible.insert(item.id)
       let textLayer: CALayer
       if let existing = textLayers[item.id] {
@@ -316,11 +332,10 @@ import SwiftUI
         textLayers[item.id] = textLayer
       }
       textLayer.opacity =
-        opacity
-        * Float(
+        Float(
           max(
             0.1, min(1, UserDefaults.standard.object(forKey: "danmakuOpacity") as? Double ?? 0.85)))
-      textLayer.position = CGPoint(x: x, y: y)
+      textLayer.position = CGPoint(x: placement.x(at: time, viewportWidth: bounds.width), y: placement.y)
     }
     for id in Array(textLayers.keys) where !visible.contains(id) {
       textLayers.removeValue(forKey: id)?.removeFromSuperlayer()

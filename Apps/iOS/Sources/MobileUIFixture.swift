@@ -1,5 +1,6 @@
 #if DEBUG
   import Foundation
+  import SwiftUI
   import UIKit
 
   /// Synthetic UI scenarios. This session intercepts every request; no real account is read or written.
@@ -13,7 +14,56 @@
     private static var coins = ProcessInfo.processInfo.arguments.contains("--qa-coins-full") ? 2 : 0
     private static var liked = false
     private static var favorited = false
+    private static let downloadsDirectory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("BiliGlass-QA-Downloads-\(UUID().uuidString)", isDirectory: true)
+    private static let downloadFileContents = Data("isolated download UI fixture".utf8)
     static var enabled: Bool { ProcessInfo.processInfo.arguments.contains("--qa-ui") }
+    static var downloadsEnabled: Bool {
+      enabled && ProcessInfo.processInfo.arguments.contains("--qa-downloads")
+    }
+    private static func downloadFiles(_ name: String) -> [URL] {
+      ["mp4", "danmaku.json", "xml"].map {
+        downloadsDirectory.appendingPathComponent("\(name).\($0)")
+      }
+    }
+    @MainActor static func makeDownloads() -> Downloads {
+      precondition(downloadsEnabled)
+      let downloads = Downloads(storageDirectory: downloadsDirectory)
+      do {
+        let samples: [(String, String, Bool?)] = [
+          ("cache", "批量测试缓存", true), ("export", "批量测试外部导出", false),
+          ("legacy-export", "批量测试旧导出", nil),
+        ]
+        downloads.saved = try samples.map { name, title, cached in
+          let files = downloadFiles(name)
+          for file in files { try downloadFileContents.write(to: file, options: .atomic) }
+          return SavedDownload(
+            id: UUID(), video: Video(bvid: name, title: title, cover: "", author: "本地测试", duration: 10, views: 0),
+            cid: 1, quality: "1080P", path: files[0].path, date: .now,
+            cached: cached, danmakuPath: files[1].path)
+        }
+        let pending = DownloadJob(
+          video: Video(bvid: "pending", title: "批量测试暂停任务", cover: "", author: "本地测试", duration: 10, views: 0),
+          cid: 1, qn: 80, folder: downloadsDirectory.appendingPathComponent("MediaCache"), cached: true)
+        pending.cancelled = true
+        pending.status = "已暂停"
+        downloads.jobs = [pending]
+        precondition(downloads.persist(), "Unable to persist isolated download UI fixture")
+      } catch {
+        preconditionFailure("Unable to prepare isolated download UI fixture: \(error)")
+      }
+      return downloads
+    }
+    @MainActor static func downloadState(_ downloads: Downloads) -> String {
+      // Observe the message too, so failed operations refresh the disk evidence.
+      _ = downloads.message
+      let cacheFiles = downloadFiles("cache").filter { FileManager.default.fileExists(atPath: $0.path) }.count
+      let exports = downloadFiles("export") + downloadFiles("legacy-export")
+      let intactExports = exports.filter { (try? Data(contentsOf: $0)) == downloadFileContents }.count
+      let indexURL = downloadsDirectory.appendingPathComponent("downloads.json")
+      let index = (try? Data(contentsOf: indexURL)).flatMap { try? JSONDecoder().decode(DownloadIndex.self, from: $0) }
+      return "records=\(downloads.saved.count);index=\(index?.saved.count ?? -1);cache-files=\(cacheFiles);intact-exports=\(intactExports);pending=\(downloads.jobs.filter { !$0.finished }.count)"
+    }
     static var sessionRestorationEnabled: Bool {
       ProcessInfo.processInfo.arguments.contains("--qa-session-restoration")
     }
@@ -315,5 +365,17 @@
       client?.urlProtocolDidFinishLoading(self)
     }
     override func stopLoading() {}
+  }
+
+  /// Visible only in the isolated downloads fixture, exposing actual disk state to UI tests.
+  struct MobileUIDownloadProbe: View {
+    @Bindable var downloads: Downloads
+    var body: some View {
+      Text(MobileUIFixture.downloadState(downloads))
+        .font(.system(size: 8, design: .monospaced)).padding(3)
+        .background(.ultraThinMaterial)
+        .accessibilityIdentifier("qa-download-state")
+        .allowsHitTesting(false)
+    }
   }
 #endif

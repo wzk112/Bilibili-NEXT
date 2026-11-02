@@ -95,7 +95,7 @@ import UIKit
     return changed
   }
   private func invalidatePlan(preservingRunning: Bool = false) {
-    preserveRunning = preservingRunning
+    if !preservingRunning { preserveRunning = false }
     invalidated = true
     revision = UUID()
     planTask?.cancel()
@@ -107,9 +107,9 @@ import UIKit
     let textScale = scale * max(0.5, min(1, rect.height / 360))
     let area = area, duration = duration
     let insets = DanmakuLayout.mobileInsets(height: rect.height, fullscreen: fullscreen)
-    let continuous = rect == plannedRect && (!invalidated || preserveRunning)
+    let continuous = rect == plannedRect && preserveRunning
       && time >= lastTime && time - lastTime < 1
-    let previous = continuous ? plan : []
+    let previous: [DanmakuPlacement]? = continuous ? plan : nil
     let clear = !continuous
     invalidated = false
     planTask = Task { [weak self] in
@@ -123,6 +123,7 @@ import UIKit
       self.planTask = nil
       guard rect == self.videoRect else { self.invalidated = true; return }
       self.plan = result
+      self.preserveRunning = true
       if clear { self.clearLayers() }
       self.plannedAt = time
       self.plannedRect = rect

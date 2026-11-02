@@ -41,6 +41,10 @@ import AVKit
     }
     guard event.type == .keyDown, !editingText,
           event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return event }
+    if event.charactersIgnoringModifiers?.lowercased() == "f", let toggle = view.toggleFullscreen {
+      if !event.isARepeat { cancelHeldKey(); toggle() }
+      return nil
+    }
     switch event.keyCode {
     case 49:
       if !event.isARepeat { cancelHeldKey(); playback.togglePlayback() }

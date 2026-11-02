@@ -38,6 +38,7 @@ struct DanmakuFilteringControls: View {
 }
 
 struct DanmakuSettingsButton: View {
+  @Environment(\.colorScheme) private var colorScheme
   @State private var showing = false
   @AppStorage("danmakuOpacity") private var opacity = 0.85
   @AppStorage("danmakuScale") private var scale = 1.0
@@ -56,6 +57,12 @@ struct DanmakuSettingsButton: View {
           Divider()
           DanmakuFilteringControls()
         }.padding(20).frame(width: 330)
+          .foregroundStyle(.primary)
+          // Keep text contrast stable even over a bright video frame.
+          .background(.background)
+          // Fullscreen controls override the SwiftUI scheme. Apply it to the
+          // presentation too, so AppKit's popover and its labels stay in sync.
+          .preferredColorScheme(colorScheme)
       }
   }
 }

@@ -83,6 +83,18 @@ struct DynamicEntry: Identifiable {
   }
 }
 #if os(macOS)
+private enum NativeDynamicFilter: String, CaseIterable {
+  case all = "全部", video = "视频", textAndImages = "图文"
+  func includes(_ entry: DynamicEntry) -> Bool {
+    switch self {
+    case .all: return true
+    case .video: return entry.video != nil
+    case .textAndImages:
+      return entry.video == nil && entry.attachment == nil && entry.unavailableText.isEmpty
+        && (!entry.text.isEmpty || !entry.original.isEmpty || !entry.pictures.isEmpty)
+    }
+  }
+}
 struct NativeDynamicsPage: View {
   @Bindable var store: Store
   var mid: Int? = nil
@@ -95,6 +107,8 @@ struct NativeDynamicsPage: View {
   @State private var identity = UUID()
   @State private var draft = DynamicDraft()
   @State private var composing = false
+  @State private var filter = NativeDynamicFilter.all
+  private var visibleItems: [DynamicEntry] { items.filter(filter.includes) }
   var body: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 18) {
@@ -108,12 +122,20 @@ struct NativeDynamicsPage: View {
             Image(systemName: "arrow.clockwise")
           }.buttonStyle(.glass).disabled(loading).help("刷新动态")
         }.padding(16).floatingGlass(22).contentShape(.rect(cornerRadius: 22))
+        Picker("动态类型", selection: $filter) {
+          ForEach(NativeDynamicFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+        }.pickerStyle(.segmented).frame(maxWidth: 320).accessibilityIdentifier("dynamic-type-filter")
         if let error { ErrorBanner(text: error) { Task { await load(reset: true) } } }
-        ForEach(items) { item in
+        ForEach(visibleItems) { item in
           VStack(alignment: .leading, spacing: 14) {
             DynamicContent(entry: item, store: store)
             DynamicActions(store: store, entry: item, comment: item.commentID > 0 ? { detail = item } : nil)
           }.padding(20).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(24)
+        }
+        if !items.isEmpty && visibleItems.isEmpty && !loading {
+          ContentUnavailableView("已加载内容中没有\(filter.rawValue)动态", systemImage: "line.3.horizontal.decrease",
+            description: Text(hasMore ? "可以继续加载更早的动态，或切回全部。" : "可以切回全部查看其他类型的动态。"))
+            .frame(maxWidth: .infinity)
         }
         if loading {
           ProgressView().frame(maxWidth: .infinity).padding(20)

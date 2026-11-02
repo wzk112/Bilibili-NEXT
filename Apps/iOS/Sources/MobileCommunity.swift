@@ -547,13 +547,33 @@ struct MobileInteractionSheet: View {
 }
 struct MobileDownloadsPage: View {
   @Bindable var store: Store
-  @State private var deleting: SavedDownload?
+  @State private var deleting: [SavedDownload] = []
+  @State private var removing: [SavedDownload] = []
+  @State private var selecting = false
+  @State private var selected = Set<UUID>()
+  private var selectedEntries: [SavedDownload] { store.downloads.saved.filter { selected.contains($0.id) } }
   var body: some View {
     List {
       Section {
-        Text("下载在前台运行，挂起后可能暂停。任务与已收分块会保留，重新打开后可继续。").font(.caption).foregroundStyle(.secondary)
+        Text("下载在前台运行，挂起后可能暂停。任务与已收分块会保留，重新打开后可继续。")
+          .font(.caption).foregroundStyle(.secondary)
       }
       if let message = store.downloads.message { Section { Text(message) } }
+      if selecting {
+        Section {
+          Button(selected.count == store.downloads.saved.count ? "取消全选" : "全选已完成") {
+            selected = selected.count == store.downloads.saved.count ? [] : Set(store.downloads.saved.map(\.id))
+          }.accessibilityIdentifier("downloads-select-all")
+          Button("移除记录（\(selectedEntries.count)）") { removing = selectedEntries }
+            .disabled(selectedEntries.isEmpty)
+          Button("删除缓存（\(selectedEntries.filter { $0.cached == true }.count)）", role: .destructive) {
+            deleting = selectedEntries.filter { $0.cached == true }
+          }.disabled(!selectedEntries.contains { $0.cached == true })
+            .accessibilityIdentifier("downloads-delete-selected")
+        } footer: {
+          Text("仅选择已完成的下载。移除记录会保留文件；删除缓存会同时删除视频和弹幕文件。")
+        }
+      }
       if store.downloads.jobs.contains(where: { !$0.finished }) {
         Section("进行中") {
           ForEach(store.downloads.jobs.filter { !$0.finished }, id: \.pendingRowID) { job in
@@ -568,11 +588,8 @@ struct MobileDownloadsPage: View {
                 } else {
                   Button("暂停") { store.downloads.pause(job) }
                 }
-                Menu {
-                  Button("移除任务", role: .destructive) { store.downloads.removeJob(job) }
-                } label: {
-                  Image(systemName: "ellipsis")
-                }
+                Menu { Button("移除任务", role: .destructive) { store.downloads.removeJob(job) } }
+                  label: { Image(systemName: "ellipsis") }
               }
             }
           }
@@ -581,40 +598,88 @@ struct MobileDownloadsPage: View {
       if !store.downloads.saved.isEmpty {
         Section("已完成") {
           ForEach(store.downloads.saved, id: \.completedRowID) { entry in
-            VStack(alignment: .leading, spacing: 10) {
-              Text(entry.video.title).lineLimit(2)
-              Text(entry.quality + (entry.danmakuPath == nil ? "" : " · 含弹幕")).font(.caption)
-                .foregroundStyle(.secondary)
-              HStack {
-                Button("离线播放") { store.openSaved(entry) }
-                Spacer()
-                ShareLink(item: URL(fileURLWithPath: entry.path)) {
-                  Image(systemName: "square.and.arrow.up")
-                }
-                Menu {
-                  Button("移除记录") { store.downloads.forget(entry) }
-                  Button("删除文件", role: .destructive) { deleting = entry }
+            HStack(alignment: .top, spacing: 12) {
+              if selecting {
+                Button {
+                  if !selected.insert(entry.id).inserted { selected.remove(entry.id) }
                 } label: {
-                  Image(systemName: "ellipsis")
-                }
+                  Image(systemName: selected.contains(entry.id) ? "checkmark.circle.fill" : "circle")
+                    .frame(width: 44, height: 44)
+                }.accessibilityLabel("选择 " + entry.video.title)
+                  .accessibilityValue(selected.contains(entry.id) ? "已选择" : "未选择")
               }
+              VStack(alignment: .leading, spacing: 10) {
+                Text(entry.video.title).lineLimit(2)
+                Text(entry.quality + (entry.danmakuPath == nil ? "" : " · 含弹幕"))
+                  .font(.caption).foregroundStyle(.secondary)
+                if !selecting {
+                  HStack {
+                    Button("离线播放") { store.openSaved(entry) }
+                    Spacer()
+                    ShareLink(item: URL(fileURLWithPath: entry.path)) { Image(systemName: "square.and.arrow.up") }
+                    Menu {
+                      Button("移除记录") { store.downloads.forget(entry) }
+                      if entry.cached == true { Button("删除文件", role: .destructive) { deleting = [entry] } }
+                    } label: { Image(systemName: "ellipsis") }
+                  }
+                }
+              }.frame(maxWidth: .infinity, alignment: .leading)
             }
           }
         }
       }
       if !store.downloads.jobs.contains(where: { !$0.finished }) && store.downloads.saved.isEmpty {
-        ContentUnavailableView(
-          "还没有下载", systemImage: "arrow.down.circle", description: Text("播放页选择清晰度后点击下载"))
+        ContentUnavailableView("还没有下载", systemImage: "arrow.down.circle", description: Text("播放页选择清晰度后点击下载"))
       }
-    }.buttonStyle(.borderless).navigationTitle("下载").confirmationDialog(
-      "删除此缓存文件？",
-      isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-      titleVisibility: .visible
-    ) {
-      Button("删除", role: .destructive) {
-        if let deleting { store.downloads.deleteCache(deleting) }
-        deleting = nil
+    }.buttonStyle(.borderless).navigationTitle("下载")
+      .toolbar {
+        Button(selecting ? "完成" : "选择") { selecting.toggle(); selected.removeAll() }
+          .disabled(store.downloads.saved.isEmpty && !selecting)
+          .accessibilityIdentifier("downloads-selection")
       }
+      .onChange(of: store.downloads.saved.map(\.id)) {
+        selected.formIntersection(store.downloads.saved.map(\.id))
+      }
+      .confirmationDialog("删除 \(deleting.count) 个缓存文件？", isPresented: Binding(
+        get: { !deleting.isEmpty }, set: { if !$0 { deleting = [] } }), titleVisibility: .visible
+      ) {
+        Button("删除缓存文件", role: .destructive) {
+          let entries = deleting
+          deleting = []
+          process(entries, deleteFiles: true)
+        }
+        Button("取消", role: .cancel) { deleting = [] }
+      } message: { Text("将从此设备删除选中的视频和弹幕文件，此操作不可撤销。") }
+      .confirmationDialog("移除 \(removing.count) 条下载记录？", isPresented: Binding(
+        get: { !removing.isEmpty }, set: { if !$0 { removing = [] } }), titleVisibility: .visible
+      ) {
+        Button("移除记录", role: .destructive) {
+          let entries = removing
+          removing = []
+          process(entries, deleteFiles: false)
+        }
+        Button("取消", role: .cancel) { removing = [] }
+      } message: { Text("文件仍保留在此设备上，不会删除视频或弹幕文件。") }
+  }
+  private func process(_ entries: [SavedDownload], deleteFiles: Bool) {
+    var completed = 0
+    var errors: [String] = []
+    for entry in entries {
+      let success = deleteFiles ? store.downloads.deleteCache(entry) : store.downloads.forget(entry)
+      if success {
+        completed += 1
+        selected.remove(entry.id)
+      } else {
+        selected.insert(entry.id)
+        if let error = store.downloads.message, !errors.contains(error) { errors.append(error) }
+      }
+    }
+    let failed = entries.count - completed
+    if failed == 0 {
+      store.downloads.message = deleteFiles ? "已删除 \(completed) 个缓存。" : "已移除 \(completed) 条下载记录。"
+    } else {
+      store.downloads.message = "\(completed) 项处理完成，\(failed) 项未完成，请重试。"
+        + (errors.isEmpty ? "" : "\n" + errors.joined(separator: "\n"))
     }
   }
 }

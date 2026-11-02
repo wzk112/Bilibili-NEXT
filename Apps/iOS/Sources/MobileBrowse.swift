@@ -40,21 +40,24 @@ struct MobileVideoCard: View {
       Thumbnail(url: video.cover).aspectRatio(16 / 9, contentMode: .fit).clipShape(
         .rect(cornerRadius: 14)
       )
-      .overlay(alignment: .bottomTrailing) {
-        Text(clock(Double(video.duration))).font(.caption2.monospacedDigit()).padding(5).background(
-          .black.opacity(0.7), in: .capsule
-        ).foregroundStyle(.white).padding(7)
+      .overlay(alignment: .bottom) {
+        HStack {
+          Label(compactCount(video.views), systemImage: "play.fill")
+            .accessibilityLabel("\(compactCount(video.views)) 次播放")
+          Spacer(minLength: 4)
+          Text(clock(Double(video.duration))).monospacedDigit()
+        }.font(.caption2).foregroundStyle(.white).padding(7)
+          .background(LinearGradient(colors: [.clear, .black.opacity(0.8)], startPoint: .top, endPoint: .bottom))
+          .clipShape(.rect(cornerRadius: 14))
       }
       Text(video.title).font(.subheadline.weight(.medium)).lineLimit(2).frame(
         maxWidth: .infinity, minHeight: titleHeight, alignment: .topLeading)
-      HStack {
-        Text(video.author).lineLimit(1)
-        if UIDevice.current.userInterfaceIdiom == .pad {
-          Spacer(minLength: 4)
-          Label(compactCount(video.views), systemImage: "play")
-            .lineLimit(1)
-        }
-      }.font(.caption).foregroundStyle(.secondary)
+      Text(video.author).lineLimit(1).font(.caption).foregroundStyle(.secondary)
+      if let date = video.publishedAt {
+        Text(date.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits)))
+          .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+          .accessibilityLabel("投稿日期：" + date.formatted(.dateTime.year().month().day()))
+      }
     }.padding(UIDevice.current.userInterfaceIdiom == .pad ? 12 : 0)
       .background {
         if UIDevice.current.userInterfaceIdiom == .pad {
@@ -128,14 +131,16 @@ struct MobileVideoGrid: View {
   @Bindable var store: Store
   @Environment(\.dynamicTypeSize) private var textSize
   @Environment(\.horizontalSizeClass) private var sizeClass
+  @AppStorage("mobileHomeColumns") private var homeColumns = 0
+  private var columns: [GridItem] {
+    let spacing: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 18 : 14
+    if textSize.isAccessibilitySize || homeColumns == 1 { return [GridItem(.flexible(), spacing: spacing)] }
+    if homeColumns == 2 { return Array(repeating: GridItem(.flexible(), spacing: spacing), count: 2) }
+    return [GridItem(.adaptive(minimum: sizeClass == .regular ? 240 : 160, maximum: 400), spacing: spacing)]
+  }
   var body: some View {
     LazyVGrid(
-      columns: [
-        GridItem(
-          .adaptive(
-            minimum: textSize.isAccessibilitySize ? 280 : sizeClass == .regular ? 240 : 160,
-            maximum: 400), spacing: UIDevice.current.userInterfaceIdiom == .pad ? 18 : 14)
-      ], alignment: .leading, spacing: 20
+      columns: columns, alignment: .leading, spacing: 20
     ) {
       ForEach(videos) { video in
         Button {
@@ -349,7 +354,7 @@ private struct MobileRootPresentation: ViewModifier {
             !columns && store.showPlayer
               && !store.conversationPresented
           },
-          set: { if !columns && !store.conversationPresented { store.showPlayer = $0 } }),
+          set: { if !columns && !store.conversationPresented && !$0 { store.returnFromPlayer() } }),
         onDismiss: { store.playback.saveCurrentProgress() }
       ) {
         MobilePlayerPage(store: store)
