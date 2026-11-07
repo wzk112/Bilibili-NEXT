@@ -1,5 +1,6 @@
 import BiliModels
 import BiliNetworking
+import CFNetwork
 import Foundation
 
 /// A selection is scoped to fresh playurl URLs. Alternate nodes may supply missing
@@ -42,15 +43,18 @@ final class CDNTransport: HTTPRangeStreaming, Sendable {
   private let idleTimeout: Duration
   private let probeTimeout: Double
   private let rangeTimeout: Duration
+  private let usesSystemProxy: @Sendable (URL) -> Bool
 
-  init(source: any HTTPRangeStreaming = HTTPRangeStreamingClient(maximumConnectionsPerHost: 32),
+  init(source: any HTTPRangeStreaming = BiliMediaTransport(),
        health: CDNHealth = .shared, idleTimeout: Duration = .seconds(8),
-       probeTimeout: Double = 3, rangeTimeout: Duration = .seconds(4)) {
+       probeTimeout: Double = 3, rangeTimeout: Duration = .seconds(4),
+       usesSystemProxy: @escaping @Sendable (URL) -> Bool = { _ in false }) {
     self.source = source
     self.health = health
     self.idleTimeout = idleTimeout
     self.probeTimeout = probeTimeout
     self.rangeTimeout = rangeTimeout
+    self.usesSystemProxy = usesSystemProxy
   }
 
   func select(_ representation: MediaRepresentation, headers: [String: String]) async throws -> CDNSelection {
@@ -67,7 +71,10 @@ final class CDNTransport: HTTPRangeStreaming, Sendable {
         group.addTask { [self] in
           let began = ContinuousClock.now
           do {
-            let prefix = try await withDeadline(seconds: probeTimeout) {
+            // A cold proxy tunnel can take longer than a direct CDN probe.
+            // Keep racing the candidates and return as soon as one is verified.
+            let timeout = usesSystemProxy(url) ? max(probeTimeout, 10) : probeTimeout
+            let prefix = try await withDeadline(seconds: timeout) {
               let buffer = CDNProbeBuffer()
               _ = try await self.stream(
                 from: url, rangeHeader: range.headerValue, expectedRange: range,
@@ -114,6 +121,12 @@ final class CDNTransport: HTTPRangeStreaming, Sendable {
   func diagnostics() async -> [[String: String]] { await probes.items }
   func statistics() async -> [String: Int] { await transfers.snapshot() }
   func activeHosts() async -> [String: String] { await routes.diagnostics() }
+  static func systemUsesProxy(for url: URL) -> Bool {
+    guard let settings = CFNetworkCopySystemProxySettings()?.takeRetainedValue(),
+      let proxies = CFNetworkCopyProxiesForURL(url as CFURL, settings).takeRetainedValue() as? [[String: Any]],
+      let type = proxies.first?[kCFProxyTypeKey as String] as? String else { return false }
+    return type != (kCFProxyTypeNone as String)
+  }
   private static func failureName(_ error: Error) -> String {
     guard let error = error as? HTTPRangeResponseError else {
       return error is CDNIdleTimeout ? "idleTimeout" : error is BiliError ? "probeTimeout" : "transport"

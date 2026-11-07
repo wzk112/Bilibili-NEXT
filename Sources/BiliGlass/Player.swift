@@ -15,12 +15,13 @@ struct PlaybackResume {
   @ObservationIgnored let specialDanmakuCache = SpecialDanmakuCache()
   @ObservationIgnored let personAvoidance = PersonAvoidance()
   @ObservationIgnored weak var nativeView: NativeVideoView?
+  let pictureInPicture = SystemPictureInPicture()
   #endif
   private var bridge = DASHToHLSBridge()
   private var videoTransport: ParallelVideoStream?
   private var diskCache: PlaybackDiskCache?
   private var cdnTransport: CDNTransport?
-  private var mediaConnectionPool: HTTPRangeStreamingClient?
+  private var mediaConnectionPool: BiliMediaTransport?
   var detail: Detail?
   var streams: Streams?
   var selectedCID = 0
@@ -46,7 +47,6 @@ struct PlaybackResume {
   var isBoosting = false
   var temporarySpeed: Float = 3
   var showsDetails = false
-  var showsSystemControls = false
   var isFullscreen = false
   var boostLabel: String { "\(Double(temporarySpeed).formatted())× 临时倍速" + (isOffline ? "" : " · 在线播放") }
   var isOffline = false
@@ -55,6 +55,8 @@ struct PlaybackResume {
   var localDanmaku: URL?
   private(set) var generation = UUID()
   private(set) var pendingResume: PlaybackResume?
+  private var replayRequest: UUID?
+  var wantsPlayback: Bool { pendingResume?.playing ?? (replayRequest != nil || player.rate != 0) }
   private(set) var requestedQuality: Int?
   private var task: Task<Void, Never>?
   private var stallMonitor: Task<Void, Never>?
@@ -83,6 +85,7 @@ struct PlaybackResume {
     #endif
   }
   func pausePlayback() {
+    replayRequest = nil
     pendingResume?.playing = false
     player.pause()
     saveCurrentProgress()
@@ -91,7 +94,7 @@ struct PlaybackResume {
     if pendingResume != nil {
       pendingResume?.playing = true
       if player.currentItem?.status == .readyToPlay { player.playImmediately(atRate: speed) }
-    } else if player.rate == 0 { togglePlayback() }
+    } else if !wantsPlayback { togglePlayback() }
   }
   func togglePlayback() {
     if pendingResume != nil {
@@ -102,15 +105,18 @@ struct PlaybackResume {
       return
     }
     guard player.currentItem != nil else { return }
-    if player.rate != 0 { player.pause(); saveCurrentProgress(); return }
+    if wantsPlayback { pausePlayback(); return }
     let duration = player.currentItem?.duration.seconds ?? 0
     let current = player.currentTime().seconds
     if duration.isFinite, duration > 0, current.isFinite, current >= duration - 0.25 {
       let token = generation
+      let request = UUID()
+      replayRequest = request
       player.seek(to: .zero) { [weak self] finished in
         Task { @MainActor in
-          guard let self, finished, token == self.generation else { return }
-          self.player.playImmediately(atRate: self.speed)
+          guard let self, token == self.generation, self.replayRequest == request else { return }
+          self.replayRequest = nil
+          if finished { self.player.playImmediately(atRate: self.speed) }
         }
       }
     } else { player.playImmediately(atRate: speed) }
@@ -250,9 +256,9 @@ struct PlaybackResume {
     let connections = connectionOverride ?? (UserDefaults.standard.object(forKey: "videoThreads") as? Int ?? 4)
     // Keep established HTTPS connections across quality changes, but create fresh
     // route/prefix state from the newly fetched signed URLs on every load.
-    let pool = mediaConnectionPool ?? HTTPRangeStreamingClient(maximumConnectionsPerHost: 32)
+    let pool = mediaConnectionPool ?? BiliMediaTransport()
     mediaConnectionPool = pool
-    let cdn = CDNTransport(source: pool)
+    let cdn = CDNTransport(source: pool, usesSystemProxy: { BiliNetworkPolicy.usesSystemProxy(for: $0) })
     cdnTransport = cdn
     let videoURLs = Set(s.videos.flatMap(\.urlCandidates))
     let cache = (UserDefaults.standard.object(forKey: "continuousPreload") as? Bool ?? true)
@@ -653,7 +659,7 @@ struct PlaybackResume {
     onProgress?(detail.video.bvid, selectedCID, seconds, true)
   }
   private func beginChange() {
-    showsSystemControls = false
+    replayRequest = nil
     saveCurrentProgress()
     endTemporarySpeed()
     task?.cancel()
@@ -688,8 +694,8 @@ struct PlaybackResume {
     bridge = DASHToHLSBridge()
   }
   func stop() {
-    showsSystemControls = false
     #if os(macOS)
+    pictureInPicture.stop()
     personAvoidance.stop()
     #endif
     beginChange()
@@ -707,36 +713,45 @@ struct PlaybackResume {
 }
 
 #if os(macOS)
-@MainActor final class NativeVideoView: AVPlayerView, @preconcurrency AVPlayerViewPictureInPictureDelegate {
+@MainActor final class NativeVideoView: NSView {
   let danmaku = DanmakuView(frame: .zero)
   var toggleFullscreen: (() -> Void)?
   var togglePlayback: (() -> Void)?
   var keyboard: PlayerKeyboard?
+  var handlesPlaybackShortcuts = false
   var onVideoLayout: (() -> Void)?
-  var onPictureInPicture: (() -> Void)?
+  private weak var videoLayer: AVPlayerLayer?
   private var wheelMonitor: Any?
   override init(frame: NSRect) {
     super.init(frame: frame)
-    pictureInPictureDelegate = self
-    let doubleClick = NSClickGestureRecognizer(target:self,action:#selector(toggleByDoubleClick(_:)))
-    doubleClick.numberOfClicksRequired = 2
-    addGestureRecognizer(doubleClick)
+    wantsLayer = true
+    addSubview(danmaku)
   }
-  @objc private func toggleByDoubleClick(_ gesture:NSClickGestureRecognizer) { toggleFullscreen?() }
-  func playerViewDidStartPicture(inPicture playerView: AVPlayerView) { onPictureInPicture?() }
-  func playerViewDidStopPicture(inPicture playerView: AVPlayerView) { onPictureInPicture?() }
-  func playerViewShouldAutomaticallyDismissAtPicture(inPictureStart playerView: AVPlayerView) -> Bool { false }
-  func playerView(_ playerView: AVPlayerView, failedToStartPictureInPictureWithError error: Error) { onPictureInPicture?() }
-  func playerView(_ playerView: AVPlayerView, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: (Bool) -> Void) { completionHandler(true) }
-  func attachDanmaku() {
-    guard let overlay = contentOverlayView else { return }
-    if danmaku.superview !== overlay { overlay.addSubview(danmaku) }
-    danmaku.autoresizingMask = [.width, .height]
-    // AVKit can report an empty videoBounds even while its overlay has a valid size.
-    // The overlay is already aligned with the rendered video by AVKit.
-    let presentation = player?.currentItem?.presentationSize ?? .zero
+  func attachVideoLayer(_ video: AVPlayerLayer) {
+    guard let layer else { return }
+    videoLayer = video
+    if video.superlayer !== layer {
+      video.removeFromSuperlayer()
+      layer.insertSublayer(video, at: 0)
+    }
+    layoutVideo()
+  }
+  func detachVideoLayer(keepPlaying: Bool) {
+    if let videoLayer, videoLayer.superlayer === layer {
+      videoLayer.removeFromSuperlayer()
+      if !keepPlaying { videoLayer.player = nil }
+    }
+    videoLayer = nil
+  }
+  private func layoutVideo() {
+    guard let videoLayer, videoLayer.superlayer === layer else { return }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    videoLayer.frame = bounds
+    let presentation = videoLayer.player?.currentItem?.presentationSize ?? .zero
     danmaku.frame = presentation.width > 0 && presentation.height > 0
-      ? AVMakeRect(aspectRatio: presentation, insideRect: overlay.bounds) : overlay.bounds
+      ? AVMakeRect(aspectRatio: presentation, insideRect: bounds) : bounds
+    CATransaction.commit()
   }
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
@@ -754,8 +769,6 @@ struct PlaybackResume {
         guard let self, event.window === self.window, !self.isHidden,
           self.visibleRect.contains(self.convert(event.locationInWindow, from: nil))
         else { return false }
-        // AVPlayerView consumes wheel gestures as seeks. Route them to the page before
-        // either the player or its private timeline controls can handle the event.
         self.enclosingScrollView?.scrollWheel(with: event)
         return true
       }
@@ -767,7 +780,7 @@ struct PlaybackResume {
   }
   override var acceptsFirstResponder: Bool { true }
   override func keyDown(with event: NSEvent) {
-    guard let player else { return }
+    guard let player = videoLayer?.player else { return }
     switch event.keyCode {
     case 49: togglePlayback?()
     case 123, 124:
@@ -784,7 +797,7 @@ struct PlaybackResume {
   required init?(coder: NSCoder) { fatalError() }
   override func layout() {
     super.layout()
-    attachDanmaku()
+    layoutVideo()
     onVideoLayout?()
   }
 }
@@ -792,50 +805,55 @@ struct NativePlayer: NSViewRepresentable {
   let playback: Playback
   let items: [Danmaku]
   let enabled: Bool
-  var showsNativeControls = false
   var fullscreen = false
+  var isInlineVisible = true
+  var controlsScrollMiniPlayer = false
   var toggleFullscreen: (() -> Void)?
-  class Coordinator { var observation: NSKeyValueObservation? }
+  class Coordinator {
+    var observation: NSKeyValueObservation?
+    var wasInlineVisible = true
+    weak var pictureInPicture: SystemPictureInPicture?
+  }
   func makeCoordinator() -> Coordinator { Coordinator() }
   func makeNSView(context: Context) -> NativeVideoView {
     let v = NativeVideoView(frame: .zero)
-    v.player = playback.player
     v.danmaku.compilationCache = playback.specialDanmakuCache
-    playback.nativeView = v
     v.toggleFullscreen = toggleFullscreen
     v.togglePlayback = { [weak playback] in playback?.togglePlayback() }
-    v.onPictureInPicture = { [weak playback] in playback?.showsSystemControls = false }
     v.keyboard = PlayerKeyboard(view: v, playback: playback)
-    v.attachDanmaku()
-    v.controlsStyle = showsNativeControls ? .floating : .none
-    v.showsFullScreenToggleButton = false
-    v.allowsPictureInPicturePlayback = true
-    v.allowsVideoFrameAnalysis = false
-    v.videoGravity = .resizeAspect
-    v.preferredDisplayDynamicRange = .high
-    context.coordinator.observation = v.observe(\.isReadyForDisplay, options: [.initial, .new]) {
-      view, _ in
-      let ready = view.isReadyForDisplay
-      Task { @MainActor [weak view] in
-        view?.attachDanmaku()
-        if view === playback.nativeView { playback.renderedFrame = ready }
+    context.coordinator.pictureInPicture = playback.pictureInPicture
+    context.coordinator.observation = playback.pictureInPicture.videoLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) {
+      [weak v, weak playback] layer, _ in
+      let ready = layer.isReadyForDisplay
+      Task { @MainActor [weak v, weak playback] in
+        guard let v, let playback, v === playback.nativeView, !v.isHidden else { return }
+        v.needsLayout = true
+        playback.renderedFrame = ready
       }
     }
     return v
   }
   func updateNSView(_ view: NativeVideoView, context: Context) {
-    view.controlsStyle = (showsNativeControls || playback.showsSystemControls) ? .floating : .none
-    let active = !playback.isFullscreen || fullscreen
+    let active = isInlineVisible && (!playback.isFullscreen || fullscreen)
     let wasHidden = view.isHidden
     view.isHidden = !active
-    if active && wasHidden { playback.focusPlayer() }
-    if !active { view.keyboard?.cancelHeldKey(); view.player = nil; view.danmaku.player = nil; return }
-    playback.nativeView = view
-    if view.player !== playback.player { view.player = playback.player }
+    view.handlesPlaybackShortcuts = active || controlsScrollMiniPlayer
+    if view.handlesPlaybackShortcuts { playback.nativeView = view }
+    if active && wasHidden && context.coordinator.wasInlineVisible { playback.focusPlayer() }
+    context.coordinator.wasInlineVisible = isInlineVisible
+    if !active {
+      if !view.handlesPlaybackShortcuts { view.keyboard?.cancelHeldKey() }
+      view.detachVideoLayer(keepPlaying: playback.pictureInPicture.isPresented)
+      view.danmaku.player = nil
+      return
+    }
+    let videoLayer = playback.pictureInPicture.videoLayer
+    if videoLayer.player !== playback.player { videoLayer.player = playback.player }
+    view.attachVideoLayer(videoLayer)
+    playback.pictureInPicture.prepare()
     view.toggleFullscreen = toggleFullscreen
     view.danmaku.topInset = fullscreen ? 76 : 12
     view.danmaku.bottomInset = fullscreen ? 100 : 12
-    view.attachDanmaku()
     view.danmaku.player = playback.player
     if view.danmaku.items != items {
       view.danmaku.items = items
@@ -850,7 +868,7 @@ struct NativePlayer: NSViewRepresentable {
     view.keyboard = nil
     coordinator.observation = nil
     view.danmaku.player = nil
-    view.player = nil
+    view.detachVideoLayer(keepPlaying: coordinator.pictureInPicture?.isPresented == true)
   }
 }
 

@@ -72,57 +72,60 @@ struct FullscreenPlayerContent: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var visible = true
   @State private var hoveringControls = false
+  @State private var adjustingPlayback = false
+  @State private var danmakuSettingsPresented = false
   @State private var lastInteraction = Date()
   var body: some View {
     ZStack {
       Color.black.ignoresSafeArea()
-      NativePlayer(playback:store.playback,items:store.danmaku.items,enabled:store.danmaku.enabled,showsNativeControls:false,fullscreen:true,toggleFullscreen:close)
+      NativePlayer(playback:store.playback,items:store.danmaku.items,enabled:store.danmaku.enabled,fullscreen:true,toggleFullscreen:close)
+        .ignoresSafeArea()
+      VideoSurfaceClickTarget(playback: store.playback, toggleFullscreen: close, onInteraction: wake)
         .ignoresSafeArea()
       PlaybackStatusOverlay(playback: store.playback)
       SubtitleOverlay(extras: store.extras, playback: store.playback, fullscreen: true)
       if store.playback.isBoosting {
-        Text(store.playback.boostLabel).padding(12).glassEffect(.regular, in: .capsule).frame(maxHeight: .infinity, alignment: .top).padding(.top, 92).allowsHitTesting(false)
+        Text(store.playback.boostLabel).padding(12).glassEffect(.regular, in: .capsule).frame(maxHeight: .infinity, alignment: .top).padding(.top, 24).allowsHitTesting(false)
       }
       VStack(spacing:0) {
-        HStack(spacing:16) {
-          Button(action:close) { Label("退出全屏",systemImage:"arrow.down.right.and.arrow.up.left") }.keyboardShortcut(.cancelAction)
-          Text(store.playback.detail?.video.title ?? "播放").font(.headline).lineLimit(1)
-          Spacer(minLength:0)
-          Toggle("弹幕",isOn:$store.danmaku.enabled).toggleStyle(.switch).fixedSize()
-          DanmakuSettingsButton()
-          Menu("字幕") {
-            Button("关闭字幕") { Task { await store.extras.selectSubtitle("", api: store.api) } }
-            ForEach(store.extras.subtitles) { track in Button(track.title) { Task { await store.extras.selectSubtitle(track.id, api: store.api) } } }
-          }
-          if store.hasNextVideo { Button { store.playNext() } label: { Image(systemName: "forward.end") }.help("下一集") }
-          Button { store.playback.showsDetails.toggle() } label: { Image(systemName: "waveform.path.ecg") }.help("播放详情").accessibilityLabel("播放详情")
-          if let streams = store.playback.streams {
-            Menu {
-              ForEach(Array(Set(streams.videos.map(\.id))).sorted(by:>),id:\.self) { quality in
-                Button(streams.names[quality] ?? String(quality)) { store.playback.selectQuality(quality,api:store.api) }
+        HStack {
+          Text(store.playback.detail?.video.title ?? "播放").font(.headline).lineLimit(2)
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .glassEffect(.regular, in: .rect(cornerRadius: 16))
+          Spacer(minLength: 0)
+        }.allowsHitTesting(false)
+        Spacer().allowsHitTesting(false)
+        PlayerControls(playback: store.playback, fullscreen: true, toggleFullscreen: close, extras: store.extras,
+          onEditingChanged: { adjustingPlayback = $0 },
+          nextAction: store.hasNextVideo ? { store.playNext() } : nil) {
+          HStack(spacing: 10) {
+            Toggle("弹幕", isOn: $store.danmaku.enabled).toggleStyle(.switch).fixedSize()
+            DanmakuSettingsButton(onPresentationChange: { danmakuSettingsPresented = $0 })
+            Menu("字幕") {
+              Button("关闭字幕") { Task { await store.extras.selectSubtitle("", api: store.api) } }
+              ForEach(store.extras.subtitles) { track in
+                Button(track.title) { Task { await store.extras.selectSubtitle(track.id, api: store.api) } }
               }
-            } label: { Text(streams.names[store.playback.selectedQuality] ?? "清晰度").foregroundStyle(.primary) }
-              .tint(.primary)
-          }
-        }.buttonStyle(.glass).padding(14).glassEffect(.regular,in:.rect(cornerRadius:22))
-          .onHover { hoveringControls = $0; if $0 { wake() } }
-        Spacer()
-        PlayerControls(playback:store.playback,fullscreen:true,toggleFullscreen:close,extras:store.extras)
-          .frame(maxWidth:1000)
+            }
+            PlaybackQualityMenu(store: store)
+            PlaybackSpeedMenu(playback: store.playback)
+          }.buttonStyle(.glass)
+        }
+          .frame(maxWidth: 1400)
           .onHover { hoveringControls = $0; if $0 { wake() } }
       }.padding(24).opacity(visible ? 1:0).allowsHitTesting(visible)
         .animation(reduceMotion ? nil : .easeInOut(duration:0.18),value:visible)
-      PlaybackDetailsOverlay(playback: store.playback, topInset: 92, bottomInset: 100)
+      PlaybackDetailsOverlay(playback: store.playback, topInset: 24, bottomInset: 100)
       Button("") { close() }.keyboardShortcut(.cancelAction).hidden()
     }.environment(\.colorScheme, .dark).tint(biliPink)
-      .simultaneousGesture(TapGesture().onEnded { wake() })
       .onContinuousHover { phase in if case .active = phase { wake() } }
       .task {
         while !Task.isCancelled {
           try? await Task.sleep(for:.seconds(0.5))
           guard !Task.isCancelled else { return }
           if store.playback.player.rate == 0 { if !visible { visible = true } }
-          else if visible && !hoveringControls && Date().timeIntervalSince(lastInteraction) > 3 { visible = false }
+          else if visible && !hoveringControls && !adjustingPlayback && !danmakuSettingsPresented
+            && Date().timeIntervalSince(lastInteraction) > 3 { visible = false }
         }
       }
   }

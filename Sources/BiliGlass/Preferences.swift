@@ -38,6 +38,7 @@ struct PreferencesView: View {
   @AppStorage("videoThreads") private var videoThreads = 4
   @AppStorage("simultaneousDownloads") private var simultaneousDownloads = 1
   @AppStorage("continuousPreload") private var continuousPreload = true
+  @AppStorage("bypassSystemProxy") private var bypassSystemProxy = false
   @AppStorage("preloadDiskGB") private var preloadDiskGB = 8
   @AppStorage("bufferSeconds") private var bufferSeconds = 15.0
   @AppStorage("danmakuOpacity") private var opacity = 0.85
@@ -122,9 +123,12 @@ struct PreferencesView: View {
         Text("清晰度以视频、账号权限和设备支持为准。").font(.caption).foregroundStyle(.secondary)
       }
       section("视频加载") {
+        toggleRow("绕过系统代理", value: $bypassSystemProxy)
+        Text("B 站接口、封面和音视频直接连接公网。新请求立即生效；正在进行的请求保留原连接。此选项仅针对系统代理，不影响 TUN 或 VPN 路由。")
+          .font(.caption).foregroundStyle(.secondary)
         toggleRow("持续预读到片尾", value: $continuousPreload)
         stepperRow("临时缓存上限（GB）", value: $preloadDiskGB, range: 1...32)
-        Text("播放请求优先，后台继续预读并写入独立临时目录。切换视频或退出后清理；空间不足时改用按需播放。下次打开视频生效。")
+        Text("播放请求优先，暂停时也继续预读到片尾，写入独立临时目录。切换视频或退出后清理；空间不足时改用按需播放。下次打开视频生效。")
           .font(.caption).foregroundStyle(.secondary)
         HStack { Text("播放线路"); Spacer(); Text("自动择优").foregroundStyle(.secondary) }
         Text("起播时自动试读视频和音频线路，持续缓冲时重新选择。按当前网络响应选取。")

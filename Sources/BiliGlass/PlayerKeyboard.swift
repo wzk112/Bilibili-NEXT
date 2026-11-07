@@ -30,9 +30,9 @@ import AVKit
     return responder is NSTextView || responder is NSTextField
   }
   private func handle(_ event: NSEvent) -> NSEvent? {
-    guard let view, let playback, playback.nativeView === view, view.player === playback.player,
+    guard let view, let playback, playback.nativeView === view, view.handlesPlaybackShortcuts,
           event.window === view.window, view.window?.isKeyWindow == true,
-          !view.isHidden, playback.player.currentItem != nil else { return event }
+          playback.player.currentItem != nil else { return event }
     if event.type == .keyUp, event.keyCode == 124, rightDown {
       let wasBoosted = boosted
       cancelHeldKey()
@@ -58,7 +58,7 @@ import AVKit
       holdTask = Task { [weak self] in
         do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
         guard let self, self.rightDown, !self.editingText, let view = self.view,
-          self.playback?.nativeView === view, !view.isHidden, view.window?.isKeyWindow == true else { return }
+          self.playback?.nativeView === view, view.handlesPlaybackShortcuts, view.window?.isKeyWindow == true else { return }
         self.boosted = self.playback?.beginTemporarySpeed() ?? false
       }
       return nil

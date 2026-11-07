@@ -46,14 +46,14 @@ private final class VideoLinkRedirects: NSObject, URLSessionTaskDelegate, @unche
   private var failures: [URL: Date] = [:]
   private var inFlight: [URL: Task<Video?, Never>] = [:]
   private var active = 0
-  private let session: URLSession
+  private let networkSession: BiliNetworkSession
   init() {
     let config = URLSessionConfiguration.ephemeral
     config.httpCookieStorage = nil
     config.timeoutIntervalForRequest = 8
     config.timeoutIntervalForResource = 12
     config.httpMaximumConnectionsPerHost = 2
-    session = URLSession(configuration: config, delegate: VideoLinkRedirects(), delegateQueue: nil)
+    networkSession = BiliNetworkSession(configuration: config, delegate: VideoLinkRedirects())
   }
   func resolve(_ link: CommentVideoLink, api: API) async -> Video? {
     if let cached = cache[link.url] { return cached }
@@ -71,7 +71,7 @@ private final class VideoLinkRedirects: NSObject, URLSessionTaskDelegate, @unche
           var request = URLRequest(url: url)
           request.httpMethod = "HEAD"
           request.setValue(API.mediaHeaders["User-Agent"], forHTTPHeaderField: "User-Agent")
-          let (_, response) = try await session.data(for: request)
+          let (_, response) = try await networkSession.session.data(for: request)
           guard let http = response as? HTTPURLResponse,
             (300..<400).contains(http.statusCode), let location = http.value(forHTTPHeaderField: "Location"),
             let next = URL(string: location, relativeTo: url)?.absoluteURL,

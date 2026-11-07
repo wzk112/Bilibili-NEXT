@@ -14,7 +14,9 @@ struct RootView: View {
       if !store.fullscreen.isPresented { GlassBackdrop() }
       GeometryReader { viewport in
       HStack(alignment: .top, spacing: 14) {
-        if sidebarVisible { sidebar.frame(width: AppLayout.sidebarWidth) }
+        if sidebarVisible {
+          sidebar.frame(width: AppLayout.sidebarWidth).sidebarTransition()
+        }
         VStack(spacing: 12) {
           GlassEffectContainer { topbar }
           if let reason = store.loginUpgradeReason, !store.loginUpgradeDismissed {
@@ -27,10 +29,10 @@ struct RootView: View {
             }.padding(14).floatingGlass(18)
           }
           if searchFocused && !store.showPlayer { SearchAssistance(store: store) }
-          content.frame(maxWidth: .infinity, maxHeight: .infinity).clipShape(
-            RoundedRectangle(cornerRadius: 24))
+          content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-      }.padding(.horizontal, 16).padding(.bottom, 16).padding(.top, 16)
+      }.interfaceAnimation(sidebarVisible)
+        .padding(.horizontal, 16).padding(.bottom, 16).padding(.top, 16)
         .opacity(store.fullscreen.isPresented ? 0 : 1)
         .allowsHitTesting(!store.fullscreen.isPresented)
         .accessibilityHidden(store.fullscreen.isPresented)
@@ -278,11 +280,13 @@ struct RootView: View {
       } label: {
         Image(systemName: "arrow.clockwise")
       }.help("刷新")
-    }.buttonStyle(.glass).tint(.primary).padding(.horizontal, 12).frame(height: AppLayout.toolbarHeight).floatingGlass(AppLayout.panelRadius)
+    }.buttonStyle(.glass).tint(.primary).padding(.horizontal, 12).frame(height: AppLayout.toolbarHeight)
+      .floatingGlass(AppLayout.panelRadius).interfaceAnimation(sidebarVisible)
   }
   @ViewBuilder private var content: some View {
     ZStack {
-      browsingContent.id(store.destination).interfaceTransition().opacity(store.showPlayer ? 0 : 1)
+      browsingContent.id(store.destination).clipShape(.rect(cornerRadius: 24))
+        .interfaceTransition().opacity(store.showPlayer ? 0 : 1)
         .allowsHitTesting(!store.showPlayer).accessibilityHidden(store.showPlayer)
       if store.showPlayer { PlayerPage(store: store).transition(.opacity) }
     }
@@ -507,93 +511,98 @@ struct ErrorBanner: View {
     }.padding(16).floatingGlass(18)
   }
 }
+struct ScrollingVideoTitle: View {
+  let title: String
+  @AppStorage("interfaceAnimations") private var animations = true
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var position = ScrollPosition(x: 0)
+  @State private var textWidth: CGFloat = 0
+  @State private var viewportWidth: CGFloat = 0
+  @State private var hovering = false
+  private struct ScrollRequest: Equatable {
+    let title: String
+    let overflow: CGFloat
+    let active: Bool
+  }
+  var body: some View {
+    let overflow = max(0, textWidth - viewportWidth)
+    ScrollView(.horizontal) {
+      Text(title).font(.title2.weight(.semibold)).lineLimit(1).fixedSize()
+        .textSelection(.enabled).accessibilityIdentifier("player-video-title")
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { textWidth = $0 }
+    }
+    .scrollIndicators(.hidden).scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+    .scrollPosition($position).frame(height: 28)
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
+    .onHover { hovering = $0 }
+    .accessibilityHint(overflow > 1 ? "可横向滚动查看完整标题" : "")
+    .task(id: ScrollRequest(title: title, overflow: overflow,
+      active: hovering && animations && !reduceMotion)) {
+      position.scrollTo(x: 0)
+      guard hovering, animations, !reduceMotion, overflow > 1 else { return }
+      do {
+        try await Task.sleep(for: .milliseconds(700))
+        try Task.checkCancellation()
+        withAnimation(.linear(duration: max(2, Double(overflow) / 45))) {
+          position.scrollTo(x: overflow)
+        }
+      } catch { }
+    }
+  }
+}
+
 struct PlayerPage: View {
   @Bindable var store: Store
-  @State private var commentAnchor: Int?
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var scrollPosition = ScrollPosition(idType: Int.self)
+  @State private var videoAboveViewport = false
+  @State private var dismissedScrollMiniPlayer = false
+  @State private var metadataWidth: CGFloat = 0
+  @State private var expandedActionsWidth: CGFloat = 0
+  @State private var compactActionsWidth: CGFloat = 0
+  @State private var offlineDanmakuManager = false
+
+  private var usesScrollMiniPlayer: Bool {
+    videoAboveViewport && !store.playback.pictureInPicture.isPresented
+  }
+
+  private var showsScrollMiniPlayer: Bool {
+    store.isPlaybackOpen && usesScrollMiniPlayer && !dismissedScrollMiniPlayer && !store.fullscreen.isPresented
+  }
+
   var body: some View {
     @Bindable var p = store.playback
     GeometryReader { viewport in
+    let availableWidth = max(0, min(viewport.size.width, 1280) - 32)
+    let compactPlaybackControls = availableWidth < 900
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
         if let detail = p.detail { header(detail) }
-        ZStack {
-          NativePlayer(playback: p, items: store.danmaku.items, enabled: store.danmaku.enabled, toggleFullscreen: { store.fullscreen.open(store: store) })
-            .frame(height: max(240, min((min(viewport.size.width, 1280) - 32) * 9 / 16, viewport.size.height - 250)))
-          PlaybackStatusOverlay(playback: p)
-          SubtitleOverlay(extras: store.extras, playback: p)
-        }.background(.black).clipShape(RoundedRectangle(cornerRadius: 16))
-          .overlay(alignment: .top) {
-            if p.isBoosting { Label(p.boostLabel, systemImage: "forward.fill").font(.callout).padding(10).glassEffect(.regular, in: .capsule).padding(16).colorScheme(.dark).allowsHitTesting(false) }
+        InlinePlaybackSurface(store: store, isInlineVisible: !usesScrollMiniPlayer,
+          controlsScrollMiniPlayer: showsScrollMiniPlayer, usesCompactControls: compactPlaybackControls)
+          .frame(height: max(240, min((min(viewport.size.width, 1280) - 32) * 9 / 16, viewport.size.height - 250)))
+          .onGeometryChange(for: Bool.self) { proxy in
+            proxy.frame(in: .scrollView(axis: .vertical)).maxY <= 0
+          } action: { aboveViewport in
+            videoAboveViewport = aboveViewport
+            if !aboveViewport { dismissedScrollMiniPlayer = false }
           }
-          .overlay { PlaybackDetailsOverlay(playback: p) }
         if let detail = p.detail, detail.aid > 0 { DanmakuComposer(store: store, aid: detail.aid) }
-        PlayerControls(playback: p, toggleFullscreen: { store.fullscreen.open(store: store) }, extras: store.extras)
-        PlaybackFeatureControls(store: store)
         if let error = p.error {
           VStack(alignment: .leading, spacing: 10) {
             ErrorBanner(text: error) { p.retry(api: store.api) }
 
           }
         }
-        HStack(spacing: 12) {
-          if let s = p.streams {
-            Menu {
-              ForEach(Array(Set(s.videos.map(\.id))).sorted(by: >), id: \.self) { qn in
-                Button {
-                  p.selectQuality(qn, api: store.api)
-                } label: {
-                  if qn == p.selectedQuality {
-                    Label(s.names[qn] ?? "\(qn)", systemImage: "checkmark")
-                  } else {
-                    Text(s.names[qn] ?? "\(qn)")
-                  }
-                }
-              }
-            } label: {
-              Label(s.names[p.selectedQuality] ?? "清晰度", systemImage: "slider.horizontal.3").foregroundStyle(.primary)
-            }.tint(.primary)
-          }
-          Menu {
-            ForEach([0.5, 0.75, 1, 1.25, 1.5, 2], id: \.self) { rate in
-              Button("\(rate.formatted())×") { p.setSpeed(Float(rate)) }
-            }
-          } label: {
-            Text("\(Double(p.speed).formatted())×").foregroundStyle(.primary)
-          }.tint(.primary)
-          if !p.actualSize.isEmpty {
-            Text(p.actualSize + (p.sourceFormat.isEmpty ? "" : " · " + p.sourceFormat)).help(
-              p.decodedFormat
-            ).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-          }
-          Spacer()
-          Button { p.showsDetails.toggle() } label: { Image(systemName: "waveform.path.ecg") }.help("播放详情").accessibilityLabel("播放详情")
-          if let d = p.detail, p.streams != nil {
-            Menu {
-              Button("缓存到应用") {
-                store.downloads.enqueue(
-                  video: d.video, cid: p.selectedCID, qn: p.selectedQuality, api: store.api,
-                  cached: true)
-              }
-              Button("下载到其他位置…") {
-                store.downloads.enqueue(
-                  video: d.video, cid: p.selectedCID, qn: p.selectedQuality, api: store.api,
-                  cached: false)
-              }
-              Divider()
-              Button("下载弹幕 XML…") {
-                Task {
-                  await store.downloads.saveDanmaku(
-                    video: d.video, cid: p.selectedCID, api: store.api)
-                }
-              }
-            } label: {
-              Label("下载", systemImage: "arrow.down").foregroundStyle(.primary)
-            }.tint(.primary).disabled(p.loading)
-          }
-        }.buttonStyle(.glass).controlSize(.regular)
+        informationToolbar(availableWidth: availableWidth, showsWatchLater: !compactPlaybackControls)
         if let d = p.detail {
           if d.aid > 0 {
-            VideoActionBar(store: store, detail: d)
+            VideoActionBar(store: store, detail: d, showsPlaybackOptions: compactPlaybackControls)
+          } else if compactPlaybackControls {
+            HStack {
+              Spacer(minLength: 0)
+              PlaybackOptionsControls(store: store, onShowDanmakuList: { offlineDanmakuManager = true })
+            }
           }
           if !d.description.isEmpty {
             Text(d.description).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
@@ -603,9 +612,27 @@ struct PlayerPage: View {
           Divider().padding(.vertical, 8)
           if d.aid > 0 { CommentsView(store: store, aid: d.aid).padding(.top, 8) }
         }
-      }.padding(16).frame(maxWidth: 1280).frame(maxWidth: .infinity)
-    }.scrollPosition(id: $commentAnchor, anchor: .top)
-      .floatingGlass(24).clipShape(RoundedRectangle(cornerRadius: 24)).task(id: p.selectedCID) {
+      }.padding(16).frame(width: min(viewport.size.width, 1280)).frame(maxWidth: .infinity)
+    }.scrollPosition($scrollPosition, anchor: .top)
+      .clipShape(.rect(cornerRadius: AppLayout.panelRadius))
+      .floatingGlass(AppLayout.panelRadius)
+      .overlay(alignment: .bottomTrailing) {
+        if showsScrollMiniPlayer {
+          MiniPlayer(store: store, onReturn: {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+              scrollPosition.scrollTo(edge: .top)
+            }
+          }, onClose: {
+            dismissedScrollMiniPlayer = true
+            p.pausePlayback()
+          }, returnLabel: "回到视频").padding(12)
+        }
+      }
+      .onChange(of: p.detail?.video.bvid) { _, bvid in
+        if bvid != nil { dismissedScrollMiniPlayer = false }
+      }
+      .sheet(isPresented: $offlineDanmakuManager) { DanmakuManagement(store: store) }
+      .task(id: p.selectedCID) {
       #if DEBUG
         if LocalPlaybackFixture.url != nil {
           store.danmaku.items = LocalPlaybackFixture.danmaku
@@ -623,20 +650,83 @@ struct PlayerPage: View {
     }
     }
   }
+  @ViewBuilder private func informationToolbar(availableWidth: CGFloat, showsWatchLater: Bool) -> some View {
+    let compact = availableWidth < metadataWidth + expandedActionsWidth + 24
+    if let detail = store.playback.detail {
+      HStack(spacing: 12) {
+        metadata(detail.video)
+          .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { metadataWidth = $0 }
+        Spacer(minLength: 8)
+        // Native menus understand the system label styles. Cross-fade them in
+        // place while the enclosing width animates between their measured sizes.
+        ZStack(alignment: .trailing) {
+          secondaryPlaybackActions(showsWatchLater: showsWatchLater).labelStyle(.titleAndIcon).fixedSize()
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { expandedActionsWidth = $0 }
+            .opacity(compact ? 0 : 1).disabled(compact).allowsHitTesting(!compact).accessibilityHidden(compact)
+          secondaryPlaybackActions(showsWatchLater: showsWatchLater).labelStyle(.iconOnly).fixedSize()
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { compactActionsWidth = $0 }
+            .opacity(compact ? 1 : 0).disabled(!compact).allowsHitTesting(compact).accessibilityHidden(!compact)
+        }
+        .frame(width: (compact ? compactActionsWidth : expandedActionsWidth) > 0
+          ? (compact ? compactActionsWidth : expandedActionsWidth) : nil, alignment: .trailing)
+        .clipped()
+        .interfaceAnimation(compact)
+      }
+    } else {
+      HStack {
+        secondaryPlaybackActions(showsWatchLater: showsWatchLater)
+        Spacer(minLength: 0)
+      }
+    }
+  }
+
+  private func secondaryPlaybackActions(showsWatchLater: Bool) -> some View {
+    HStack(spacing: 12) {
+      if showsWatchLater, let detail = store.playback.detail, detail.aid > 0 {
+        WatchLaterButton(store: store, aid: detail.aid)
+      }
+      PlaybackFeatureControls(store: store)
+      downloadMenu
+    }.buttonStyle(.glass).controlSize(.regular)
+  }
+
+  @ViewBuilder private var downloadMenu: some View {
+    let p = store.playback
+    if let d = p.detail, p.streams != nil {
+      Menu {
+        Button("缓存到应用") {
+          store.downloads.enqueue(
+            video: d.video, cid: p.selectedCID, qn: p.selectedQuality, api: store.api,
+            cached: true)
+        }
+        Button("下载到其他位置…") {
+          store.downloads.enqueue(
+            video: d.video, cid: p.selectedCID, qn: p.selectedQuality, api: store.api,
+            cached: false)
+        }
+        Divider()
+        Button("下载弹幕 XML…") {
+          Task {
+            await store.downloads.saveDanmaku(
+              video: d.video, cid: p.selectedCID, api: store.api)
+          }
+        }
+      } label: {
+        Label("下载", systemImage: "arrow.down").foregroundStyle(.primary)
+      }.tint(.primary).disabled(p.loading).help("下载")
+    }
+  }
+
   private func header(_ detail: Detail) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text(detail.video.title).font(.title2.weight(.semibold)).textSelection(.enabled)
-        .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("player-video-title")
-      ViewThatFits(in: .horizontal) {
-        HStack(spacing: 12) { author(detail); Spacer(minLength: 8); metadata(detail.video) }
-        VStack(alignment: .leading, spacing: 6) { author(detail); metadata(detail.video) }
-      }.font(.caption).foregroundStyle(.secondary)
+    HStack(spacing: 12) {
+      ScrollingVideoTitle(title: detail.video.title).frame(maxWidth: .infinity)
+      author(detail).font(.caption).foregroundStyle(.secondary)
+        .frame(maxWidth: 120, alignment: .trailing).fixedSize(horizontal: true, vertical: false)
     }
   }
   private func author(_ detail: Detail) -> some View {
     Button { store.showProfile(detail.ownerID) } label: {
-      Label(detail.video.author, systemImage: "person.crop.circle").lineLimit(1)
+      Text(detail.video.author).lineLimit(1).truncationMode(.middle).help(detail.video.author)
     }.buttonStyle(.plain).disabled(detail.ownerID <= 0)
   }
   private func metadata(_ video: Video) -> some View {
@@ -648,7 +738,7 @@ struct PlayerPage: View {
           .accessibilityLabel("发布于 " + date.formatted(AppDateFormat.timestamp))
       }
       Text(video.bvid).textSelection(.enabled)
-    }.fixedSize(horizontal: true, vertical: false)
+    }.font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: true, vertical: false)
   }
 }
 #if DEBUG

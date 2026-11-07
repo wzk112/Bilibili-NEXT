@@ -98,7 +98,9 @@ private struct FeedSnapshot: Codable {
   var showLogin = false
   var showPlayer = false
   var isPlaybackOpen = false
-  var showsMiniPlayer: Bool { isPlaybackOpen && !showPlayer && !fullscreen.isPresented }
+  var showsMiniPlayer: Bool {
+    isPlaybackOpen && !showPlayer && !fullscreen.isPresented && !playback.pictureInPicture.isPresented
+  }
   var qrImage: NSImage?
   var loginStatus = ""
   var loginExpired = false

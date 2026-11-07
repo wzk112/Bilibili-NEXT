@@ -201,13 +201,14 @@ struct SubtitleOverlay: View {
   let extras: VideoExtras
   let playback: Playback
   var fullscreen = false
+  var bottomInset: CGFloat = 18
   var body: some View {
     let text = extras.text(at: playback.positionSeconds)
     VStack { Spacer(); if !text.isEmpty {
       Text(text).font(.system(size: fullscreen ? 25 : 20, weight: .medium)).multilineTextAlignment(.center)
         .foregroundStyle(.white).padding(.horizontal, 12).padding(.vertical, 5)
         .background(.black.opacity(0.65), in: .rect(cornerRadius: 6)).padding(.horizontal, 35)
-        .padding(.bottom, fullscreen ? 100 : 18)
+        .padding(.bottom, fullscreen ? 100 : bottomInset)
     } }.allowsHitTesting(false)
   }
 }
@@ -216,8 +217,8 @@ struct PlaybackFeatureControls: View {
   @AppStorage("autoPlayNext") private var autoNext = false
   @AppStorage("autoPlayParts") private var autoParts = true
   @AppStorage("loopVideo") private var loop = false
-  @State private var danmakuManager = false
   var body: some View {
+    let pictureInPicture = store.playback.pictureInPicture
     HStack(spacing: 12) {
       Menu {
         Button("关闭字幕") { Task { await store.extras.selectSubtitle("", api: store.api) } }
@@ -228,21 +229,37 @@ struct PlaybackFeatureControls: View {
         }
         if store.extras.subtitles.isEmpty { Text(store.extras.loading ? "正在读取字幕" : "该视频暂无字幕") }
       } label: { Label("字幕", systemImage: "captions.bubble") }
+        .help("字幕")
       if !store.extras.chapters.isEmpty {
-        Menu("章节") { ForEach(store.extras.chapters) { chapter in Button(chapter.title) { store.playback.seek(to: chapter.start) } } }
+        Menu {
+          ForEach(store.extras.chapters) { chapter in
+            Button(chapter.title) { store.playback.seek(to: chapter.start) }
+          }
+        } label: { Label("章节", systemImage: "list.bullet.rectangle") }
+          .help("章节")
       }
-      if store.hasNextVideo { Button { store.playNext() } label: { Label("下一集", systemImage: "forward.end") } }
       Menu {
         Toggle("分 P 自动连播", isOn: $autoParts)
         Toggle("合集与播放列表自动连播", isOn: $autoNext)
         Toggle("单集循环", isOn: $loop)
       } label: { Label("播放顺序", systemImage: "list.bullet") }
-      Button { store.playback.showsSystemControls.toggle() } label: { Label(store.playback.showsSystemControls ? "关闭系统控件" : "画中画…", systemImage: "pip.enter") }
-        .help("显示系统播放器控件，可从中进入画中画")
-      Button("弹幕列表") { danmakuManager = true }
-      Spacer()
+        .help("播放顺序")
+      Button { [weak store] in
+        guard let store else { return }
+        pictureInPicture.toggle(restore: { [weak store] in
+          guard let store else { return }
+          if !store.showPlayer { store.returnToPlayer() }
+          (store.playback.nativeView?.window ?? NSApp.mainWindow)?.makeKeyAndOrderFront(nil)
+        }, onFailure: { [weak store] in
+          store?.interactionMessage = "系统画中画暂时无法启动"
+        })
+      } label: {
+        Label(pictureInPicture.isPresented ? "退出画中画" : "画中画",
+          systemImage: pictureInPicture.isPresented ? "pip.exit" : "pip.enter")
+      }.disabled(!pictureInPicture.isPossible && !pictureInPicture.isPresented)
+        .help(pictureInPicture.isPresented ? "退出画中画" : "画中画")
       if let error = store.extras.subtitleError { Text(error).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
-    }.buttonStyle(.glass).sheet(isPresented: $danmakuManager) { DanmakuManagement(store: store) }
+    }.buttonStyle(.glass)
   }
 }
 struct VideoDiscovery: View {
@@ -274,8 +291,8 @@ struct VideoDiscovery: View {
   private func sequence(_ title: String, items: [PlaybackQueueItem], parts: Bool) -> some View {
     VStack(alignment: .leading, spacing: 10) {
       Label(title, systemImage: parts ? "rectangle.split.3x1" : "rectangle.stack").font(.headline)
-      GlassEffectContainer(spacing: 10) {
-        ScrollView(.horizontal) {
+      ScrollView(.horizontal) {
+        GlassEffectContainer(spacing: 10) {
           LazyHStack(spacing: 10) {
             ForEach(items) { item in
               let current = item.bvid == store.playback.detail?.video.bvid
@@ -295,9 +312,9 @@ struct VideoDiscovery: View {
                 .accessibilityAddTraits(current ? .isSelected : [])
             }
           }.padding(4)
-        }.scrollIndicators(.hidden).frame(height: 66)
-      }
-    }.padding(14).floatingGlass(16)
+        }
+      }.scrollIndicators(.hidden).frame(height: 66).compositingGroup().clipped()
+    }.padding(14).floatingGlass(16).clipShape(.rect(cornerRadius: 16))
   }
 
 }

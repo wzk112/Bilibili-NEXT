@@ -162,7 +162,9 @@ final class Vault {
   nonisolated static let mediaHeaders = [
     "User-Agent": userAgent, "Referer": "https://www.bilibili.com/",
   ]
-  let session: URLSession
+  private let networkSession: BiliNetworkSession
+  private let injectedSession: URLSession?
+  var session: URLSession { injectedSession ?? networkSession.session }
   var cookies: [String: String] = [:]
   var appCoinAuthorization: AppCoinAuthorization?
   private var wbiKey: String?
@@ -183,7 +185,8 @@ final class Vault {
     c.httpShouldSetCookies = false
     c.timeoutIntervalForRequest = 25
     c.urlCache = nil
-    session = transport ?? URLSession(configuration: c)
+    networkSession = BiliNetworkSession(configuration: c)
+    injectedSession = transport
     if loadCredentials, let data = Vault.load(account: credentialAccount), let saved = StoredLogin.decode(data)
     {
       cookies = saved.cookies

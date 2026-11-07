@@ -3,17 +3,21 @@ import SwiftUI
 
 struct MiniPlayer: View {
   @Bindable var store: Store
+  var onReturn: (() -> Void)?
+  var onClose: (() -> Void)?
+  var returnLabel = "返回播放页"
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack {
         Label(store.playback.isPlaying ? "正在播放" : "已暂停", systemImage: "play.rectangle").font(.caption.weight(.medium)).foregroundStyle(.primary.opacity(0.85))
         Spacer()
-        Button { store.closeMiniPlayer() } label: { Image(systemName: "xmark") }.buttonStyle(.plain).help("关闭迷你播放器").accessibilityLabel("关闭迷你播放器")
+        Button(action: onClose ?? store.closeMiniPlayer) { Image(systemName: "xmark") }
+          .buttonStyle(.plain).help("关闭迷你播放器").accessibilityLabel("关闭迷你播放器")
       }
       ZStack {
         MiniPlayerVideo(playback: store.playback)
         PlaybackStatusOverlay(playback: store.playback)
-        Color.clear.contentShape(.rect).onTapGesture { store.returnToPlayer() }.accessibilityLabel("返回播放页")
+        Color.clear.contentShape(.rect).onTapGesture(perform: onReturn ?? store.returnToPlayer).accessibilityLabel(returnLabel)
       }.frame(height: 169).background(.black).clipShape(.rect(cornerRadius: 12))
       Text(store.playback.detail?.video.title ?? "正在载入视频…").font(.callout.weight(.medium)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
       HStack {
@@ -22,7 +26,7 @@ struct MiniPlayer: View {
         }.help(store.playback.isPlaying ? "暂停" : "继续播放").accessibilityLabel(store.playback.isPlaying ? "暂停迷你播放器" : "继续播放迷你播放器")
           .disabled(store.playback.player.currentItem == nil)
         Spacer()
-        Button { store.returnToPlayer() } label: { Label("返回播放页", systemImage: "arrow.up.left.square") }
+        Button(action: onReturn ?? store.returnToPlayer) { Label(returnLabel, systemImage: "arrow.up.left.square") }
       }.buttonStyle(.glass)
     }.padding(12).frame(width: 324).foregroundStyle(.primary)
       // Regular glass blurs text underneath while retaining background color
