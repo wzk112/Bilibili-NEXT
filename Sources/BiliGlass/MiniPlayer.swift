@@ -42,7 +42,7 @@ private struct MiniPlayerVideo: NSViewRepresentable {
   func makeNSView(context: Context) -> AVPlayerView {
     let view = AVPlayerView(frame: .zero)
     view.controlsStyle = .none; view.allowsVideoFrameAnalysis = false
-    view.videoGravity = .resizeAspect; view.preferredDisplayDynamicRange = .high
+    view.videoGravity = .resizeAspect; view.preferredDisplayDynamicRange = .automatic
     view.player = playback.player
     return view
   }

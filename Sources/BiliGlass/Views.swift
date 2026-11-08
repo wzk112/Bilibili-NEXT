@@ -161,6 +161,11 @@ struct RootView: View {
     }
     .onChange(of: store.searchFocus) { searchFocused = true }
     .onChange(of: store.playerFocus) { searchFocused = false; store.playback.focusPlayer() }
+    .onChange(of: store.selectedFolder) {
+      guard store.destination == .favorites else { return }
+      store.videos = []
+      store.reload()
+    }
     .onChange(of: store.navigationRevision) {
       if !store.showPlayer { searchFocused = false; NSApp.keyWindow?.makeFirstResponder(nil) }
     }
@@ -379,10 +384,7 @@ struct RootView: View {
         if store.destination == .favorites && !store.folders.isEmpty {
           Picker("收藏夹", selection: $store.selectedFolder) {
             ForEach(store.folders) { f in Text(f.title + "（\(f.count)）").tag(f.id) }
-          }.pickerStyle(.menu).onChange(of: store.selectedFolder) {
-            store.videos = []
-            store.reload()
-          }
+          }.pickerStyle(.menu)
         }
         if let error = store.error, store.videos.isEmpty { ErrorBanner(text: error) { store.reload() } }
         if store.videos.isEmpty && store.searchUsers.isEmpty && !store.busy && !store.restoring && store.error == nil {

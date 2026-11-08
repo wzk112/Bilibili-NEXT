@@ -75,10 +75,12 @@ struct FullscreenPlayerContent: View {
   @State private var adjustingPlayback = false
   @State private var danmakuSettingsPresented = false
   @State private var lastInteraction = Date()
+  @State private var cursor = FullscreenCursor()
   var body: some View {
     ZStack {
       Color.black.ignoresSafeArea()
-      NativePlayer(playback:store.playback,items:store.danmaku.items,enabled:store.danmaku.enabled,fullscreen:true,toggleFullscreen:close)
+      NativePlayer(playback:store.playback,items:store.danmaku.items,enabled:store.danmaku.enabled,
+        fullscreen:true,toggleFullscreen:close, toggleDanmaku: { store.danmaku.enabled.toggle() }, keyboardInteraction: wake)
         .ignoresSafeArea()
       VideoSurfaceClickTarget(playback: store.playback, toggleFullscreen: close, onInteraction: wake)
         .ignoresSafeArea()
@@ -118,16 +120,21 @@ struct FullscreenPlayerContent: View {
       PlaybackDetailsOverlay(playback: store.playback, topInset: 24, bottomInset: 100)
       Button("") { close() }.keyboardShortcut(.cancelAction).hidden()
     }.environment(\.colorScheme, .dark).tint(biliPink)
-      .onContinuousHover { phase in if case .active = phase { wake() } }
+      .onContinuousHover { phase in if case .active = phase { wake() } else { cursor.reveal() } }
+      .onDisappear { cursor.reveal() }
       .task {
         while !Task.isCancelled {
           try? await Task.sleep(for:.seconds(0.5))
           guard !Task.isCancelled else { return }
           if store.playback.player.rate == 0 { if !visible { visible = true } }
-          else if visible && !hoveringControls && !adjustingPlayback && !danmakuSettingsPresented
+          else if visible && !hoveringControls && !adjustingPlayback && !danmakuSettingsPresented && !store.playback.showsDetails
             && Date().timeIntervalSince(lastInteraction) > 3 { visible = false }
+          let window = store.playback.nativeView?.window
+          cursor.update(controlsVisible: visible, playing: store.playback.isPlaying,
+            activeWindow: NSApp.isActive && window?.isKeyWindow == true,
+            pointerInside: window?.frame.contains(NSEvent.mouseLocation) == true, window: window)
         }
       }
   }
-  private func wake() { lastInteraction = Date(); visible = true }
+  private func wake() { cursor.reveal(); lastInteraction = Date(); visible = true }
 }

@@ -144,6 +144,10 @@ struct PreferencesView: View {
         settingLine("空格", "暂停 / 继续")
         settingLine("← / →", "快退 / 快进 5 秒")
         settingLine("按住 →", "在线 2× / 本地 3×，松开恢复")
+        settingLine("↑ / ↓", "音量增加 / 减少 5%")
+        settingLine("[ / ] 或 < / >", "降低 / 提高播放速度")
+        settingLine("\\", "恢复 1× 播放")
+        settingLine("M / D", "静音 / 弹幕开关")
         settingLine("F / ⌃⌘F", "切换全屏，Esc 退出")
         Text("输入文字时不触发播放快捷键。").font(.caption).foregroundStyle(.secondary)
       }

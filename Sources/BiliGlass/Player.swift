@@ -16,6 +16,11 @@ struct PlaybackResume {
   @ObservationIgnored let personAvoidance = PersonAvoidance()
   @ObservationIgnored weak var nativeView: NativeVideoView?
   let pictureInPicture = SystemPictureInPicture()
+  @ObservationIgnored let screenActivity = PlaybackScreenActivity()
+  private(set) var volume: Float = 1
+  private(set) var muted = false
+  private var volumeObservation: NSKeyValueObservation?
+  private var muteObservation: NSKeyValueObservation?
   #endif
   private var bridge = DASHToHLSBridge()
   private var videoTransport: ParallelVideoStream?
@@ -84,10 +89,25 @@ struct PlaybackResume {
     }
     #endif
   }
+  #if os(macOS)
+  func setVolume(_ value: Float) {
+    guard value.isFinite else { return }
+    player.volume = min(1, max(0, value))
+    if player.volume > 0 { player.isMuted = false }
+    volume = player.volume; muted = player.isMuted
+  }
+  func toggleMute() {
+    player.isMuted.toggle()
+    muted = player.isMuted
+  }
+  #endif
   func pausePlayback() {
     replayRequest = nil
     pendingResume?.playing = false
     player.pause()
+    #if os(macOS)
+    screenActivity.setPlaying(false)
+    #endif
     saveCurrentProgress()
   }
   func continuePlayback() {
@@ -123,6 +143,20 @@ struct PlaybackResume {
   }
   init() {
     player.preventsDisplaySleepDuringVideoPlayback = true
+    #if os(macOS)
+    volumeObservation = player.observe(\.volume, options: [.initial, .new]) { [weak self] _, _ in
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        self.volume = self.player.volume
+      }
+    }
+    muteObservation = player.observe(\.isMuted, options: [.initial, .new]) { [weak self] _, _ in
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        self.muted = self.player.isMuted
+      }
+    }
+    #endif
     endObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: nil, queue: .main) { [weak self] notification in
       MainActor.assumeIsolated {
         guard let self, let item = notification.object as? AVPlayerItem, item === self.player.currentItem else { return }
@@ -134,6 +168,9 @@ struct PlaybackResume {
         guard let self else { return }
         self.buffering = self.player.timeControlStatus == .waitingToPlayAtSpecifiedRate
         self.isPlaying = self.player.rate != 0
+        #if os(macOS)
+        self.screenActivity.setPlaying(self.isPlaying && self.error == nil)
+        #endif
       }
     }
     timeObserver = player.addPeriodicTimeObserver(
@@ -322,6 +359,10 @@ struct PlaybackResume {
         let codec =
           video.codecs.hasPrefix("avc1") ? "H.264" : video.codecs.hasPrefix("av01") ? "AV1" : "HEVC"
         sourceFormat = (video.id == 126 ? "杜比视界 · " : video.id == 125 ? "HDR · " : "") + codec
+        #if os(macOS)
+        routeDiagnostics["videoRange"] = video.videoAttributes?.dynamicRange.rawValue ?? "unknown"
+        if video.videoAttributes?.dynamicRange == .sdr { sourceFormat = codec }
+        #endif
         selectedQuality = video.id
         // The playlist carries every SIDX segment and the resume position. Creating
         // a composition from a remote fragmented MP4 can freeze its duration at the
@@ -385,6 +426,9 @@ struct PlaybackResume {
             mediaTime: self.player.currentTime().seconds) {
             guard self.automaticRecoveries < 2 else {
               self.error = "网络持续缓冲，可重试或切换清晰度"
+              #if os(macOS)
+              self.screenActivity.setPlaying(false)
+              #endif
               return
             }
             self.automaticRecoveries += 1
@@ -445,6 +489,9 @@ struct PlaybackResume {
     throw BiliError(text: "此线路没有返回可播放的数据")
   }
   private func releaseItem() {
+    #if os(macOS)
+    screenActivity.setPlaying(false)
+    #endif
     watchdog?.cancel()
     statusObservation = nil
     sizeObservation = nil
@@ -695,6 +742,7 @@ struct PlaybackResume {
   }
   func stop() {
     #if os(macOS)
+    screenActivity.setPlaying(false)
     pictureInPicture.stop()
     personAvoidance.stop()
     #endif
@@ -717,6 +765,8 @@ struct PlaybackResume {
   let danmaku = DanmakuView(frame: .zero)
   var toggleFullscreen: (() -> Void)?
   var togglePlayback: (() -> Void)?
+  var toggleDanmaku: (() -> Void)?
+  var keyboardInteraction: (() -> Void)?
   var keyboard: PlayerKeyboard?
   var handlesPlaybackShortcuts = false
   var onVideoLayout: (() -> Void)?
@@ -809,6 +859,8 @@ struct NativePlayer: NSViewRepresentable {
   var isInlineVisible = true
   var controlsScrollMiniPlayer = false
   var toggleFullscreen: (() -> Void)?
+  var toggleDanmaku: (() -> Void)?
+  var keyboardInteraction: (() -> Void)?
   class Coordinator {
     var observation: NSKeyValueObservation?
     var wasInlineVisible = true
@@ -819,6 +871,8 @@ struct NativePlayer: NSViewRepresentable {
     let v = NativeVideoView(frame: .zero)
     v.danmaku.compilationCache = playback.specialDanmakuCache
     v.toggleFullscreen = toggleFullscreen
+    v.toggleDanmaku = toggleDanmaku
+    v.keyboardInteraction = keyboardInteraction
     v.togglePlayback = { [weak playback] in playback?.togglePlayback() }
     v.keyboard = PlayerKeyboard(view: v, playback: playback)
     context.coordinator.pictureInPicture = playback.pictureInPicture
@@ -834,6 +888,8 @@ struct NativePlayer: NSViewRepresentable {
     return v
   }
   func updateNSView(_ view: NativeVideoView, context: Context) {
+    view.toggleDanmaku = toggleDanmaku
+    view.keyboardInteraction = keyboardInteraction
     let active = isInlineVisible && (!playback.isFullscreen || fullscreen)
     let wasHidden = view.isHidden
     view.isHidden = !active

@@ -118,7 +118,8 @@ struct InlinePlaybackSurface: View {
     ZStack {
       NativePlayer(playback: playback, items: dm.items, enabled: dm.enabled,
         isInlineVisible: isInlineVisible, controlsScrollMiniPlayer: controlsScrollMiniPlayer,
-        toggleFullscreen: toggleFullscreen)
+        toggleFullscreen: toggleFullscreen, toggleDanmaku: { dm.enabled.toggle() },
+        keyboardInteraction: { keyboardControlsVisible = true })
       if isInlineVisible {
         VideoSurfaceClickTarget(playback: playback, toggleFullscreen: toggleFullscreen)
           .focusable(interactions: .activate)
@@ -275,14 +276,16 @@ struct PlayerControls<AdditionalControls: View>: View {
           }
         Text(clock(duration)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
         additionalControls()
-        Button { showingVolume.toggle() } label: { Image(systemName: "speaker.wave.2") }
+        Button { showingVolume.toggle() } label: {
+          Image(systemName: playback.muted || playback.volume == 0 ? "speaker.slash" : "speaker.wave.2")
+        }
           .buttonStyle(.glass).help("音量").accessibilityLabel("音量")
           .popover(isPresented: $showingVolume) {
-            Slider(value: Binding(get: { Double(player.volume) }, set: { player.volume = Float($0) }), in: 0...1)
+            Slider(value: Binding(get: { Double(playback.volume) }, set: { playback.setVolume(Float($0)) }), in: 0...1)
               .labelsHidden().accessibilityLabel("音量").frame(width: 150).padding(16)
           }
         Slider(
-            value: Binding(get: { Double(player.volume) }, set: { player.volume = Float($0) }),
+            value: Binding(get: { Double(playback.volume) }, set: { playback.setVolume(Float($0)) }),
             in: 0...1
           ) { onEditingChanged?($0) }.labelsHidden().accessibilityLabel("音量")
           .frame(width: fullscreen ? 90 : (controlsWidth < 860 ? 0 : 70))
@@ -342,7 +345,7 @@ struct PlaybackSpeedMenu: View {
   let playback: Playback
   var body: some View {
     Menu {
-      ForEach([0.5, 0.75, 1, 1.25, 1.5, 2], id: \.self) { rate in
+      ForEach(PlayerKeyboard.speedChoices, id: \.self) { rate in
         Button { playback.setSpeed(Float(rate)) } label: {
           if Float(rate) == playback.speed {
             Label("\(rate.formatted())×", systemImage: "checkmark")
