@@ -49,7 +49,6 @@ struct RootView: View {
       }.interfaceAnimation(store.showsMiniPlayer)
     }
     .environment(\.coverPreview, store.coverPreview)
-    .environment(\.videoTitleCopyAvailable, !searchFocused && phase == .active)
     .onChange(of: store.showPlayer) { if store.showPlayer { store.coverPreview.stop() } }
     .onChange(of: store.navigationRevision) { store.coverPreview.stop() }
     .onChange(of: store.api.authenticationGeneration) { store.coverPreview.stop() }
@@ -298,7 +297,6 @@ struct RootView: View {
   @ViewBuilder private var content: some View {
     ZStack {
       browsingContent.id(store.destination).clipShape(.rect(cornerRadius: 24))
-        .environment(\.videoTitleCopyAvailable, !store.showPlayer && !searchFocused && phase == .active)
         .interfaceTransition().opacity(store.showPlayer ? 0 : 1)
         .allowsHitTesting(!store.showPlayer).accessibilityHidden(store.showPlayer)
       if store.showPlayer { PlayerPage(store: store).transition(.opacity) }
@@ -475,7 +473,6 @@ struct VideoCard: View {
       Text(video.title).font(.system(size: 14, weight: .medium)).lineLimit(2)
         .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 38, alignment: .topLeading).foregroundStyle(.primary)
-        .copyableVideoTitle(video.title)
       HStack(spacing: 8) {
         Text(video.author).lineLimit(1).truncationMode(.tail)
         Spacer(minLength: 2)
@@ -557,7 +554,6 @@ struct ScrollingVideoTitle: View {
     }
     .scrollIndicators(.hidden).scrollBounceBehavior(.basedOnSize, axes: .horizontal)
     .scrollPosition($position).frame(height: 28)
-    .copyableVideoTitle(title)
     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
     .onHover { hovering = $0 }
     .accessibilityHint(overflow > 1 ? "可横向滚动查看完整标题" : "")

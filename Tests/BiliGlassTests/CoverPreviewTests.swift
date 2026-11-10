@@ -2,7 +2,6 @@ import AVFoundation
 import AppKit
 import Foundation
 import Testing
-import SwiftUI
 @testable import BiliGlass
 
 @Suite(.serialized) @MainActor struct CoverPreviewTests {
@@ -84,69 +83,4 @@ import SwiftUI
     }
   }
 
-  @Test func secondaryClickCopiesTheFullTitleAndPrimaryClickDoesNot() throws {
-    let title = "这是完整标题，包括卡片两行中放不下的后半部分"
-    var copied: [String] = []
-    let view = TitleCopyRegion.CopyView()
-    view.copyTitle = { copied.append(title) }
-    func event(_ type: NSEvent.EventType, flags: NSEvent.ModifierFlags = []) throws -> NSEvent {
-      try #require(NSEvent.mouseEvent(with: type, location: .zero, modifierFlags: flags,
-        timestamp: 0, windowNumber: 0, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
-    }
-    view.mouseDown(with: try event(.leftMouseDown))
-    #expect(copied.isEmpty)
-    view.rightMouseDown(with: try event(.rightMouseDown))
-    view.mouseDown(with: try event(.leftMouseDown, flags: .control))
-    #expect(copied == [title, title])
-  }
-
-  @Test func titlesInsideSeparateCardsOnlyConsumeClicksWithinTheirOwnBounds() async throws {
-    _ = NSApplication.shared
-    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
-      styleMask: [.titled], backing: .buffered, defer: false)
-    window.isReleasedWhenClosed = false
-    defer { window.close() }
-    let host = NSHostingView(rootView: VStack {
-      ForEach(0..<2) { index in
-        Button {} label: {
-          VStack {
-            Color.gray.frame(height: 70)
-            Text("title-\(index)").frame(width: 300, height: 38)
-              .copyableVideoTitle("title-\(index)")
-          }.frame(width: 300)
-        }.buttonStyle(.plain).contextMenu { Button("播放") {} }
-      }
-    })
-    window.contentView = host
-    host.frame = NSRect(x: 0, y: 0, width: 400, height: 300)
-    try await Task.sleep(for: .milliseconds(20))
-    host.layoutSubtreeIfNeeded()
-    func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
-    let regions = descendants(host).compactMap { $0 as? TitleCopyRegion.CopyView }
-    #expect(regions.count == 2)
-    var copied: [String] = []
-    for region in regions { region.copyTitle = { copied.append(region.title) } }
-    func route(_ type: NSEvent.EventType, point: NSPoint, flags: NSEvent.ModifierFlags = []) throws -> Bool {
-      let event = try #require(NSEvent.mouseEvent(with: type, location: point, modifierFlags: flags,
-        timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
-      return regions.contains { $0.handleSecondaryClick(event) }
-    }
-    for region in regions {
-      let point = region.convert(NSPoint(x: region.bounds.midX, y: region.bounds.midY), to: nil)
-      copied.removeAll()
-      #expect(try !route(.leftMouseDown, point: point))
-      #expect(copied.isEmpty)
-      #expect(try route(.rightMouseDown, point: point))
-      #expect(copied == [region.title])
-      copied.removeAll()
-      #expect(try route(.leftMouseDown, point: point, flags: .control))
-      #expect(copied == [region.title])
-    }
-    copied.removeAll()
-    // The cover belongs to the surrounding card's context menu, never to a title.
-    let title = try #require(regions.first)
-    let coverPoint = title.convert(NSPoint(x: title.bounds.midX, y: title.bounds.maxY + 20), to: nil)
-    #expect(try !route(.rightMouseDown, point: coverPoint))
-    #expect(copied.isEmpty)
-  }
 }
