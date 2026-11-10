@@ -50,13 +50,10 @@ enum StartPage: String, CaseIterable, Identifiable {
   var isHome: Bool { [.recommend, .popular, .regions].contains(self) }
   var isLibrary: Bool { [.history, .favorites, .later, .downloads].contains(self) }
   var isBrowse: Bool { isHome || [.live, .bangumi, .cinema, .dynamic, .messages].contains(self) }
-  static var supported: [Self] {
-    #if os(iOS)
-      allCases.filter { $0 != .web }
-    #else
-      allCases
-    #endif
-  }
+  static var supported: [Self] { allCases.filter { $0 != .web } }
+  #if os(macOS)
+  var isSidebarPage: Bool { [.recommend, .popular, .regions, .live, .bangumi, .cinema, .dynamic].contains(self) }
+  #endif
 }
 
 struct BrowsePreferences: Equatable {
@@ -85,6 +82,17 @@ struct BrowsePreferences: Equatable {
       && (page != .recommend || showRecommended) && (page != .popular || showPopular)
   }
   var visible: [StartPage] { order.filter { allows($0) } }
+  #if os(macOS)
+  var sidebarPages: [StartPage] { visible.filter(\.isSidebarPage) }
+  func movingSidebarPage(_ page: StartPage, by delta: Int) -> [StartPage] {
+    var items = order
+    let indices = items.indices.filter { items[$0].isSidebarPage }
+    guard let position = indices.firstIndex(where: { items[$0] == page }),
+      indices.indices.contains(position + delta) else { return items }
+    items.swapAt(indices[position], indices[position + delta])
+    return items
+  }
+  #endif
   var phoneTabs: [Int] {
     var seen = Set<Int>()
     return (visible.map(\.phoneTab) + [4]).filter { seen.insert($0).inserted }
@@ -112,9 +120,13 @@ struct NavigationCustomization: DynamicProperty {
     start = preferences.resolvedStart.rawValue
   }
   func move(_ page: StartPage, by delta: Int) {
+    #if os(macOS)
+    let items = preferences.movingSidebarPage(page, by: delta)
+    #else
     var items = preferences.order
     guard let index = items.firstIndex(of: page), items.indices.contains(index + delta) else { return }
     items.swapAt(index, index + delta)
+    #endif
     order = items.map(\.rawValue).joined(separator: ",")
   }
   func reset() {
@@ -123,9 +135,27 @@ struct NavigationCustomization: DynamicProperty {
 }
 
 struct BrowsePreferenceFields: View {
+  #if os(macOS)
+  @AppStorage("macSidebarCollapseMode") private var sidebarMode = MacSidebarCollapseMode.icons
+  #endif
   private var navigation = NavigationCustomization()
   @AppStorage("refreshHomeOnReturn") private var refresh = false
+  private var customizablePages: [StartPage] {
+    #if os(macOS)
+    navigation.preferences.order.filter(\.isSidebarPage)
+    #else
+    navigation.preferences.order
+    #endif
+  }
   var body: some View {
+    #if os(macOS)
+    Picker("收起侧栏时", selection: $sidebarMode) {
+      Text("仅保留图标").tag(MacSidebarCollapseMode.icons)
+      Text("完全隐藏").tag(MacSidebarCollapseMode.hidden)
+    }.pickerStyle(.segmented).accessibilityIdentifier("sidebar-collapse-mode")
+    Text("收起为图标时保留个人中心和设置；完全隐藏时，两者进入导航菜单。")
+      .font(.caption).foregroundStyle(.secondary)
+    #endif
     Picker("启动时打开", selection: navigation.$start) {
       ForEach(navigation.preferences.visible) { Text($0.title).tag($0.rawValue) }
     }.accessibilityIdentifier("start-page")
@@ -134,7 +164,7 @@ struct BrowsePreferenceFields: View {
       .font(.caption).foregroundStyle(.secondary)
     DisclosureGroup("自定义导航项目") {
       VStack(alignment: .leading, spacing: 8) {
-        ForEach(navigation.preferences.order) { page in
+        ForEach(customizablePages) { page in
           HStack(spacing: 8) {
             Toggle(page.title, isOn: Binding(get: { navigation.preferences.allows(page) },
               set: { navigation.setVisible(page, $0) }))
@@ -142,18 +172,28 @@ struct BrowsePreferenceFields: View {
               .disabled(navigation.preferences.visible.count == 1 && navigation.preferences.allows(page))
               .accessibilityIdentifier("show-\(page == .recommend ? "recommended" : page.rawValue)")
             Button { navigation.move(page, by: -1) } label: { Image(systemName: "chevron.up").frame(width: 36, height: 36).contentShape(.rect) }
-              .disabled(navigation.preferences.order.first == page)
+              .disabled(customizablePages.first == page)
               .accessibilityLabel("上移\(page.title)").accessibilityIdentifier("move-up-\(page.rawValue)")
             Button { navigation.move(page, by: 1) } label: { Image(systemName: "chevron.down").frame(width: 36, height: 36).contentShape(.rect) }
-              .disabled(navigation.preferences.order.last == page)
+              .disabled(customizablePages.last == page)
               .accessibilityLabel("下移\(page.title)").accessibilityIdentifier("move-down-\(page.rawValue)")
           }.buttonStyle(.borderless)
         }
       }.padding(.vertical, 8).interfaceAnimation(navigation.preferences.order)
     }
+    #if os(macOS)
+    Text("可隐藏和调整内容导航顺序。消息、观看记录、收藏、稍后再看和下载统一从个人中心进入；设置入口始终保留。")
+      .font(.caption).foregroundStyle(.secondary)
+    #else
     Text("可隐藏或调整每组内的顺序；手机底栏按各组第一个项目的位置排序。设置与登录入口始终保留，隐藏启动页后优先打开观看记录。")
       .font(.caption).foregroundStyle(.secondary)
-    Button("恢复首页与导航默认设置") { navigation.reset(); refresh = false }
+    #endif
+    Button("恢复首页与导航默认设置") {
+      navigation.reset(); refresh = false
+      #if os(macOS)
+      sidebarMode = .icons
+      #endif
+    }
   }
 }
 

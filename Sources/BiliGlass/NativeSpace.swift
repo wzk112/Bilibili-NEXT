@@ -475,6 +475,7 @@ struct NativeCollectionVideos: View {
   }
 }
 struct NativeAccountPage: View {
+  @State private var showBlacklist = false
   @Bindable var store: Store
   @State private var details: [String: Any] = [:]
   @State private var accountError: String?
@@ -505,13 +506,17 @@ struct NativeAccountPage: View {
           LabeledContent("硬币", value: (details["money"] as? Double ?? 0).formatted())
           LabeledContent("大会员", value: (details["vipStatus"] as? Int ?? 0) == 1 ? "已开通" : "未开通")
         }
-        SettingsLink { Label("应用设置", systemImage: "gearshape") }.buttonStyle(.appGlassButton)
         Link("管理哔哩哔哩账户", destination: URL(string: "https://account.bilibili.com/account/home")!)
           .font(.callout)
+        Button { showBlacklist = true } label: { Label("黑名单", systemImage: "person.slash") }
+          .buttonStyle(.appGlassButton).accessibilityIdentifier("account-blacklist")
+        Button("重新登录") { store.login() }.buttonStyle(.appGlassButton)
         Button("退出登录", role: .destructive) { store.logout() }.buttonStyle(.appGlassButton)
       }
       Spacer(minLength: 0)
-    }.padding(24).floatingGlass(24).task {
+    }.padding(24).floatingGlass(24)
+      .sheet(isPresented: $showBlacklist) { BlockedAuthorsPage(store: store) }
+      .task {
       do { details = try await store.api.request("/x/web-interface/nav") } catch {
         accountError = error.localizedDescription
       }

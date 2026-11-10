@@ -294,7 +294,16 @@ struct ProfilePage: View {
         } else if loading {
           ProgressView("正在加载个人资料").frame(maxWidth: .infinity).padding(30)
         }
-        if ownProfile { personalActions }
+        if ownProfile {
+          if profile == nil {
+            HStack {
+              Text("个人中心").font(.title2.bold())
+              Spacer()
+              Button("账户信息") { spaceSheet = SpaceSheet(mid: mid, kind: .account) }.buttonStyle(.appGlassButton)
+            }
+          }
+          personalActions
+        }
         HStack(spacing: 12) {
           Text("投稿").font(.title2.bold())
           if let p = profile { Text("\(p.videos)").foregroundStyle(.secondary) }
@@ -414,23 +423,7 @@ struct ProfilePage: View {
       Text(label).font(.callout).foregroundStyle(.secondary)
     }
   }
-  private var personalActions: some View {
-    LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
-      ForEach([Destination.favorites, .later, .history, .downloads, .messages], id: \.self) { d in
-        Button {
-          store.profileTarget = nil
-          store.navigate(d)
-        } label: {
-          HStack(spacing: 10) {
-            Image(systemName: d.icon).foregroundStyle(biliPink)
-            Text(d.rawValue)
-            Spacer(minLength: 0)
-          }
-          .padding(17).frame(maxWidth: .infinity).floatingGlass(18).contentShape(.rect(cornerRadius: 18))
-        }.buttonStyle(.plain)
-      }
-    }
-  }
+  private var personalActions: some View { PersonalActionsRow(store: store) }
   private func toggleFollow() async {
     guard store.account != nil else {
       store.login()
