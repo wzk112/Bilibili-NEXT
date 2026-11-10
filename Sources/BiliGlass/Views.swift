@@ -12,32 +12,37 @@ struct RootView: View {
   private var showsSidebar: Bool { sidebarVisible || sidebarMode == .icons }
   private var navigation = NavigationCustomization()
   @State private var diagnosticChallenge: InteractionChallenge?
+  @State private var headerLeadingFrame = CGRect.zero
+  @State private var headerRefreshFrame = CGRect.zero
+  @State private var searchFieldFrame = CGRect.zero
+  @State private var searchPanelFrame = CGRect.zero
   var body: some View {
     ZStack {
       if !store.fullscreen.isPresented { GlassBackdrop() }
       GeometryReader { viewport in
-      HStack(alignment: .top, spacing: 14) {
-        if showsSidebar {
-          MacSidebar(store: store, preferences: navigation.preferences, compact: compactSidebar,
-            availableHeight: max(0, viewport.size.height - 32))
-            .frame(width: compactSidebar ? 52 : AppLayout.sidebarWidth).sidebarTransition()
-        }
-        VStack(spacing: 12) {
-          AppGlassContainer { topbar }
-          if let reason = store.loginUpgradeReason, !store.loginUpgradeDismissed {
-            HStack(spacing: 12) {
-              Image(systemName: "person.crop.circle.badge.exclamationmark")
-              Text(reason.message).font(.callout).fixedSize(horizontal: false, vertical: true)
-              Spacer(minLength: 0)
-              Button("重新登录") { store.login() }.buttonStyle(.appGlassProminent)
-              Button("稍后") { store.loginUpgradeDismissed = true }.buttonStyle(.appGlassButton)
-            }.padding(14).floatingGlass(18)
+      VStack(spacing: 12) {
+        AppGlassContainer { topbar }.padding(.leading, 80).padding(.top, AppLayout.mainToolbarTopInset)
+        HStack(alignment: .top, spacing: 14) {
+          if showsSidebar {
+            MacSidebar(store: store, preferences: navigation.preferences, compact: compactSidebar,
+              availableHeight: max(0, viewport.size.height - AppLayout.mainHeaderHeight - 28))
+              .frame(width: compactSidebar ? 52 : AppLayout.sidebarWidth).sidebarTransition()
           }
-          if searchFocused && !store.showPlayer { SearchAssistance(store: store) }
-          content.frame(maxWidth: .infinity, maxHeight: .infinity)
+          VStack(spacing: 12) {
+            if let reason = store.loginUpgradeReason, !store.loginUpgradeDismissed {
+              HStack(spacing: 12) {
+                Image(systemName: "person.crop.circle.badge.exclamationmark")
+                Text(reason.message).font(.callout).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button("重新登录") { store.login() }.buttonStyle(.appGlassProminent)
+                Button("稍后") { store.loginUpgradeDismissed = true }.buttonStyle(.appGlassButton)
+              }.padding(14).floatingGlass(AppLayout.panelRadius)
+            }
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+          }
         }
       }.interfaceAnimation(sidebarVisible).interfaceAnimation(sidebarMode)
-        .padding(.horizontal, 16).padding(.bottom, 16).padding(.top, 16)
+        .padding(.horizontal, 16).padding(.bottom, 16)
         .opacity(store.fullscreen.isPresented ? 0 : 1)
         .allowsHitTesting(!store.fullscreen.isPresented)
         .accessibilityHidden(store.fullscreen.isPresented)
@@ -53,14 +58,33 @@ struct RootView: View {
         }
       }.interfaceAnimation(store.showsMiniPlayer)
     }
+    .overlay(alignment: .topLeading) {
+      if !store.fullscreen.isPresented && searchFocused && searchFieldFrame.width > 0 {
+        SearchAssistance(store: store) { term in
+          store.query = term
+          dismissSearch()
+          store.search()
+        }
+        .frame(width: searchFieldFrame.width).fixedSize(horizontal: false, vertical: true)
+        .offset(x: searchFieldFrame.minX, y: searchFieldFrame.maxY + 6)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { searchPanelFrame = $0 }
+      }
+    }
+    .ignoresSafeArea(.container, edges: .top)
     .environment(\.coverPreview, store.coverPreview)
     .onChange(of: store.showPlayer) { if store.showPlayer { store.coverPreview.stop() } }
     .onChange(of: store.navigationRevision) { store.coverPreview.stop() }
     .onChange(of: store.api.authenticationGeneration) { store.coverPreview.stop() }
-    .onChange(of: phase) { if phase != .active { store.coverPreview.stop() } }
+    .onChange(of: phase) { if phase != .active { searchFocused = false; store.coverPreview.stop() } }
     .tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 640, maxHeight: .infinity)
     .background { InitialWindowFocus().frame(width: 0, height: 0) }
     .appWindowBackground()
+    .background {
+      MainWindowChrome(toolbarControls: [headerLeadingFrame, headerRefreshFrame],
+        searchRegions: [searchFieldFrame, searchPanelFrame], searchActive: searchFocused,
+        dismissSearch: dismissSearch,
+        windowInactive: { searchFocused = false; store.coverPreview.stop() }).frame(width: 0, height: 0)
+    }
     .sheet(item: $store.imageGallery) { ImageGallery(target: $0) }
     .sheet(item: $diagnosticChallenge) { challenge in
       VStack {
@@ -181,11 +205,16 @@ struct RootView: View {
       if !store.showPlayer { searchFocused = false; NSApp.keyWindow?.makeFirstResponder(nil) }
     }
   }
+  private func dismissSearch() {
+    searchFocused = false
+    NSApp.keyWindow?.makeFirstResponder(nil)
+  }
   private var topbar: some View {
     HStack(spacing: 10) {
+      HStack(spacing: 10) {
       Button { sidebarVisible.toggle() } label: {
         Image(systemName: "sidebar.left")
-      }.help(sidebarVisible ? "收起侧栏" : "展开侧栏")
+      }.help(sidebarVisible ? (sidebarMode == .hidden ? "隐藏侧栏" : "收起侧栏文字") : "展开侧栏")
         .accessibilityLabel(sidebarVisible ? "收起侧栏" : "展开侧栏")
         .accessibilityIdentifier("toggle-sidebar")
       if !showsSidebar {
@@ -196,13 +225,13 @@ struct RootView: View {
           store.leavePlayer()
         } label: {
           Image(systemName: "chevron.left")
-        }.buttonStyle(.appGlassButton).help("返回")
+        }.help("返回")
       }
       HStack(spacing: 10) {
         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
         TextField("搜索视频或粘贴 BV 号", text: $store.query).focused($searchFocused).textFieldStyle(.plain)
-          .onSubmit { store.search() }
-          .onExitCommand { searchFocused = false; NSApp.keyWindow?.makeFirstResponder(nil) }
+          .onSubmit { dismissSearch(); store.search() }
+          .onExitCommand { dismissSearch() }
         if !store.query.isEmpty {
           Button {
             store.clearSearch()
@@ -210,16 +239,19 @@ struct RootView: View {
             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
           }.buttonStyle(.plain).help("清除搜索")
         }
-      }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: 36)
-        .background(.primary.opacity(0.06), in: .capsule)
+      }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: 28)
+        .background(.primary.opacity(0.06), in: .rect(cornerRadius: 8))
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { searchFieldFrame = $0 }
+      }.onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { headerLeadingFrame = $0 }
       Spacer(minLength: 0)
       Button {
         if store.showPlayer { store.playback.retry(api: store.api) } else { store.reload() }
       } label: {
         Image(systemName: "arrow.clockwise")
       }.help("刷新")
-    }.buttonStyle(.appGlassButton).tint(.primary).padding(.horizontal, 12).frame(height: AppLayout.toolbarHeight)
-      .floatingGlass(AppLayout.panelRadius).interfaceAnimation(sidebarVisible)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { headerRefreshFrame = $0 }
+    }.buttonStyle(.appGlassButton).tint(.primary).buttonBorderShape(.roundedRectangle(radius: 8)).padding(.horizontal, 12).frame(height: AppLayout.mainToolbarHeight)
+      .interfaceAnimation(sidebarVisible)
   }
   @ViewBuilder private var content: some View {
     ZStack {
