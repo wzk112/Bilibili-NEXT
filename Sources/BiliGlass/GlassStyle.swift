@@ -6,6 +6,9 @@ import CoreImage
 enum AppLayout {
   static let sidebarWidth: CGFloat = 212
   static let toolbarHeight: CGFloat = 56
+  static let mainToolbarHeight: CGFloat = 32
+  static let mainToolbarTopInset: CGFloat = 8
+  static var mainHeaderHeight: CGFloat { mainToolbarHeight + mainToolbarTopInset }
   static let panelRadius: CGFloat = 20
   static let pageInset: CGFloat = 8
   static let pageTitle: Font = .system(size: 26, weight: .bold)

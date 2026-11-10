@@ -92,7 +92,9 @@ struct PreferencesView: View {
             .clipShape(.rect(cornerRadius: 24)).interfaceAnimation(store.preferencesTab)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
       }.padding(24)
-    }.frame(minWidth: 940, idealWidth: 980, minHeight: 700, idealHeight: 740).appAppearance().tint(biliPink)
+    }.frame(minWidth: 940, idealWidth: 980, minHeight: 700, idealHeight: 740)
+      .background { SettingsWindowChrome().frame(width: 0, height: 0) }
+      .appWindowBackground().appAppearance().tint(biliPink)
   }
   private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content)
     -> some View
@@ -282,4 +284,24 @@ struct PreferencesView: View {
     }
   }
   private var aboutSettings: some View { AboutView(store: store) }
+}
+
+private struct SettingsWindowChrome: NSViewRepresentable {
+  func makeNSView(context: Context) -> WindowView { WindowView() }
+  func updateNSView(_ view: WindowView, context: Context) {
+    DispatchQueue.main.async { [weak view] in view?.applyStyle() }
+  }
+  final class WindowView: NSView {
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      applyStyle()
+    }
+    func applyStyle() {
+      guard let window else { return }
+      if window.titleVisibility != .hidden { window.titleVisibility = .hidden }
+      if !window.titlebarAppearsTransparent { window.titlebarAppearsTransparent = true }
+      if window.titlebarSeparatorStyle != .none { window.titlebarSeparatorStyle = .none }
+      if !window.styleMask.contains(.fullSizeContentView) { window.styleMask.insert(.fullSizeContentView) }
+    }
+  }
 }
