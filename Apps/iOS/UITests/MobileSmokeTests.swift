@@ -1444,6 +1444,35 @@ import UIKit
     attach("live-room-returned", app: app)
   }
 
+  func testLiveRoomNetworkFullscreenRecording() throws {
+    guard ProcessInfo.processInfo.environment["BILI_LIVE_RECORD"] == "1" else {
+      throw XCTSkip("Opt-in public live-room playback and fullscreen capture")
+    }
+    XCUIDevice.shared.orientation = UIDevice.current.userInterfaceIdiom == .pad ? .landscapeLeft : .portrait
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let app = XCUIApplication()
+    app.launchArguments = ["-startPage", "live", "-hiddenNavigationItems", "", "-appearance", "dark"]
+    app.launch()
+    let input = app.textFields["搜索主播、标题或输入直播间号"]
+    XCTAssertTrue(input.waitForExistence(timeout: 20))
+    input.tap(); input.typeText("232610\n")
+    let enter = app.buttons["live-enter-fullscreen"]
+    XCTAssertTrue(enter.waitForExistence(timeout: 30))
+    XCTAssertTrue(waitForValue("live-play-pause", "正在播放", app: app, timeout: 45))
+    Thread.sleep(forTimeInterval: 6)
+    attach("network-live-room-inline", app: app)
+    enter.tap()
+    let exit = app.buttons["live-exit-fullscreen"]
+    XCTAssertTrue(exit.waitForExistence(timeout: 10))
+    XCTAssertTrue(waitForValue("live-play-pause", "正在播放", app: app))
+    Thread.sleep(forTimeInterval: 8)
+    attach("network-live-room-fullscreen", app: app)
+    exit.tap()
+    XCTAssertTrue(enter.waitForExistence(timeout: 10))
+    Thread.sleep(forTimeInterval: 5)
+    attach("network-live-room-returned", app: app)
+  }
+
   func testIssue8CommentsKeepVideoVisible() throws {
     let app = XCUIApplication()
     app.launchArguments = ["--qa-ui", "--qa-navigation"]
