@@ -48,6 +48,11 @@ struct RootView: View {
         }
       }.interfaceAnimation(store.showsMiniPlayer)
     }
+    .environment(\.coverPreview, store.coverPreview)
+    .onChange(of: store.showPlayer) { if store.showPlayer { store.coverPreview.stop() } }
+    .onChange(of: store.navigationRevision) { store.coverPreview.stop() }
+    .onChange(of: store.api.authenticationGeneration) { store.coverPreview.stop() }
+    .onChange(of: phase) { if phase != .active { store.coverPreview.stop() } }
     .tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 640, maxHeight: .infinity)
     .background { InitialWindowFocus().frame(width: 0, height: 0) }
     .containerBackground(.black, for: .window)
@@ -147,6 +152,7 @@ struct RootView: View {
       await store.messageUnread.poll(api: store.api)
     }
     .onDisappear {
+      store.coverPreview.stop()
       store.playback.stop()
       store.danmaku.stop()
       store.comments.stop()
@@ -435,6 +441,8 @@ struct RootView: View {
 struct VideoCard: View {
   let video: Video
   var showsViews = true
+  @Environment(\.coverPreview) private var preview
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Thumbnail(url: video.cover, mode: .fill).aspectRatio(16 / 9, contentMode: .fit).clipShape(
@@ -452,8 +460,16 @@ struct VideoCard: View {
             LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
               .padding(.top, -12)
           }
+      }.overlay {
+        if let preview, preview.activeID == video.bvid {
+          CoverPreviewOverlay(preview: preview, token: preview.identity).id(preview.identity)
+        }
       }.clipShape(.rect(cornerRadius: 12))
-        .help(showsViews ? "\(video.views.formatted()) 次播放" : "")
+        .onHover { inside in
+          if inside && !reduceMotion { preview?.hover(video) }
+          else { preview?.stop(videoID: video.bvid) }
+        }
+        .onDisappear { preview?.stop(videoID: video.bvid) }
       Text(video.title).font(.system(size: 14, weight: .medium)).lineLimit(2)
         .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 38, alignment: .topLeading).foregroundStyle(.primary)
