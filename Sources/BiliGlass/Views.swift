@@ -55,7 +55,7 @@ struct RootView: View {
     .onChange(of: phase) { if phase != .active { store.coverPreview.stop() } }
     .tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 640, maxHeight: .infinity)
     .background { InitialWindowFocus().frame(width: 0, height: 0) }
-    .containerBackground(.black, for: .window)
+    .appWindowBackground()
     .sheet(item: $store.imageGallery) { ImageGallery(target: $0) }
     .sheet(item: $diagnosticChallenge) { challenge in
       VStack {
