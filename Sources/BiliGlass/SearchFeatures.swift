@@ -56,18 +56,33 @@ struct SearchFilters: View {
 }
 struct SearchAssistance: View {
   @Bindable var store: Store
+  let onSearch: (String) -> Void
   @State private var suggestions: [String] = []
   var body: some View {
+    let items = Array((store.query.isEmpty ? store.searchHistory : suggestions).prefix(8))
     VStack(alignment: .leading, spacing: 8) {
       HStack { Text(store.query.isEmpty ? "搜索历史" : "搜索联想").font(.caption).foregroundStyle(.secondary); Spacer()
         if store.query.isEmpty && !store.searchHistory.isEmpty { Button("清空") { store.searchHistory = []; UserDefaults.standard.removeObject(forKey: "searchHistory") }.buttonStyle(.plain).font(.caption) }
       }
-      ScrollView(.horizontal) {
-        HStack { ForEach(Array((store.query.isEmpty ? store.searchHistory : suggestions).prefix(8)), id: \.self) { term in
-          Button(term) { store.query = term; store.search() }.buttonStyle(.glass)
-        } }
+      if items.isEmpty {
+        Text(store.query.isEmpty ? "暂无搜索历史" : "输入关键词后按回车搜索")
+          .font(.callout).foregroundStyle(.secondary).padding(.vertical, 8)
+      } else {
+        ScrollView {
+          VStack(spacing: 2) {
+            ForEach(items, id: \.self) { term in
+              Button { onSearch(term) } label: {
+                HStack(spacing: 10) {
+                  Image(systemName: store.query.isEmpty ? "clock" : "magnifyingglass").foregroundStyle(.secondary)
+                  Text(term).lineLimit(1)
+                  Spacer(minLength: 0)
+                }.font(.callout).padding(.horizontal, 8).frame(height: 34).contentShape(.rect(cornerRadius: AppLayout.controlRadius))
+              }.buttonStyle(NavigationButtonStyle()).cardHover()
+            }
+          }
+        }.frame(height: CGFloat(items.count) * 36 - 2).scrollIndicators(.hidden)
       }
-    }.padding(12).floatingGlass(18)
+    }.padding(12).floatingGlass(AppLayout.panelRadius)
       .task(id: store.query) {
         suggestions = []
         guard !store.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -84,7 +99,7 @@ struct SearchUserResults: View {
           Thumbnail(url: user.face, mode: .fill, placeholder: "person.crop.circle").frame(width: 56, height: 56).clipShape(.circle)
           VStack(alignment: .leading, spacing: 5) { Text(user.name).font(.headline); Text(user.bio).font(.callout).lineLimit(2).foregroundStyle(.secondary); Text("\(user.fans) 位粉丝").font(.caption).foregroundStyle(.secondary) }
           Spacer(); Image(systemName: "chevron.right")
-        }.padding(16).floatingGlass(18).contentShape(.rect(cornerRadius: 18))
+        }.padding(16).floatingGlass(AppLayout.panelRadius).contentShape(.rect(cornerRadius: AppLayout.panelRadius))
       }.buttonStyle(.plain)
     } }
   }

@@ -7,32 +7,41 @@ struct RootView: View {
   @Environment(\.scenePhase) private var phase
   @FocusState private var searchFocused: Bool
   @AppStorage("macSidebarVisible") private var sidebarVisible = true
+  @AppStorage("macSidebarCollapseMode") private var sidebarMode = "icons"
+  private var compactSidebar: Bool { !sidebarVisible && sidebarMode != "hidden" }
+  private var showsSidebar: Bool { sidebarVisible || sidebarMode != "hidden" }
   private var navigation = NavigationCustomization()
   @State private var diagnosticChallenge: InteractionChallenge?
+  @State private var headerLeadingFrame = CGRect.zero
+  @State private var headerRefreshFrame = CGRect.zero
+  @State private var searchFieldFrame = CGRect.zero
+  @State private var searchPanelFrame = CGRect.zero
   var body: some View {
     ZStack {
       if !store.fullscreen.isPresented { GlassBackdrop() }
       GeometryReader { viewport in
-      HStack(alignment: .top, spacing: 14) {
-        if sidebarVisible {
-          sidebar.frame(width: AppLayout.sidebarWidth).sidebarTransition()
-        }
-        VStack(spacing: 12) {
-          GlassEffectContainer { topbar }
-          if let reason = store.loginUpgradeReason, !store.loginUpgradeDismissed {
-            HStack(spacing: 12) {
-              Image(systemName: "person.crop.circle.badge.exclamationmark")
-              Text(reason.message).font(.callout).fixedSize(horizontal: false, vertical: true)
-              Spacer(minLength: 0)
-              Button("重新登录") { store.login() }.buttonStyle(.glassProminent)
-              Button("稍后") { store.loginUpgradeDismissed = true }.buttonStyle(.glass)
-            }.padding(14).floatingGlass(18)
+      VStack(spacing: 12) {
+        GlassEffectContainer { topbar }.padding(.leading, 80).padding(.top, AppLayout.mainToolbarTopInset)
+        HStack(alignment: .top, spacing: 14) {
+          if showsSidebar {
+            sidebar(availableHeight: viewport.size.height - AppLayout.mainHeaderHeight - 28)
+              .frame(width: compactSidebar ? 52 : AppLayout.sidebarWidth).sidebarTransition()
           }
-          if searchFocused && !store.showPlayer { SearchAssistance(store: store) }
-          content.frame(maxWidth: .infinity, maxHeight: .infinity)
+          VStack(spacing: 12) {
+            if let reason = store.loginUpgradeReason, !store.loginUpgradeDismissed {
+              HStack(spacing: 12) {
+                Image(systemName: "person.crop.circle.badge.exclamationmark")
+                Text(reason.message).font(.callout).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button("重新登录") { store.login() }.buttonStyle(.pointerGlassProminent)
+                Button("稍后") { store.loginUpgradeDismissed = true }.buttonStyle(.pointerGlass)
+              }.padding(14).floatingGlass(AppLayout.panelRadius)
+            }
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+          }
         }
-      }.interfaceAnimation(sidebarVisible)
-        .padding(.horizontal, 16).padding(.bottom, 16).padding(.top, 16)
+      }.interfaceAnimation(sidebarVisible).interfaceAnimation(sidebarMode)
+        .padding(.horizontal, 16).padding(.bottom, 16)
         .opacity(store.fullscreen.isPresented ? 0 : 1)
         .allowsHitTesting(!store.fullscreen.isPresented)
         .accessibilityHidden(store.fullscreen.isPresented)
@@ -48,9 +57,27 @@ struct RootView: View {
         }
       }.interfaceAnimation(store.showsMiniPlayer)
     }
-    .tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 640, maxHeight: .infinity)
+    .overlay(alignment: .topLeading) {
+      if searchFocused && searchFieldFrame.width > 0 {
+        SearchAssistance(store: store) { term in
+          store.query = term
+          dismissSearch()
+          store.search()
+        }
+        .frame(width: searchFieldFrame.width).fixedSize(horizontal: false, vertical: true)
+        .offset(x: searchFieldFrame.minX, y: searchFieldFrame.maxY + 6)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { searchPanelFrame = $0 }
+      }
+    }
+    .ignoresSafeArea(.container, edges: .top)
+    .appWindowBackground().tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity)
     .background { InitialWindowFocus().frame(width: 0, height: 0) }
-    .containerBackground(.black, for: .window)
+    .background {
+      MainWindowChrome(toolbarControls: [headerLeadingFrame, headerRefreshFrame],
+        searchRegions: [searchFieldFrame, searchPanelFrame], searchActive: searchFocused,
+        dismissSearch: dismissSearch,
+        windowInactive: { searchFocused = false; store.coverPreview.stop() }).frame(width: 0, height: 0)
+    }
     .sheet(item: $store.imageGallery) { ImageGallery(target: $0) }
     .sheet(item: $diagnosticChallenge) { challenge in
       VStack {
@@ -95,7 +122,7 @@ struct RootView: View {
             store.interactionMessage = nil
           } label: {
             Image(systemName: "xmark")
-          }.buttonStyle(.plain)
+          }.buttonStyle(.pointerPlain)
         }.padding(14).glassEffect(.regular, in: .capsule).padding(20)
       }
     }
@@ -147,6 +174,7 @@ struct RootView: View {
       await store.messageUnread.poll(api: store.api)
     }
     .onDisappear {
+      store.coverPreview.stop()
       store.playback.stop()
       store.danmaku.stop()
       store.comments.stop()
@@ -160,6 +188,9 @@ struct RootView: View {
       store.playback.saveCurrentProgress()
     }
     .onChange(of: store.searchFocus) { searchFocused = true }
+    .onChange(of: phase) {
+      if phase != .active { searchFocused = false; store.coverPreview.stop() }
+    }
     .onChange(of: store.playerFocus) { searchFocused = false; store.playback.focusPlayer() }
     .onChange(of: store.selectedFolder) {
       guard store.destination == .favorites else { return }
@@ -167,130 +198,100 @@ struct RootView: View {
       store.reload()
     }
     .onChange(of: store.navigationRevision) {
+      store.coverPreview.stop()
       if !store.showPlayer { searchFocused = false; NSApp.keyWindow?.makeFirstResponder(nil) }
     }
+    .environment(\.coverPreview, store.coverPreview)
+    .environment(\.videoTitleCopyAvailable, !searchFocused)
   }
-  private var sidebar: some View {
-    VStack(spacing: 14) {
-      HStack(spacing: 10) {
-        Image(systemName: "play.rectangle.fill").font(.title2).foregroundStyle(biliPink)
-        Text("Bilibili NEXT").font(.title3.weight(.semibold))
-        Spacer(minLength: 0)
-        SettingsLink { Image(systemName: "slider.horizontal.3") }.buttonStyle(.plain).help("设置")
-      }.padding(.horizontal, 18).frame(height: AppLayout.toolbarHeight).floatingGlass(AppLayout.panelRadius)
-        .fixedSize(horizontal: false, vertical: true)
+  private func dismissSearch() {
+    searchFocused = false
+  }
+  private func sidebar(availableHeight: CGFloat) -> some View {
+    let navigationHeight = CGFloat(navigation.preferences.sidebarPages.count) * 49 + (compactSidebar ? 3 : 11)
+    let accountHeight: CGFloat = compactSidebar ? 88 : 56
+    let navigationPadding: CGFloat = compactSidebar ? 4 : 8
+    let selectionRadius = AppLayout.panelRadius - navigationPadding
+    return VStack(spacing: 14) {
       ScrollView {
-        // Glass sampling must stay inside the scrolling viewport. Sharing a
-        // container with the fixed account footer lets the scrolled glass/text
-        // render through that footer on short windows.
-        GlassEffectContainer(spacing: 16) {
-          VStack(spacing: 14) {
-            let pages = navigation.preferences.visible
-            let browse = pages.filter(\.isBrowse).compactMap { Destination(rawValue: $0.title) }
-            let library = pages.filter { !$0.isBrowse }.compactMap { Destination(rawValue: $0.title) }
-            if !browse.isEmpty { navigationGroup("浏览", items: browse) }
-            if !library.isEmpty { navigationGroup("资料库", items: library) }
-          }.padding(2)
-        }
-      }.frame(minHeight: 0, maxHeight: .infinity)
-        .scrollIndicators(.hidden).compositingGroup().clipped()
-      accountButton.fixedSize(horizontal: false, vertical: true)
-    }.frame(maxHeight: .infinity)
-  }
-  private func navigationGroup(_ title: String, items: [Destination]) -> some View {
-    VStack(alignment: .leading, spacing: 5) {
-      Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.leading, 12)
-        .padding(.bottom, 8)
-      ForEach(items) { d in
-        Button {
-          store.navigate(d)
-        } label: {
-          HStack(spacing: 12) {
-            Image(systemName: d.icon).frame(width: 20)
-            Text(d.rawValue)
-            Spacer(minLength: 0)
-            if d == .messages { MessageUnreadBadge(count: store.messageUnread.counts.total) }
-            if d == .downloads && store.downloads.activeCount > 0 {
-              Text("\(store.downloads.activeCount)").font(.caption.monospacedDigit())
+        VStack(spacing: 5) {
+          ForEach(navigation.preferences.sidebarPages) { page in
+            if let destination = Destination(rawValue: page.title) {
+              Button { store.navigate(destination) } label: {
+                HStack(spacing: 12) {
+                  Image(systemName: destination.icon).frame(width: 22)
+                  if !compactSidebar { Text(destination.rawValue).lineLimit(1); Spacer(minLength: 0) }
+                }.font(.system(size: 14, weight: store.destination == destination && !store.showPlayer ? .semibold : .regular))
+                  .frame(maxWidth: .infinity).frame(height: 44).padding(.horizontal, compactSidebar ? 4 : 10)
+                  .background(store.destination == destination && !store.showPlayer ? biliPink.opacity(0.19) : .clear,
+                    in: .rect(cornerRadius: selectionRadius)).contentShape(.rect(cornerRadius: selectionRadius))
+              }.buttonStyle(NavigationButtonStyle()).help(destination.rawValue).accessibilityLabel(destination.rawValue)
             }
-          }.font(
-            .system(
-              size: 14, weight: store.destination == d && !store.showPlayer ? .semibold : .regular)
-          )
-          .padding(.horizontal, 12).padding(.vertical, 11).contentShape(
-            RoundedRectangle(cornerRadius: 12)
-          )
-          .background(
-            store.destination == d && !store.showPlayer ? biliPink.opacity(0.19) : .clear,
-            in: .rect(cornerRadius: 12)
-          )
-          .foregroundStyle(.primary)
-        }.buttonStyle(NavigationButtonStyle()).tint(.primary)
-      }
-    }.padding(10).floatingGlass(20)
+          }
+        }.padding(navigationPadding).floatingGlass(AppLayout.panelRadius)
+      }.frame(height: min(navigationHeight, max(0, availableHeight - accountHeight - 14)))
+        .scrollIndicators(.hidden).clipped()
+      Spacer(minLength: 0)
+      accountButton
+    }.frame(maxHeight: .infinity, alignment: .top).interfaceAnimation(compactSidebar)
   }
   private var topbar: some View {
     HStack(spacing: 10) {
+      HStack(spacing: 10) {
       Button { sidebarVisible.toggle() } label: {
         Image(systemName: "sidebar.left")
-      }.help(sidebarVisible ? "隐藏侧栏" : "显示侧栏")
-        .accessibilityLabel(sidebarVisible ? "隐藏侧栏" : "显示侧栏")
+      }.help(sidebarVisible ? (sidebarMode == "hidden" ? "隐藏侧栏" : "收起侧栏文字") : "展开侧栏")
+        .accessibilityLabel(sidebarVisible ? "收起侧栏" : "展开侧栏")
         .accessibilityIdentifier("toggle-sidebar")
-      if !sidebarVisible {
+      if !showsSidebar {
         Menu {
-          ForEach(navigation.preferences.visible) { page in
+          ForEach(navigation.preferences.sidebarPages) { page in
             if let destination = Destination(rawValue: page.title) {
-              Button { store.navigate(destination) } label: {
-                Label(page.title, systemImage: page.symbol)
-              }
+              Button { store.navigate(destination) } label: { Label(page.title, systemImage: page.symbol) }
             }
           }
           Divider()
-          if store.account == nil {
-            Button("登录") { store.login() }.disabled(store.restoring)
-          } else {
-            Button("我的主页") { store.navigate(.profile) }
-            Button("重新登录") { store.login() }
-            Button("退出登录", role: .destructive) { store.logout() }
-          }
-        } label: {
-          Image(systemName: "list.bullet")
-        }.help("导航与账户").accessibilityLabel("导航与账户")
+          Button { store.navigate(.profile) } label: { Label("个人中心", systemImage: "person.crop.circle") }
+          SettingsLink { Label("设置", systemImage: "gearshape") }
+        } label: { Image(systemName: "list.bullet") }.help("导航与个人中心")
       }
       if store.showPlayer {
         Button {
           store.leavePlayer()
         } label: {
           Image(systemName: "chevron.left")
-        }.buttonStyle(.glass).help("返回")
+        }.help("返回")
       }
       HStack(spacing: 10) {
         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
         TextField("搜索视频或粘贴 BV 号", text: $store.query).focused($searchFocused).textFieldStyle(.plain)
-          .onSubmit { store.search() }
-          .onExitCommand { searchFocused = false; NSApp.keyWindow?.makeFirstResponder(nil) }
+          .onSubmit { dismissSearch(); store.search() }
+          .onExitCommand { dismissSearch() }
         if !store.query.isEmpty {
           Button {
             store.clearSearch()
           } label: {
             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-          }.buttonStyle(.plain).help("清除搜索")
+          }.buttonStyle(.pointerPlain).help("清除搜索")
         }
-      }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: 36)
-        .background(.primary.opacity(0.06), in: .capsule)
+      }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: 28)
+        .background(.primary.opacity(0.06), in: .rect(cornerRadius: AppLayout.controlRadius))
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { searchFieldFrame = $0 }
+      }.onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { headerLeadingFrame = $0 }
       Spacer(minLength: 0)
-      SettingsLink { Image(systemName: "gearshape") }.help("设置")
       Button {
         if store.showPlayer { store.playback.retry(api: store.api) } else { store.reload() }
       } label: {
         Image(systemName: "arrow.clockwise")
       }.help("刷新")
-    }.buttonStyle(.glass).tint(.primary).padding(.horizontal, 12).frame(height: AppLayout.toolbarHeight)
-      .floatingGlass(AppLayout.panelRadius).interfaceAnimation(sidebarVisible)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { headerRefreshFrame = $0 }
+    }.toolbarButtons().padding(.horizontal, 12).frame(height: AppLayout.mainToolbarHeight)
+      .interfaceAnimation(sidebarVisible)
   }
   @ViewBuilder private var content: some View {
     ZStack {
-      browsingContent.id(store.destination).clipShape(.rect(cornerRadius: 24))
+      browsingContent.id(store.destination).clipShape(.rect(cornerRadius: AppLayout.panelRadius))
+        .environment(\.videoTitleCopyAvailable, !store.showPlayer && !searchFocused)
         .interfaceTransition().opacity(store.showPlayer ? 0 : 1)
         .allowsHitTesting(!store.showPlayer).accessibilityHidden(store.showPlayer)
       if store.showPlayer { PlayerPage(store: store).transition(.opacity) }
@@ -300,6 +301,7 @@ struct RootView: View {
     .onChange(of: navigation.preferences) { normalizeDestination() }
   }
   private func normalizeDestination() {
+    if [Destination.messages, .history, .favorites, .later, .downloads, .profile, .web].contains(store.destination) { return }
     if let page = StartPage.allCases.first(where: { $0.title == store.destination.rawValue }),
        !navigation.preferences.allows(page) {
       store.navigate(Destination(rawValue: navigation.preferences.resolvedStart.title) ?? .profile)
@@ -309,65 +311,49 @@ struct RootView: View {
       switch store.destination {
       case .recommend, .popular, .regions, .favorites, .later: browse
       case .dynamic: NativeDynamicsPage(store: store)
+      case .live: LivePage(store: store)
+      case .bangumi: SeasonCatalogPage(store: store, model: store.bangumiCatalog, cinema: false)
+      case .cinema: SeasonCatalogPage(store: store, model: store.cinemaCatalog, cinema: true)
       case .profile:
-        if let account = store.account {
-          ProfilePage(store: store, mid: account.mid)
-        } else {
-          ContentUnavailableView {
-            Label("登录后查看主页", systemImage: "person.crop.circle")
-          } actions: {
-            Button("登录") { store.login() }
-          }
-        }
+        if let account = store.account { ProfilePage(store: store, mid: account.mid) }
+        else { GuestAccountPage(store: store) }
       case .history: HistoryPage(store: store)
       case .downloads: DownloadPage(store: store)
       case .messages: NativeInboxPage(store: store)
-      case .web: WebFunctionsPage(store: store)
+      case .web:
+        if store.account != nil { NativeAccountPage(store: store) }
+        else { GuestAccountPage(store: store) }
       }
   }
   private var accountButton: some View {
     Group {
-      if let account = store.account {
-        HStack(spacing: 10) {
-          Button {
-            store.navigate(.profile)
-          } label: {
-            HStack(spacing: 10) {
-              Thumbnail(url: account.face, mode: .fill, placeholder: "person.crop.circle.fill")
-                .frame(width: 32, height: 32).clipShape(
-                  Circle())
-              Text(account.name).lineLimit(1)
-              Spacer(minLength: 0)
-            }.contentShape(Rectangle())
-          }.buttonStyle(.plain)
-          Menu {
-            Button("我的主页") { store.navigate(.profile) }
-            SettingsLink { Text("设置") }
-            Button("重新登录") { store.login() }
-            Button("退出登录", role: .destructive) { store.logout() }
-          } label: {
-            Image(systemName: "ellipsis")
-          }
-          .menuStyle(.borderlessButton).frame(width: 20)
-        }.padding(12).frame(height: 58)
-      } else if store.restoring {
-        HStack {
-          ProgressView().controlSize(.small)
-          Text("恢复登录中").font(.callout)
-        }.padding(10)
-      } else {
-        Button {
-          store.login()
-        } label: {
-          HStack {
-            Image(systemName: "person.crop.circle").font(.title2)
-            Text("登录")
-            Spacer()
-            Image(systemName: "qrcode").foregroundStyle(.secondary)
-          }.padding(10).frame(maxWidth: .infinity).contentShape(.rect(cornerRadius: 20))
-        }.buttonStyle(.plain)
+      if compactSidebar {
+        VStack(spacing: 12) { accountIdentity; accountUtilities }
+      } else { HStack(spacing: 10) { accountIdentity; accountUtilities } }
+    }.padding(compactSidebar ? 8 : 12).frame(maxWidth: .infinity).floatingGlass(AppLayout.panelRadius)
+  }
+  private var accountIdentity: some View {
+    Button { store.navigate(.profile) } label: {
+      HStack(spacing: 10) {
+        if let account = store.account {
+          Thumbnail(url: account.face, mode: .fill, placeholder: "person.crop.circle.fill")
+            .frame(width: 32, height: 32).clipShape(.circle)
+        } else { Image(systemName: "person.crop.circle").font(.title2).frame(width: 32, height: 32) }
+        if !compactSidebar && showsSidebar {
+          Text(store.account?.name ?? "个人中心").lineLimit(1); Spacer(minLength: 0)
+        }
+      }.contentShape(.rect)
+    }.buttonStyle(.pointerPlain).help("个人中心：消息、观看记录、收藏、稍后再看与下载")
+      .accessibilityLabel("个人中心")
+      .overlay(alignment: .topTrailing) {
+        if store.messageUnread.counts.total > 0 { Circle().fill(biliPink).frame(width: 7, height: 7).allowsHitTesting(false) }
       }
-    }.frame(maxWidth: .infinity).frame(height: 58).floatingGlass(20)
+  }
+  private var accountUtilities: some View {
+    Group {
+      SettingsLink { Image(systemName: "gearshape").frame(width: 28, height: 28).contentShape(.rect) }
+        .help("设置").accessibilityLabel("设置")
+    }.buttonStyle(.pointerPlain).foregroundStyle(.secondary)
   }
   private var browse: some View {
     ScrollView {
@@ -432,10 +418,12 @@ struct RootView: View {
 struct VideoCard: View {
   let video: Video
   var showsViews = true
+  @Environment(\.coverPreview) private var preview
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Thumbnail(url: video.cover, mode: .fill).aspectRatio(16 / 9, contentMode: .fit).clipShape(
-        RoundedRectangle(cornerRadius: 12)
+        RoundedRectangle(cornerRadius: AppLayout.mediaRadius)
       ).overlay(alignment: .bottom) {
         HStack(spacing: 8) {
           if showsViews {
@@ -449,11 +437,20 @@ struct VideoCard: View {
             LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
               .padding(.top, -12)
           }
-      }.clipShape(.rect(cornerRadius: 12))
-        .help(showsViews ? "\(video.views.formatted()) 次播放" : "")
+      }.overlay {
+        if let preview, preview.activeID == video.bvid {
+          CoverPreviewOverlay(preview: preview, token: preview.identity).id(preview.identity)
+        }
+      }.clipShape(.rect(cornerRadius: AppLayout.mediaRadius))
+        .onHover { inside in
+          if inside && !reduceMotion { preview?.hover(video) }
+          else { preview?.stop(videoID: video.bvid) }
+        }
+        .onDisappear { preview?.stop(videoID: video.bvid) }
       Text(video.title).font(.system(size: 14, weight: .medium)).lineLimit(2)
         .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 38, alignment: .topLeading).foregroundStyle(.primary)
+        .copyableVideoTitle(video.title)
       HStack(spacing: 8) {
         Text(video.author).lineLimit(1).truncationMode(.tail)
         Spacer(minLength: 2)
@@ -462,8 +459,8 @@ struct VideoCard: View {
             .fixedSize().help("发布时间 · " + date.formatted(AppDateFormat.timestamp))
         }
       }.font(.caption).foregroundStyle(.secondary)
-    }.padding(8).background(.primary.opacity(0.035), in: .rect(cornerRadius: 18))
-      .contentShape(.rect(cornerRadius: 18)).cardHover()
+    }.padding(AppLayout.pageInset).background(.primary.opacity(0.035), in: .rect(cornerRadius: AppLayout.panelRadius))
+      .contentShape(.rect(cornerRadius: AppLayout.panelRadius)).cardHover()
   }
   private func duration(_ t: Int) -> String {
     t >= 3600
@@ -510,7 +507,7 @@ struct ErrorBanner: View {
       Text(text).textSelection(.enabled)
       Spacer()
       Button("重试", action: retry)
-    }.padding(16).floatingGlass(18)
+    }.padding(16).floatingGlass(AppLayout.panelRadius)
   }
 }
 struct ScrollingVideoTitle: View {
@@ -535,6 +532,7 @@ struct ScrollingVideoTitle: View {
     }
     .scrollIndicators(.hidden).scrollBounceBehavior(.basedOnSize, axes: .horizontal)
     .scrollPosition($position).frame(height: 28)
+    .copyableVideoTitle(title)
     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
     .onHover { hovering = $0 }
     .accessibilityHint(overflow > 1 ? "可横向滚动查看完整标题" : "")
@@ -563,6 +561,7 @@ struct PlayerPage: View {
   @State private var expandedActionsWidth: CGFloat = 0
   @State private var compactActionsWidth: CGFloat = 0
   @State private var offlineDanmakuManager = false
+  @State private var displayedVideoWidth: CGFloat = 0
 
   private var usesScrollMiniPlayer: Bool {
     videoAboveViewport && !store.playback.pictureInPicture.isPresented
@@ -575,37 +574,43 @@ struct PlayerPage: View {
   var body: some View {
     @Bindable var p = store.playback
     GeometryReader { viewport in
-    let availableWidth = max(0, min(viewport.size.width, 1280) - 32)
-    let compactPlaybackControls = availableWidth < 900
+    let availableWidth = max(0, viewport.size.width - 32)
+    let compactPlaybackControls = displayedVideoWidth < 900
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
-        if let detail = p.detail { header(detail) }
-        InlinePlaybackSurface(store: store, isInlineVisible: !usesScrollMiniPlayer,
-          controlsScrollMiniPlayer: showsScrollMiniPlayer, usesCompactControls: compactPlaybackControls)
-          .frame(height: max(240, min((min(viewport.size.width, 1280) - 32) * 9 / 16, viewport.size.height - 250)))
-          .onGeometryChange(for: Bool.self) { proxy in
-            proxy.frame(in: .scrollView(axis: .vertical)).maxY <= 0
-          } action: { aboveViewport in
-            videoAboveViewport = aboveViewport
-            if !aboveViewport { dismissedScrollMiniPlayer = false }
+        PlaybackViewportLayout(viewportHeight: viewport.size.height - 32) {
+          Group {
+            if let detail = p.detail { header(detail) }
+            else { Color.clear.frame(height: 28) }
           }
-        if let detail = p.detail, detail.aid > 0 { DanmakuComposer(store: store, aid: detail.aid) }
-        if let error = p.error {
-          VStack(alignment: .leading, spacing: 10) {
-            ErrorBanner(text: error) { p.retry(api: store.api) }
-
-          }
-        }
-        informationToolbar(availableWidth: availableWidth, showsWatchLater: !compactPlaybackControls)
-        if let d = p.detail {
-          if d.aid > 0 {
-            VideoActionBar(store: store, detail: d, showsPlaybackOptions: compactPlaybackControls)
-          } else if compactPlaybackControls {
-            HStack {
-              Spacer(minLength: 0)
-              PlaybackOptionsControls(store: store, onShowDanmakuList: { offlineDanmakuManager = true })
+          InlinePlaybackSurface(store: store, isInlineVisible: !usesScrollMiniPlayer,
+            controlsScrollMiniPlayer: showsScrollMiniPlayer, usesCompactControls: compactPlaybackControls)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { displayedVideoWidth = $0 }
+            .onGeometryChange(for: Bool.self) { proxy in
+              proxy.frame(in: .scrollView(axis: .vertical)).maxY <= 0
+            } action: { aboveViewport in
+              videoAboveViewport = aboveViewport
+              if !aboveViewport { dismissedScrollMiniPlayer = false }
+            }
+          VStack(alignment: .leading, spacing: 14) {
+            if let detail = p.detail, detail.aid > 0 { DanmakuComposer(store: store, aid: detail.aid) }
+            if let error = p.error {
+              ErrorBanner(text: error) { p.retry(api: store.api) }
+            }
+            informationToolbar(availableWidth: availableWidth, showsWatchLater: !compactPlaybackControls)
+            if let d = p.detail {
+              if d.aid > 0 {
+                VideoActionBar(store: store, detail: d, showsPlaybackOptions: compactPlaybackControls)
+              } else if compactPlaybackControls {
+                HStack {
+                  Spacer(minLength: 0)
+                  PlaybackOptionsControls(store: store, onShowDanmakuList: { offlineDanmakuManager = true })
+                }
+              }
             }
           }
+        }
+        if let d = p.detail {
           if !d.description.isEmpty {
             Text(d.description).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
               .lineSpacing(5).padding(.top, 4)
@@ -614,7 +619,7 @@ struct PlayerPage: View {
           Divider().padding(.vertical, 8)
           if d.aid > 0 { CommentsView(store: store, aid: d.aid).padding(.top, 8) }
         }
-      }.padding(16).frame(width: min(viewport.size.width, 1280)).frame(maxWidth: .infinity)
+      }.padding(16).frame(width: viewport.size.width)
     }.scrollPosition($scrollPosition, anchor: .top)
       .clipShape(.rect(cornerRadius: AppLayout.panelRadius))
       .floatingGlass(AppLayout.panelRadius)
@@ -689,12 +694,12 @@ struct PlayerPage: View {
       }
       PlaybackFeatureControls(store: store)
       downloadMenu
-    }.buttonStyle(.glass).controlSize(.regular)
+    }.buttonStyle(.pointerGlass).controlSize(.regular)
   }
 
   @ViewBuilder private var downloadMenu: some View {
     let p = store.playback
-    if let d = p.detail, p.streams != nil {
+    if let d = p.detail, p.streams != nil, p.currentEpisodeID == nil {
       Menu {
         Button("缓存到应用") {
           store.downloads.enqueue(
@@ -729,7 +734,7 @@ struct PlayerPage: View {
   private func author(_ detail: Detail) -> some View {
     Button { store.showProfile(detail.ownerID) } label: {
       Text(detail.video.author).lineLimit(1).truncationMode(.middle).help(detail.video.author)
-    }.buttonStyle(.plain).disabled(detail.ownerID <= 0)
+    }.buttonStyle(.pointerPlain).disabled(detail.ownerID <= 0)
   }
   private func metadata(_ video: Video) -> some View {
     HStack(spacing: 12) {
@@ -789,7 +794,7 @@ struct LoginSheet: View {
           store.showLogin = false
         } label: {
           Image(systemName: "xmark")
-        }.buttonStyle(.glass).help("关闭")
+        }.buttonStyle(.pointerGlass).help("关闭")
       }
       ZStack {
         RoundedRectangle(cornerRadius: 16).fill(.white)
@@ -798,7 +803,7 @@ struct LoginSheet: View {
             store.loginExpired ? 0.15 : 1)
         }
         if store.qrImage == nil && !store.loginExpired { ProgressView() }
-        if store.loginExpired { Button("刷新二维码") { store.refreshQR() }.buttonStyle(.glassProminent) }
+        if store.loginExpired { Button("刷新二维码") { store.refreshQR() }.buttonStyle(.pointerGlassProminent) }
       }.frame(width: 230, height: 230)
       Text(store.loginStatus).font(.callout).foregroundStyle(.secondary)
       Text("一次扫码即可使用浏览、收藏与投币。登录不会自动投币。")

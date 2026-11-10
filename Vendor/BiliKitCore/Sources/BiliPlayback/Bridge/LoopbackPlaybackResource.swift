@@ -130,12 +130,16 @@ public final class LoopbackGeneratedResource: Sendable, Equatable {
 
     private let state: Mutex<State>
     private let maximumContentLength: Int
+    private let cacheBody: Bool
     private let loader: @Sendable () async throws -> Data
 
+    /// Set `cacheBody` to false for a refreshing live manifest. Concurrent readers
+    /// still share one in-flight load; successful bodies are not retained.
     public init(
         contentType: String,
         maximumContentLength: Int,
         maximumLoadAttempts: Int = 2,
+        cacheBody: Bool = true,
         loader: @escaping @Sendable () async throws -> Data
     ) throws {
         guard maximumContentLength > 0 else {
@@ -150,6 +154,7 @@ public final class LoopbackGeneratedResource: Sendable, Equatable {
         }
         self.contentType = contentType
         self.maximumContentLength = maximumContentLength
+        self.cacheBody = cacheBody
         state = Mutex(State(remainingLoadAttempts: maximumLoadAttempts))
         self.loader = loader
     }
@@ -215,7 +220,7 @@ public final class LoopbackGeneratedResource: Sendable, Equatable {
                 guard state.generation == loadGeneration, !state.invalidated else {
                     return false
                 }
-                state.cachedBody = body
+                state.cachedBody = cacheBody ? body : nil
                 state.loadTask = nil
                 return true
             }

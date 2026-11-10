@@ -6,6 +6,26 @@ import Testing
 @Suite(.serialized, .timeLimit(.minutes(1)))
 struct LoopbackGeneratedResourceTests {
     @Test
+    func uncachedLivePlaylistRefreshesAndExpiredRoutesAreRemoved() async throws {
+        let probe = LiveSequenceProbe()
+        let resource = try LoopbackGeneratedResource(contentType: "application/vnd.apple.mpegurl",
+            maximumContentLength: 1024, maximumLoadAttempts: Int.max, cacheBody: false) {
+            await probe.next()
+        }
+        let server = LoopbackPlaybackServer()
+        try await server.start()
+        defer { server.stop() }
+        let url = try server.register(.generated(resource), at: "live.m3u8")
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        let (first, _) = try await session.data(from: url)
+        let (second, _) = try await session.data(from: url)
+        #expect(first != second)
+        try server.unregister(at: "live.m3u8")
+        let (_, response) = try await session.data(from: url)
+        #expect((response as? HTTPURLResponse)?.statusCode == 404)
+    }
+    @Test
     func failedRequestCanRetryThenServesLengthHeadAndRange() async throws {
         let probe = RetryProbe(body: Data("WEBVTT\n".utf8))
         let generated = try LoopbackGeneratedResource(
@@ -192,6 +212,11 @@ struct LoopbackGeneratedResourceTests {
         let (_, response) = try await URLSession.shared.data(from: freshURL)
         #expect((response as? HTTPURLResponse)?.statusCode == 404)
     }
+}
+
+private actor LiveSequenceProbe {
+    var value = 0
+    func next() -> Data { value += 1; return Data("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:\(value)\n".utf8) }
 }
 
 private enum ProbeError: Error {

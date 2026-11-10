@@ -83,6 +83,7 @@ extension API {
       "/x/v3/fav/folder/edit", "/x/v3/fav/folder/del",
       "/x/web-interface/feedback/dislike", "/x/web-interface/feedback/dislike/cancel", "/x/web-interface/appeal/v2/submit",
       "/x/dm/filter/user/add", "/x/dm/filter/user/del", "/x/dm/report/add",
+      "/pgc/web/follow/add", "/pgc/web/follow/del",
     ]
     guard allowed.contains(path), signedIn, let csrf = cookies["bili_jct"] else {
       throw BiliError(text: "请先登录")

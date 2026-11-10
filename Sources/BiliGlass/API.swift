@@ -256,7 +256,7 @@ final class Vault {
     WebSession.shared.reset()
     wbiKey = nil
   }
-  func request(_ path: String, _ query: [String: String] = [:], signed: Bool = false) async throws
+  func request(_ path: String, _ query: [String: String] = [:], signed: Bool = false, live: Bool = false) async throws
     -> [String: Any]
   {
     try Task.checkCancellation()
@@ -267,7 +267,7 @@ final class Vault {
       if let key = wbiKey { params = Self.sign(params, key: key) }
     }
     let host =
-      path.hasPrefix("/x/passport") ? "https://passport.bilibili.com" : "https://api.bilibili.com"
+      live ? "https://api.live.bilibili.com" : path.hasPrefix("/x/passport") ? "https://passport.bilibili.com" : "https://api.bilibili.com"
     var u = URLComponents(string: host + path)!
     u.queryItems = params.sorted { $0.key < $1.key }.map {
       URLQueryItem(name: $0.key, value: $0.value)
@@ -275,6 +275,7 @@ final class Vault {
     var req = URLRequest(url: u.url!)
     req.setValue("application/json", forHTTPHeaderField: "Accept")
     API.mediaHeaders.forEach { req.setValue($1, forHTTPHeaderField: $0) }
+    if live { req.setValue("https://live.bilibili.com/", forHTTPHeaderField: "Referer") }
     if let bvid = params["bvid"] {
       req.setValue("https://www.bilibili.com/video/" + bvid + "/", forHTTPHeaderField: "Referer")
     }

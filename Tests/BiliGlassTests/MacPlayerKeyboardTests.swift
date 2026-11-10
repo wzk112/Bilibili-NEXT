@@ -32,6 +32,7 @@ private final class KeyboardTestWindow: NSWindow {
     defer { keyboard.stop(); playback.stop(); window.orderOut(nil) }
     #expect(keyboard.handle(try key("]", code: 30, window: window)) == nil)
     #expect(playback.speed == 1.25)
+    #expect(playback.feedback.notice?.symbol == "speedometer")
     #expect(keyboard.handle(try key("[", code: 33, window: window)) == nil)
     #expect(playback.speed == 1)
     playback.setSpeed(2)
@@ -41,11 +42,13 @@ private final class KeyboardTestWindow: NSWindow {
     #expect(keyboard.handle(try key("", code: 126, window: window)) == nil)
     #expect(abs(playback.player.volume - 0.55) < 0.001)
     #expect(abs(playback.volume - 0.55) < 0.001)
+    #expect(playback.feedback.notice?.title == "音量 55%")
     #expect(keyboard.handle(try key("", code: 125, window: window)) == nil)
     #expect(abs(playback.player.volume - 0.5) < 0.001)
     #expect(keyboard.handle(try key("m", code: 46, window: window)) == nil)
     #expect(playback.player.isMuted)
     #expect(playback.muted)
+    #expect(playback.feedback.notice?.title == "已静音")
     _ = keyboard.handle(try key("m", code: 46, window: window, repeated: true))
     #expect(playback.player.isMuted)
     playback.setVolume(0.5)
@@ -88,5 +91,6 @@ private final class KeyboardTestWindow: NSWindow {
     let command = try key("m", code: 46, window: window, modifiers: .command)
     #expect(keyboard.handle(command) === command)
     #expect(!playback.player.isMuted)
+    #expect(playback.feedback.notice == nil)
   }
 }

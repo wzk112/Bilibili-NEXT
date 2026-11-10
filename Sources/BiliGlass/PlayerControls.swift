@@ -96,6 +96,8 @@ struct InlinePlaybackSurface: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
   @State private var keyboardControlsVisible = false
+  @State private var keyboardRecentlyUsed = false
+  @State private var lastKeyboardUse = ContinuousClock.now
   @State private var pointerInVideo = false
   @State private var pointerInControls = false
   @State private var recentlyMoved = false
@@ -107,7 +109,7 @@ struct InlinePlaybackSurface: View {
 
   private var controlsVisible: Bool {
     isInlineVisible && !store.fullscreen.isPresented
-      && (voiceOverEnabled || keyboardControlsVisible || adjustingPlayback || danmakuManager
+      && (voiceOverEnabled || keyboardControlsVisible || keyboardRecentlyUsed || adjustingPlayback || danmakuManager
         || danmakuSettings || (pointerInVideo && (recentlyMoved || pointerInControls)))
   }
 
@@ -119,7 +121,7 @@ struct InlinePlaybackSurface: View {
       NativePlayer(playback: playback, items: dm.items, enabled: dm.enabled,
         isInlineVisible: isInlineVisible, controlsScrollMiniPlayer: controlsScrollMiniPlayer,
         toggleFullscreen: toggleFullscreen, toggleDanmaku: { dm.enabled.toggle() },
-        keyboardInteraction: { keyboardControlsVisible = true })
+        keyboardInteraction: { lastKeyboardUse = .now; keyboardRecentlyUsed = true })
       if isInlineVisible {
         VideoSurfaceClickTarget(playback: playback, toggleFullscreen: toggleFullscreen)
           .focusable(interactions: .activate)
@@ -130,6 +132,9 @@ struct InlinePlaybackSurface: View {
           }
       }
       PlaybackStatusOverlay(playback: playback)
+      if isInlineVisible && !store.fullscreen.isPresented {
+        PlaybackFeedbackOverlay(feedback: playback.feedback)
+      }
       SubtitleOverlay(extras: store.extras, playback: playback,
         bottomInset: controlsVisible ? controlsHeight + 8 : 18)
       if playback.isBoosting {
@@ -166,7 +171,7 @@ struct InlinePlaybackSurface: View {
     .overlay {
       PlaybackDetailsOverlay(playback: playback, bottomInset: controlsVisible ? controlsHeight : 12)
     }
-    .clipShape(.rect(cornerRadius: 16))
+    .clipShape(.rect(cornerRadius: AppLayout.mediaRadius))
     .onContinuousHover { phase in
       switch phase {
       case .active:
@@ -189,6 +194,15 @@ struct InlinePlaybackSurface: View {
       } catch {}
     }
     .sheet(isPresented: $danmakuManager) { DanmakuManagement(store: store) }
+    .task(id: keyboardRecentlyUsed) {
+      guard keyboardRecentlyUsed else { return }
+      do {
+        while ContinuousClock.now < lastKeyboardUse.advanced(by: .seconds(3)) {
+          try await Task.sleep(until: lastKeyboardUse.advanced(by: .seconds(3)), clock: .continuous)
+        }
+        keyboardRecentlyUsed = false
+      } catch { }
+    }
     .onChange(of: usesCompactControls) { _, compact in
       if compact { danmakuSettings = false }
     }
@@ -210,7 +224,7 @@ struct PlaybackOptionsControls: View {
         onShowList: onShowDanmakuList)
       PlaybackQualityMenu(store: store)
       PlaybackSpeedMenu(playback: store.playback)
-    }.buttonStyle(.glass).fixedSize(horizontal: true, vertical: false)
+    }.buttonStyle(.pointerGlass).fixedSize(horizontal: true, vertical: false)
   }
 }
 
@@ -238,15 +252,15 @@ struct PlayerControls<AdditionalControls: View>: View {
       HStack(spacing: fullscreen ? 14 : 8) {
         Button { playback.focusPlayer(); playback.togglePlayback() } label: {
           Image(systemName: !playback.isPlaying ? "play.fill" : "pause.fill").frame(width: 20)
-        }.buttonStyle(.glass).help(!playback.isPlaying ? "播放" : "暂停")
+        }.buttonStyle(.pointerGlass).help(!playback.isPlaying ? "播放" : "暂停")
           .accessibilityLabel(!playback.isPlaying ? "播放" : "暂停")
         if let nextAction {
           Button(action: nextAction) { Image(systemName: "forward.end") }
-            .buttonStyle(.glass).help("下一集").accessibilityLabel("下一集")
+            .buttonStyle(.pointerGlass).help("下一集").accessibilityLabel("下一集")
         }
         Text(clock(dragging ? position : current)).font(.caption.monospacedDigit()).frame(
           minWidth: 42)
-        Slider(
+        BufferedSeekSlider(
           value: Binding(
             get: { dragging ? position : min(current, duration) },
             set: { value in
@@ -254,7 +268,8 @@ struct PlayerControls<AdditionalControls: View>: View {
               // Keyboard and accessibility changes do not always emit a drag
               // phase. Commit them immediately instead of snapping back.
               if !dragging { playback.seek(to: value) }
-            }), in: 0...max(1, duration)
+            }), duration: duration, buffered: playback.bufferedRanges,
+          enabled: duration > 0 && !playback.loading
         ) { editing in
           dragging = editing
           onEditingChanged?(editing)
@@ -264,7 +279,7 @@ struct PlayerControls<AdditionalControls: View>: View {
               to: CMTime(seconds: min(duration, max(0, position)), preferredTimescale: 600),
               toleranceBefore: .zero, toleranceAfter: CMTime(seconds: 0.1, preferredTimescale: 600))
           }
-        }.labelsHidden().accessibilityLabel("播放进度").disabled(duration == 0 || playback.loading)
+        }.frame(minWidth: 80, maxWidth: .infinity)
           .onGeometryChange(for: Double.self) { $0.size.width } action: { sliderWidth = max(1, $0) }
           .onContinuousHover { phase in
             if case .active(let point) = phase { hoverTime = SeekPreviewGeometry.time(pointer: point.x, duration: duration, width: sliderWidth) } else { hoverTime = nil }
@@ -279,7 +294,7 @@ struct PlayerControls<AdditionalControls: View>: View {
         Button { showingVolume.toggle() } label: {
           Image(systemName: playback.muted || playback.volume == 0 ? "speaker.slash" : "speaker.wave.2")
         }
-          .buttonStyle(.glass).help("音量").accessibilityLabel("音量")
+          .buttonStyle(.pointerGlass).help("音量").accessibilityLabel("音量")
           .popover(isPresented: $showingVolume) {
             Slider(value: Binding(get: { Double(playback.volume) }, set: { playback.setVolume(Float($0)) }), in: 0...1)
               .labelsHidden().accessibilityLabel("音量").frame(width: 150).padding(16)
@@ -295,10 +310,10 @@ struct PlayerControls<AdditionalControls: View>: View {
         if let toggleFullscreen {
           Button(action: toggleFullscreen) {
             Image(systemName: fullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-          }.buttonStyle(.glass).help(fullscreen ? "退出全屏" : "全屏播放")
+          }.buttonStyle(.pointerGlass).help(fullscreen ? "退出全屏" : "全屏播放")
             .accessibilityLabel(fullscreen ? "退出全屏" : "全屏播放")
         }
-      }.padding(12).glassEffect(.regular, in: .rect(cornerRadius: 18))
+      }.padding(12).glassEffect(.regular, in: .rect(cornerRadius: AppLayout.panelRadius))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { controlsWidth = $0 }
         .interfaceAnimation(!fullscreen && controlsWidth < 860)
     }.onAppear { position = playback.positionSeconds }

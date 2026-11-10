@@ -18,6 +18,7 @@ enum AppPaths {
 struct PreferencesView: View {
   @Bindable var store: Store
   @AppStorage("appearance") private var appearance = "dark"
+  @AppStorage("appTheme") private var theme = AppTheme.original
   @AppStorage("glassStyle") private var glassStyle = "clear"
   @AppStorage("backgroundImage") private var backgroundImage = ""
   @AppStorage("backgroundBlur") private var backgroundBlur = false
@@ -61,9 +62,9 @@ struct PreferencesView: View {
                 Button { store.preferencesTab = index } label: {
                   Label(categories[index].0, systemImage: categories[index].1)
                     .font(.body.weight(store.preferencesTab == index ? .semibold : .regular))
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(12).contentShape(.rect(cornerRadius: 14))
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(12).contentShape(.rect(cornerRadius: AppLayout.itemRadius))
                 }.buttonStyle(NavigationButtonStyle()).tint(.primary)
-                  .appGlass(14, tint: store.preferencesTab == index ? biliPink.opacity(0.2) : .clear)
+                  .appGlass(AppLayout.itemRadius, tint: store.preferencesTab == index ? biliPink.opacity(0.2) : .clear)
               }
             }
           }
@@ -88,10 +89,12 @@ struct PreferencesView: View {
             }.scrollIndicators(.hidden)
               .id(store.preferencesTab).interfaceTransition()
           }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipShape(.rect(cornerRadius: 24)).interfaceAnimation(store.preferencesTab)
+            .clipShape(.rect(cornerRadius: AppLayout.panelRadius)).interfaceAnimation(store.preferencesTab)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
       }.padding(24)
-    }.frame(minWidth: 940, idealWidth: 980, minHeight: 700, idealHeight: 740).appAppearance().tint(biliPink)
+    }.frame(minWidth: 940, idealWidth: 980, minHeight: 700, idealHeight: 740)
+      .background { SettingsWindowChrome().frame(width: 0, height: 0) }
+      .appWindowBackground().appAppearance().tint(biliPink)
   }
   private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content)
     -> some View
@@ -99,7 +102,7 @@ struct PreferencesView: View {
     VStack(alignment: .leading, spacing: 18) {
       Text(title).font(.headline)
       content()
-    }.padding(22).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(24)
+    }.padding(22).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(AppLayout.panelRadius)
   }
   private var playbackSettings: some View {
     VStack(spacing: 18) {
@@ -112,7 +115,7 @@ struct PreferencesView: View {
         Text(VideoCodecPreference.hardwareDecodeSummary + "具体解码方式由系统播放器选择。")
           .font(.caption).foregroundStyle(.secondary)
         toggleRow("打开视频后自动播放", value: $autoPlay)
-        toggleRow("分 P 自动连播", value: $autoParts)
+        toggleRow("分 P / 剧集自动连播", value: $autoParts)
         toggleRow("合集与播放列表自动连播", value: $autoNext)
         toggleRow("记住观看位置", value: $rememberPosition)
         toggleRow("同步观看进度到账号", value: $syncWatchHistory)
@@ -157,30 +160,37 @@ struct PreferencesView: View {
     VStack(spacing: 18) {
       section("首页与导航") { BrowsePreferenceFields() }
       section("外观") {
-        Picker("颜色模式", selection: $appearance) {
-          Text("跟随系统").tag("system"); Text("浅色").tag("light"); Text("深色").tag("dark")
-        }.pickerStyle(.segmented)
-        Picker("玻璃材质", selection: $glassStyle) {
-          Text("通透").tag("clear"); Text("柔和").tag("regular")
-        }.pickerStyle(.segmented)
+        ThemePicker(selection: $theme)
+        Text("白色、暗色和跟随系统采用简洁底色，强调色保持粉色。默认主题保留渐变、玻璃与自定义背景。")
+          .font(.caption).foregroundStyle(.secondary)
+        if theme == .original {
+          Picker("默认主题颜色模式", selection: $appearance) {
+            Text("跟随系统").tag("system"); Text("浅色").tag("light"); Text("深色").tag("dark")
+          }.pickerStyle(.segmented)
+          Picker("玻璃材质", selection: $glassStyle) {
+            Text("通透").tag("clear"); Text("柔和").tag("regular")
+          }.pickerStyle(.segmented)
+          Text("通透突出背景，柔和便于阅读。").font(.caption).foregroundStyle(.secondary)
+        }
         toggleRow("界面动画", value: $animations)
-        Text("通透突出背景，柔和便于阅读。").font(.caption).foregroundStyle(.secondary)
       }
-      section("背景") {
-        HStack(spacing: 14) {
-          Image(systemName: backgroundImage.isEmpty ? "circle.lefthalf.filled" : "photo").font(.title2).foregroundStyle(biliPink)
-          VStack(alignment: .leading, spacing: 4) {
-            Text(backgroundImage.isEmpty ? "默认渐变" : "自定义图片").font(.headline)
-            Text("图片保存在应用中，原图保持不变。").font(.caption).foregroundStyle(.secondary)
-          }
-          Spacer()
-          Button(importing ? "正在处理…" : "选择图片…", action: chooseBackground).disabled(importing)
-          if !backgroundImage.isEmpty { Button("恢复默认") { backgroundImage = "" } }
-        }.buttonStyle(.glass).tint(.primary)
-        toggleRow("模糊背景图片", value: $backgroundBlur).disabled(backgroundImage.isEmpty)
-        sliderRow("背景可见度", value: $backgroundOpacity, range: 0.2...1, step: 0.05, display: "\(Int(backgroundOpacity * 100))%")
-          .disabled(backgroundImage.isEmpty)
-        if let backgroundError { Text(backgroundError).font(.caption).foregroundStyle(.red) }
+      if theme == .original {
+        section("背景") {
+          HStack(spacing: 14) {
+            Image(systemName: backgroundImage.isEmpty ? "circle.lefthalf.filled" : "photo").font(.title2).foregroundStyle(biliPink)
+            VStack(alignment: .leading, spacing: 4) {
+              Text(backgroundImage.isEmpty ? "默认渐变" : "自定义图片").font(.headline)
+              Text("图片保存在应用中，原图保持不变。").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button(importing ? "正在处理…" : "选择图片…", action: chooseBackground).disabled(importing)
+            if !backgroundImage.isEmpty { Button("恢复默认") { backgroundImage = "" } }
+          }.buttonStyle(.pointerGlass).tint(.primary)
+          toggleRow("模糊背景图片", value: $backgroundBlur).disabled(backgroundImage.isEmpty)
+          sliderRow("背景可见度", value: $backgroundOpacity, range: 0.2...1, step: 0.05, display: "\(Int(backgroundOpacity * 100))%")
+            .disabled(backgroundImage.isEmpty)
+          if let backgroundError { Text(backgroundError).font(.caption).foregroundStyle(.red) }
+        }
       }
       section("浏览") {
         toggleRow("向下滚动自动加载", value: $autoLoadMore)
@@ -212,7 +222,7 @@ struct PreferencesView: View {
     section("显示") {
       Text("这是一条弹幕").font(.system(size: 25 * scale, weight: .semibold))
         .foregroundStyle(.white.opacity(opacity)).shadow(color: .black.opacity(0.8), radius: 1, y: 1)
-        .frame(maxWidth: .infinity).frame(height: 70).appGlass(16)
+        .frame(maxWidth: .infinity).frame(height: 70).appGlass(AppLayout.itemRadius)
       sliderRow("不透明度", value:$opacity, range:0.1...1, step:0.01, display:"\(Int(opacity*100))%")
       sliderRow("显示区域", value:$area, range:0.2...1, step:0.1, display:"\(Int(area*100))%")
       sliderRow("文字大小", value:$scale, range:0.5...2, step:0.1, display:"\(scale.formatted(.number.precision(.fractionLength(1))))×")
@@ -246,7 +256,7 @@ struct PreferencesView: View {
           Toggle("下载视频时同时保存弹幕", isOn:$downloadDanmaku).labelsHidden().toggleStyle(.switch).fixedSize()
         }
         Text(AppPaths.cache.path).font(.callout).textSelection(.enabled).lineLimit(3)
-        HStack {
+        HStack(spacing: 20) {
           Button("更改目录…") {
             let panel = NSOpenPanel()
             panel.canChooseDirectories = true
@@ -259,7 +269,7 @@ struct PreferencesView: View {
               at: AppPaths.cache, withIntermediateDirectories: true)
             NSWorkspace.shared.open(AppPaths.cache)
           }
-        }.buttonStyle(.glass).tint(.primary)
+        }.buttonStyle(.pointerGlass).tint(.primary)
         Text("修改目录后，新缓存保存到新位置，已有缓存仍可在下载页管理。").font(.caption).foregroundStyle(.secondary)
       }
       section("图片缓存") {
@@ -268,10 +278,30 @@ struct PreferencesView: View {
             await ThumbnailCache.shared.clear()
             cleared = true
           }
-        }.buttonStyle(.glass).tint(.primary)
+        }.buttonStyle(.pointerGlass).tint(.primary)
         Text("解码图片缓存上限 32 MB，按显示尺寸加载；原图仅使用 128 MB 磁盘缓存。正在显示的图片另占内存。").font(.caption).foregroundStyle(.secondary)
       }
     }
   }
   private var aboutSettings: some View { AboutView(store: store) }
+}
+
+private struct SettingsWindowChrome: NSViewRepresentable {
+  func makeNSView(context: Context) -> WindowView { WindowView() }
+  func updateNSView(_ view: WindowView, context: Context) {
+    DispatchQueue.main.async { [weak view] in view?.applyStyle() }
+  }
+  final class WindowView: NSView {
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      applyStyle()
+    }
+    func applyStyle() {
+      guard let window else { return }
+      if window.titleVisibility != .hidden { window.titleVisibility = .hidden }
+      if !window.titlebarAppearsTransparent { window.titlebarAppearsTransparent = true }
+      if window.titlebarSeparatorStyle != .none { window.titlebarSeparatorStyle = .none }
+      if !window.styleMask.contains(.fullSizeContentView) { window.styleMask.insert(.fullSizeContentView) }
+    }
+  }
 }

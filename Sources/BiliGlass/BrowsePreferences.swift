@@ -1,13 +1,22 @@
 import SwiftUI
 
 enum StartPage: String, CaseIterable, Identifiable {
-  case recommend, popular, regions, dynamic, messages, history, favorites, later, downloads, profile, web
+  case recommend, popular, regions
+  #if os(macOS)
+  case live, bangumi, cinema
+  #endif
+  case dynamic, messages, history, favorites, later, downloads, profile, web
   var id: String { rawValue }
   var title: String {
     switch self {
     case .recommend: "推荐"
     case .popular: "热门"
     case .regions: "分区"
+    #if os(macOS)
+    case .live: "直播"
+    case .bangumi: "追番"
+    case .cinema: "影视"
+    #endif
     case .dynamic: "关注动态"
     case .messages: "消息"
     case .history: "观看记录"
@@ -23,6 +32,11 @@ enum StartPage: String, CaseIterable, Identifiable {
     case .recommend: "house"
     case .popular: "flame"
     case .regions: "square.grid.2x2"
+    #if os(macOS)
+    case .live: "dot.radiowaves.left.and.right"
+    case .bangumi: "sparkles.tv"
+    case .cinema: "film"
+    #endif
     case .dynamic: "person.2"
     case .messages: "bubble.left.and.bubble.right"
     case .history: "clock"
@@ -42,13 +56,17 @@ enum StartPage: String, CaseIterable, Identifiable {
   }
   var isHome: Bool { [.recommend, .popular, .regions].contains(self) }
   var isLibrary: Bool { [.history, .favorites, .later, .downloads].contains(self) }
-  var isBrowse: Bool { isHome || self == .dynamic || self == .messages }
-  static var supported: [Self] {
-    #if os(iOS)
-      allCases.filter { $0 != .web }
-    #else
-      allCases
+  var isBrowse: Bool {
+    #if os(macOS)
+    if [.live, .bangumi, .cinema].contains(self) { return true }
     #endif
+    return isHome || self == .dynamic || self == .messages
+  }
+  #if os(macOS)
+  var isSidebarPage: Bool { [.recommend, .popular, .regions, .live, .bangumi, .cinema, .dynamic].contains(self) }
+  #endif
+  static var supported: [Self] {
+    allCases.filter { $0 != .web }
   }
 }
 
@@ -78,6 +96,9 @@ struct BrowsePreferences: Equatable {
       && (page != .recommend || showRecommended) && (page != .popular || showPopular)
   }
   var visible: [StartPage] { order.filter { allows($0) } }
+  #if os(macOS)
+  var sidebarPages: [StartPage] { visible.filter(\.isSidebarPage) }
+  #endif
   var phoneTabs: [Int] {
     var seen = Set<Int>()
     return (visible.map(\.phoneTab) + [4]).filter { seen.insert($0).inserted }
@@ -106,8 +127,14 @@ struct NavigationCustomization: DynamicProperty {
   }
   func move(_ page: StartPage, by delta: Int) {
     var items = preferences.order
+    #if os(macOS)
+    let indices = items.indices.filter { items[$0].isSidebarPage }
+    guard let position = indices.firstIndex(where: { items[$0] == page }), indices.indices.contains(position + delta) else { return }
+    items.swapAt(indices[position], indices[position + delta])
+    #else
     guard let index = items.firstIndex(of: page), items.indices.contains(index + delta) else { return }
     items.swapAt(index, index + delta)
+    #endif
     order = items.map(\.rawValue).joined(separator: ",")
   }
   func reset() {
@@ -116,9 +143,27 @@ struct NavigationCustomization: DynamicProperty {
 }
 
 struct BrowsePreferenceFields: View {
+  #if os(macOS)
+  @AppStorage("macSidebarCollapseMode") private var sidebarMode = "icons"
+  #endif
   private var navigation = NavigationCustomization()
   @AppStorage("refreshHomeOnReturn") private var refresh = false
+  private var customizablePages: [StartPage] {
+    #if os(macOS)
+    navigation.preferences.order.filter(\.isSidebarPage)
+    #else
+    navigation.preferences.order
+    #endif
+  }
   var body: some View {
+    #if os(macOS)
+    Picker("收起侧栏时", selection: $sidebarMode) {
+      Text("仅保留图标").tag("icons")
+      Text("完全隐藏").tag("hidden")
+    }.pickerStyle(.segmented)
+    Text("收起为图标时保留个人中心和设置；完全隐藏时，两者移入左上角导航列表。")
+      .font(.caption).foregroundStyle(.secondary)
+    #endif
     Picker("启动时打开", selection: navigation.$start) {
       ForEach(navigation.preferences.visible) { Text($0.title).tag($0.rawValue) }
     }.accessibilityIdentifier("start-page")
@@ -127,7 +172,7 @@ struct BrowsePreferenceFields: View {
       .font(.caption).foregroundStyle(.secondary)
     DisclosureGroup("自定义导航项目") {
       VStack(alignment: .leading, spacing: 8) {
-        ForEach(navigation.preferences.order) { page in
+        ForEach(customizablePages) { page in
           HStack(spacing: 8) {
             Toggle(page.title, isOn: Binding(get: { navigation.preferences.allows(page) },
               set: { navigation.setVisible(page, $0) }))
@@ -135,10 +180,10 @@ struct BrowsePreferenceFields: View {
               .disabled(navigation.preferences.visible.count == 1 && navigation.preferences.allows(page))
               .accessibilityIdentifier("show-\(page == .recommend ? "recommended" : page.rawValue)")
             Button { navigation.move(page, by: -1) } label: { Image(systemName: "chevron.up").frame(width: 36, height: 36).contentShape(.rect) }
-              .disabled(navigation.preferences.order.first == page)
+              .disabled(customizablePages.first == page)
               .accessibilityLabel("上移\(page.title)").accessibilityIdentifier("move-up-\(page.rawValue)")
             Button { navigation.move(page, by: 1) } label: { Image(systemName: "chevron.down").frame(width: 36, height: 36).contentShape(.rect) }
-              .disabled(navigation.preferences.order.last == page)
+              .disabled(customizablePages.last == page)
               .accessibilityLabel("下移\(page.title)").accessibilityIdentifier("move-down-\(page.rawValue)")
           }.buttonStyle(.borderless)
         }

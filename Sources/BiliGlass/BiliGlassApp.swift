@@ -3,6 +3,7 @@ import SwiftUI
 final class AppLifecycle: NSObject, NSApplicationDelegate {
   private var memoryPressure: DispatchSourceMemoryPressure?
   func applicationDidFinishLaunching(_ notification: Notification) {
+    MacUpdater.shared.start()
     PlaybackTemporaryFiles.cleanup()
     // Explicitly load the current resource for the running Dock tile; older
     // locally replaced bundles may still have a cached LaunchServices icon.
@@ -29,6 +30,10 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
     Window("Bilibili NEXT", id: "main") { RootView(store: store) }.defaultSize(width: 1260, height: 840)
       .windowStyle(.hiddenTitleBar)
       .commands {
+        CommandGroup(after: .appInfo) {
+          Button("检查更新…") { MacUpdater.shared.check(presentResult: true) }
+            .disabled(MacUpdater.shared.checking)
+        }
         CommandGroup(replacing: .newItem) {}
         CommandGroup(replacing: .help) {
           Button("使用指南") { store.guide.show(.tutorial) }

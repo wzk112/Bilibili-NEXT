@@ -34,11 +34,28 @@ struct InterfacePressStyle: ButtonStyle {
       .scaleEffect(configuration.isPressed && enabled && !reduced ? 0.975 : 1)
       .opacity(configuration.isPressed ? 0.78 : 1)
       .animation(enabled ? (reduced ? .easeOut(duration: 0.1) : InterfaceMotion.press) : nil, value: configuration.isPressed)
+      .interactivePointer()
   }
 }
 
 extension View {
+  @ViewBuilder func interactivePointer() -> some View {
+    #if os(macOS)
+    modifier(InteractivePointer())
+    #else
+    self
+    #endif
+  }
   func interfaceAnimation<V: Equatable>(_ value: V) -> some View { modifier(InterfaceAnimation(value: value)) }
   func interfaceTransition(mini: Bool = false) -> some View { modifier(InterfaceTransition(mini: mini)) }
   func sidebarTransition() -> some View { modifier(InterfaceTransition(mini: false, sidebar: true)) }
 }
+
+#if os(macOS)
+private struct InteractivePointer: ViewModifier {
+  @Environment(\.isEnabled) private var enabled
+  func body(content: Content) -> some View {
+    content.pointerStyle(enabled ? .link : .default)
+  }
+}
+#endif

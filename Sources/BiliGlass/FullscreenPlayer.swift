@@ -85,6 +85,7 @@ struct FullscreenPlayerContent: View {
       VideoSurfaceClickTarget(playback: store.playback, toggleFullscreen: close, onInteraction: wake)
         .ignoresSafeArea()
       PlaybackStatusOverlay(playback: store.playback)
+      PlaybackFeedbackOverlay(feedback: store.playback.feedback)
       SubtitleOverlay(extras: store.extras, playback: store.playback, fullscreen: true)
       if store.playback.isBoosting {
         Text(store.playback.boostLabel).padding(12).glassEffect(.regular, in: .capsule).frame(maxHeight: .infinity, alignment: .top).padding(.top, 24).allowsHitTesting(false)
@@ -111,7 +112,8 @@ struct FullscreenPlayerContent: View {
             }
             PlaybackQualityMenu(store: store)
             PlaybackSpeedMenu(playback: store.playback)
-          }.buttonStyle(.glass)
+            PlaybackSleepMenu(playback: store.playback).labelStyle(.iconOnly)
+          }.buttonStyle(.pointerGlass)
         }
           .frame(maxWidth: 1400)
           .onHover { hoveringControls = $0; if $0 { wake() } }

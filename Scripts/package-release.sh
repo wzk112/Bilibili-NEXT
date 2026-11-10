@@ -19,6 +19,13 @@ codesign --verify --deep --strict "$app_dir"
 ditto -c -k --sequesterRsrc --keepParent "$app_dir" "$output_dir/$stem.zip"
 stage_dir="$(mktemp -d "${TMPDIR:-/tmp}/bilibili-next-release.XXXXXX")"
 trap 'rm -rf "$stage_dir"' EXIT
+if [[ -n "${SPARKLE_PUBLIC_ED_KEY:-}" && "${GENERATE_APPCAST:-1}" == "1" ]]; then
+  mkdir -p "$stage_dir/appcast"
+  cp "$output_dir/$stem.zip" "$stage_dir/appcast/$stem.zip"
+  cp CHANGELOG.md "$stage_dir/appcast/$stem.md"
+  RELEASE_TAG="${RELEASE_TAG:-v$version}" Scripts/generate-appcast.sh "$stage_dir/appcast"
+  cp "$stage_dir/appcast/appcast.xml" "$output_dir/appcast.xml"
+fi
 mkdir -p "$stage_dir/dmg"
 ditto "$app_dir" "$stage_dir/dmg/Bilibili NEXT.app"
 ln -s /Applications "$stage_dir/dmg/Applications"

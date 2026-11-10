@@ -179,6 +179,13 @@ public final class LoopbackPlaybackServer: Sendable {
         return prepared.map(\.0)
     }
 
+    /// Remove expired live-playlist routes without disturbing active responses.
+    public func unregister(at relativePath: String) throws {
+        let url = try url(for: relativePath)
+        let removed = state.withLock { $0.routes.removeValue(forKey: url.path) }
+        if case .generated(let resource) = removed { resource.cancel() }
+    }
+
     public func url(for relativePath: String) throws -> URL {
         guard isValidRoute(relativePath) else {
             throw LoopbackPlaybackServerError.invalidRoute(relativePath)

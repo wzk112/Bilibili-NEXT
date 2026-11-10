@@ -8,6 +8,8 @@ struct AccountHistoryEntry: Identifiable {
   let viewedAt: Date
   let part: String
   var isLocal = false
+  var episodeID: Int?
+  var seasonID: Int?
   /// The account feed and this device can contain different episodes of one video.
   /// Keep the most recently watched episode, without assigning an unknown legacy CID.
   static func merged(remote: [Self], local: [HistoryEntry], accountID: String?) -> [Self] {
@@ -20,8 +22,11 @@ struct AccountHistoryEntry: Identifiable {
       let cid = entry.lastCID ?? (entry.positions.count == 1 ? Int(entry.positions.keys.first ?? "") : nil) ?? 0
       let seconds = entry.positions["\(cid)"] ?? 0
       let progress = seconds.isFinite && seconds >= 0 && seconds < Double(Int.max) ? Int(seconds) : 0
-      newest[entry.video.bvid] = Self(video: entry.video, cid: cid, progress: progress,
-        viewedAt: entry.date, part: "", isLocal: true)
+      var item = Self(video: entry.video, cid: cid, progress: progress, viewedAt: entry.date, part: "", isLocal: true)
+      #if os(macOS)
+      item.episodeID = entry.episodeID; item.seasonID = entry.seasonID
+      #endif
+      newest[entry.video.bvid] = item
     }
     return newest.values.sorted {
       $0.viewedAt == $1.viewedAt ? $0.id < $1.id : $0.viewedAt > $1.viewedAt
@@ -160,7 +165,7 @@ struct HistoryPage: View {
           GlassEffectContainer(spacing: 0) {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 240, maximum: 390), spacing: 18)], spacing: 20) {
               ForEach(store.history) { entry in
-                Button { store.open(entry.video.bvid) } label: { VideoCard(video: entry.video) }.buttonStyle(.plain)
+                Button { store.openLocalHistory(entry) } label: { VideoCard(video: entry.video) }.buttonStyle(.plain)
               }
             }
           }

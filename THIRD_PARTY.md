@@ -1,11 +1,15 @@
 # Third-party components
 
+Sparkle 2.10.1, MIT license with bundled third-party notices, is linked via Swift Package Manager for macOS update verification, installation and relaunch. Source: https://github.com/sparkle-project/Sparkle . Its complete license is copied from the pinned distribution into `Contents/Resources/Sparkle-LICENSE.txt` during app packaging. The binary framework and its nested helpers are bundled with symlinks preserved. Update signing keys are not part of this repository.
+
 BiliKit-Mac by shiinayane, MIT license, pinned at `0d6cb46db6bfc3b54020f3cb20b46c92d5395c4a`.
 Source: https://github.com/shiinayane/BiliKit-Mac
 
 The `Vendor/BiliKitCore` directory contains the BiliModels, BiliApplication, BiliNetworking and BiliPlayback modules and playback tests. Original license: `Vendor/BiliKitCore/LICENSE`. A `BiliGlassBridge.swift` adapter exposes the existing DASH bridge and accepts the app's bounded parallel video streamer. The vendor manifest only builds these modules. Local changes add explicit VIDEO-RANGE / SUPPLEMENTAL-CODECS attributes, optional in-memory initialization segment overrides for Dolby Vision compatibility brands, and corresponding bridge routing. The media streaming client exposes a bounded per-host connection limit (default unchanged for upstream callers), while BiliGlass applies its own shared adaptive video limit. Small bounded requests use a bounded pending buffer instead of suspending for every chunk. Transport errors drain already accepted callbacks before propagating, preventing suffix retries from racing prior delivery. The local manifest also enables iOS 26+, and the audio normalization tap declares the iOS 27 availability required by the SDK; older iOS versions retain the playback fallback. The CDN URL policy also exposes HTTPS normalization for scheme-relative and HTTP media sources; host/port/public-address checks still apply to every candidate, including backups. Original notices are retained. No upstream branding or artwork is included.
 
 The media streaming client also accepts an optional per-session proxy dictionary, preserving its credential-free configuration and response validation; upstream defaults are unchanged.
+
+Live HLS uses the same loopback server with uncached generated resources and expired-route removal. Generated-resource caching remains enabled by default for existing playback and subtitle callers. Live upstream reads remain credential-free, bounded, and subject to the app's Bilibili-only proxy policy.
 
 The app UI, API adapter, session storage, download manager and playback lifecycle are implemented separately for Bilibili NEXT.
 

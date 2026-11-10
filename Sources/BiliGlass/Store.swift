@@ -8,11 +8,16 @@ struct HistoryEntry: Codable, Identifiable {
   var date: Date
   var lastCID: Int?
   var accountID: String?
+  var episodeID: Int?
+  var seasonID: Int?
 }
 enum Destination: String, CaseIterable, Identifiable {
   case recommend = "推荐"
   case popular = "热门"
   case regions = "分区"
+  case live = "直播"
+  case bangumi = "追番"
+  case cinema = "影视"
   case dynamic = "关注动态"
   case history = "观看记录"
   case favorites = "收藏"
@@ -27,6 +32,9 @@ enum Destination: String, CaseIterable, Identifiable {
     case .recommend: "house"
     case .popular: "flame"
     case .regions: "square.grid.2x2"
+    case .live: "dot.radiowaves.left.and.right"
+    case .bangumi: "sparkles.tv"
+    case .cinema: "film"
     case .dynamic: "person.2"
     case .history: "clock"
     case .favorites: "star"
@@ -52,6 +60,7 @@ private struct FeedSnapshot: Codable {
   var loginUpgradeDismissed = false
   var preferencesTab = 0
   let api: API
+  @ObservationIgnored lazy var coverPreview = CoverPreview(api: api)
   let playback = Playback()
   let fullscreen = FullscreenPlayerController()
   let downloads = Downloads()
@@ -61,6 +70,12 @@ private struct FeedSnapshot: Codable {
   let messageUnread = MessageUnreadModel()
   let accountHistory = AccountHistory()
   let historySync = WatchHistorySync()
+  let bangumiCatalog = SeasonCatalogModel()
+  let cinemaCatalog = SeasonCatalogModel()
+  let liveCatalog = LiveCatalogModel()
+  let livePlayback = LivePlayback()
+  var activeLiveRoom: LiveRoom?
+  var seasonPlayback: SeasonDetail?
   let extras = VideoExtras()
   var playQueue: [PlaybackQueueItem] = []
   var queueTitle = "播放队列"
@@ -140,7 +155,8 @@ private struct FeedSnapshot: Codable {
         self.playback.seek(to: 0); self.playback.player.playImmediately(atRate: self.playback.speed)
       } else if let next = PlaybackSequence.next(detail: self.playback.detail, cid: self.playback.selectedCID,
         queue: self.playQueue, parts: (UserDefaults.standard.object(forKey: "autoPlayParts") == nil || UserDefaults.standard.bool(forKey: "autoPlayParts")),
-        collection: UserDefaults.standard.bool(forKey: "autoPlayNext")) {
+        collection: self.playback.currentEpisodeID == nil ? UserDefaults.standard.bool(forKey: "autoPlayNext") :
+          (UserDefaults.standard.object(forKey: "autoPlayParts") as? Bool ?? true)) {
         self.playQueueItem(next, present: self.showPlayer, automatic: true)
       }
     }
@@ -166,6 +182,12 @@ private struct FeedSnapshot: Codable {
     restoring = false
   }
   func reload() {
+    if destination == .live {
+      if LiveAvailability.enabled { Task { await liveCatalog.refresh(api: api) } }
+      return
+    }
+    if destination == .bangumi { Task { await bangumiCatalog.refresh(api: api) }; return }
+    if destination == .cinema { Task { await cinemaCatalog.refresh(api: api) }; return }
     if destination == .history && !showPlayer {
       if UserDefaults.standard.string(forKey: "historySource") != "local" {
         Task { await accountHistory.load(api: api, refresh: true) }
@@ -301,6 +323,7 @@ private struct FeedSnapshot: Codable {
     profileTarget = ProfileTarget(id: mid)
   }
   func open(_ bvid: String, initialCID: Int? = nil, keepQueue: Bool = false, present: Bool = true, continuing: Bool = false) {
+    livePlayback.stop(); activeLiveRoom = nil; seasonPlayback = nil
     isPlaybackOpen = true
     if !keepQueue { playQueue = []; queueTitle = "" }
     extras.reset()
@@ -334,6 +357,10 @@ private struct FeedSnapshot: Codable {
     playQueueItem(next, present: present, automatic: true)
   }
   func playQueueItem(_ item: PlaybackQueueItem, present: Bool = true, automatic: Bool = false) {
+    if let season = seasonPlayback, let episode = season.episodes.first(where: { $0.bvid == item.bvid && ($0.cid == item.cid || item.cid == nil) }) {
+      openEpisode(episode, season: season, present: present, continuing: automatic)
+      return
+    }
     if item.bvid == playback.detail?.video.bvid, let cid = item.cid {
       playback.selectPage(cid, api: api, resume: automatic ? 0 : position(item.bvid, cid: cid))
     } else { open(item.bvid, initialCID: item.cid, keepQueue: true, present: present, continuing: automatic) }
@@ -345,6 +372,11 @@ private struct FeedSnapshot: Codable {
     if [.later, .favorites].contains(destination) { playQueue = queue; queueTitle = title }
   }
   func openHistory(_ entry: AccountHistoryEntry) {
+    if let seasonID = entry.seasonID, let episodeID = entry.episodeID {
+      restoreEpisode(seasonID: seasonID, episodeID: episodeID, position: Double(entry.progress))
+      return
+    }
+    livePlayback.stop(); activeLiveRoom = nil; seasonPlayback = nil
     isPlaybackOpen = true
     extras.reset(); playQueue = []; queueTitle = ""
     videoActions.clear(); navigationRevision += 1; profileTarget = nil
@@ -370,11 +402,15 @@ private struct FeedSnapshot: Codable {
     entry.date = Date()
     entry.lastCID = cid
     entry.accountID = feedOwner
+    entry.episodeID = playback.currentEpisodeID
+    entry.seasonID = playback.currentSeasonID
     history.removeAll { $0.video.bvid == bvid && ($0.accountID == feedOwner || $0.accountID == nil) }
     history.insert(entry, at: 0)
     history = Array(history.prefix(200))
     persistHistory()
-    historySync.record(api: api, aid: detail.aid, bvid: bvid, cid: cid, seconds: seconds, final: final)
+    if playback.currentEpisodeID == nil {
+      historySync.record(api: api, aid: detail.aid, bvid: bvid, cid: cid, seconds: seconds, final: final)
+    }
   }
   func persistHistory() {
     if let d = try? JSONEncoder().encode(history) {
@@ -387,6 +423,7 @@ private struct FeedSnapshot: Codable {
       return
     }
     rememberFeed()
+    if dest != .live { livePlayback.stop(); activeLiveRoom = nil }
     searchUsers = []; libraryQuery = ""
     feedTask?.cancel(); feedID = UUID(); busy = false; loadingFeedKey = nil
     videoActions.clear()
@@ -419,6 +456,7 @@ private struct FeedSnapshot: Codable {
   }
   func closeMiniPlayer() {
     playback.stop(); isPlaybackOpen = false; showPlayer = false
+    seasonPlayback = nil
     danmaku.stop(); comments.stop(); videoActions.clear(); extras.reset()
     playQueue = []; queueTitle = ""
   }
@@ -524,6 +562,8 @@ private struct FeedSnapshot: Codable {
     qrImage = nil
   }
   func logout() {
+    livePlayback.stop(); activeLiveRoom = nil
+    bangumiCatalog.reset(); cinemaCatalog.reset(); seasonPlayback = nil
     isPlaybackOpen = false
     extras.reset(); playQueue = []; queueTitle = ""; searchUsers = []; libraryQuery = ""
     blockedAuthors = []; reportTarget = nil; blockTarget = nil; danmakuReportTarget = nil
