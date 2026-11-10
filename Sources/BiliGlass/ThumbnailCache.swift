@@ -4,7 +4,7 @@ import ImageIO
 actor ThumbnailCache {
   static let shared = ThumbnailCache()
   private let cache: URLCache
-  private let session: URLSession
+  private let networkSession: BiliNetworkSession
   private let decoded = NSCache<NSString, CGImage>()
   private var inFlight: [String: Task<CGImage, Error>] = [:]
   private var generation = UUID()
@@ -17,7 +17,7 @@ actor ThumbnailCache {
     c.urlCache = cache
     c.httpCookieStorage = nil
     c.timeoutIntervalForRequest = 20
-    session = URLSession(configuration: c)
+    networkSession = BiliNetworkSession(configuration: c)
     decoded.totalCostLimit = 32 * 1024 * 1024
     decoded.countLimit = 120
   }
@@ -29,7 +29,7 @@ actor ThumbnailCache {
     let token = generation
     var request = URLRequest(url: url)
     API.mediaHeaders.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-    let (data, response) = try await session.data(for: request)
+    let (data, response) = try await networkSession.session.data(for: request)
     try Task.checkCancellation()
     guard token == generation else { throw CancellationError() }
     guard (response as? HTTPURLResponse)?.statusCode == 200,

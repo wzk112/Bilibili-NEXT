@@ -51,7 +51,7 @@ private struct FeedSnapshot: Codable {
   var loginUpgradeReason: LoginUpgradeReason?
   var loginUpgradeDismissed = false
   var preferencesTab = 0
-  let api = API(loadCredentials: false)
+  let api: API
   let playback = Playback()
   let fullscreen = FullscreenPlayerController()
   let downloads = Downloads()
@@ -98,7 +98,9 @@ private struct FeedSnapshot: Codable {
   var showLogin = false
   var showPlayer = false
   var isPlaybackOpen = false
-  var showsMiniPlayer: Bool { isPlaybackOpen && !showPlayer && !fullscreen.isPresented }
+  var showsMiniPlayer: Bool {
+    isPlaybackOpen && !showPlayer && !fullscreen.isPresented && !playback.pictureInPicture.isPresented
+  }
   var qrImage: NSImage?
   var loginStatus = ""
   var loginExpired = false
@@ -119,7 +121,8 @@ private struct FeedSnapshot: Codable {
       + "|\(activeQuery.isEmpty ? "" : String(describing: searchOptions))|\(libraryQuery)"
   }
   private var feedOwner: String { api.cookies["DedeUserID"] ?? "guest" }
-  init() {
+  init(api: API? = nil) {
+    self.api = api ?? API(loadCredentials: false)
     guide.store = self
     destination = Destination(rawValue: BrowsePreferences().resolvedStart.title) ?? .recommend
     if let data = UserDefaults.standard.data(forKey: "history") {

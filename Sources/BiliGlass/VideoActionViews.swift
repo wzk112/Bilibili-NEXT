@@ -6,16 +6,37 @@ private enum VideoActionSheet: String, Identifiable {
   case coin, triple, favorite, share
   var id: String { rawValue }
 }
+
+struct WatchLaterButton: View {
+  @Bindable var store: Store
+  let aid: Int
+  var body: some View {
+    Button {
+      guard store.account != nil else { store.login(); return }
+      Task { await store.addLater(aid) }
+    } label: {
+      Label("稍后再看", systemImage: "text.badge.plus")
+        .font(.callout).padding(4).contentShape(.rect)
+    }.buttonStyle(InterfacePressStyle()).foregroundStyle(.secondary)
+      .help("稍后再看").accessibilityLabel("稍后再看")
+  }
+}
+
 struct VideoActionBar: View {
   @Bindable var store: Store
   let detail: Detail
+  var showsPlaybackOptions = false
   @State private var sheet: VideoActionSheet?
   @State private var loginAfterDismiss = false
   @State private var tripleProgress: CGFloat = 0
+  @State private var danmakuManager = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private var model: VideoActionsModel { store.videoActions }
   private var identity: String { "\(detail.aid):\(store.account?.mid ?? 0):\(store.api.authenticationGeneration)" }
   private var disabled: Bool { detail.aid <= 0 || model.operation != nil || (store.account != nil && (model.loading || model.relation == nil)) }
+  private var showsFooter: Bool {
+    showsPlaybackOptions || model.loading || tripleProgress > 0 || model.operation == "triple" || model.notice != nil
+  }
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       GlassEffectContainer(spacing: 10) {
@@ -31,21 +52,32 @@ struct VideoActionBar: View {
           action(title: "分享", icon: "square.and.arrow.up", count: model.counts.shares) { sheet = .share }
         }
       }
-      HStack(spacing: 12) {
-        Button { authenticated { Task { await store.addLater(detail.aid) } } } label: { Label("稍后再看", systemImage: "text.badge.plus") }
+      .contextMenu {
         if store.account != nil {
-          Button { Task { await refresh() } } label: { Image(systemName: "arrow.clockwise") }
-            .help("刷新互动状态").accessibilityLabel("刷新互动状态").disabled(model.loading || model.operation != nil)
+          Button("刷新互动状态") { Task { await refresh() } }
+            .disabled(model.loading || model.operation != nil)
         }
-        if model.loading { ProgressView().controlSize(.small); Text("同步状态").font(.caption).foregroundStyle(.secondary) }
-        if tripleProgress > 0 || model.operation == "triple" {
-          Text(model.operation == "triple" ? "正在三连…" : "按住三连 · 最多 \(detail.copyright == 2 ? 1 : 2) 枚，松开取消")
-            .font(.caption).foregroundStyle(.secondary)
-        } else if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary).transition(.opacity) }
-        Spacer(minLength: 4)
-        Toggle("弹幕", isOn: $store.danmaku.enabled).toggleStyle(.switch).fixedSize()
-          .onChange(of: store.danmaku.enabled) { UserDefaults.standard.set(store.danmaku.enabled, forKey: "danmakuEnabled") }
-      }.buttonStyle(.glass)
+      }
+      if showsFooter {
+        HStack(spacing: 12) {
+          if showsPlaybackOptions { WatchLaterButton(store: store, aid: detail.aid) }
+          if store.account != nil {
+            Button { Task { await refresh() } } label: { Image(systemName: "arrow.clockwise") }
+              .help("刷新互动状态").accessibilityLabel("刷新互动状态").disabled(model.loading || model.operation != nil)
+          }
+          if model.loading { ProgressView().controlSize(.small); Text("同步状态").font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+          if tripleProgress > 0 || model.operation == "triple" {
+            Text(model.operation == "triple" ? "正在三连…" : "按住三连 · 最多 \(detail.copyright == 2 ? 1 : 2) 枚，松开取消")
+              .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+          } else if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary).lineLimit(1).transition(.opacity) }
+          Spacer(minLength: 4)
+          if showsPlaybackOptions {
+            PlaybackOptionsControls(store: store, onShowDanmakuList: { danmakuManager = true })
+              .transition(.opacity)
+          }
+        }.buttonStyle(.glass)
+          .interfaceAnimation(showsPlaybackOptions)
+      }
       if let error = model.error {
         HStack {
           Label(error, systemImage: "exclamationmark.circle").font(.callout).foregroundStyle(.secondary)
@@ -57,6 +89,7 @@ struct VideoActionBar: View {
     }.task(id: identity) { await refresh() }
       .onChange(of: identity) { sheet = nil; tripleProgress = 0 }
       .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: model.relation)
+      .sheet(isPresented: $danmakuManager) { DanmakuManagement(store: store) }
       .sheet(item: $sheet, onDismiss: {
         if loginAfterDismiss { loginAfterDismiss = false; store.login() }
       }) { target in

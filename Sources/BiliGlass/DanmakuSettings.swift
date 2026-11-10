@@ -38,6 +38,8 @@ struct DanmakuFilteringControls: View {
 }
 
 struct DanmakuSettingsButton: View {
+  var onPresentationChange: ((Bool) -> Void)?
+  var onShowList: (() -> Void)?
   @Environment(\.colorScheme) private var colorScheme
   @State private var showing = false
   @AppStorage("danmakuOpacity") private var opacity = 0.85
@@ -56,6 +58,10 @@ struct DanmakuSettingsButton: View {
           }
           Divider()
           DanmakuFilteringControls()
+          if let onShowList {
+            Divider()
+            Button("打开弹幕列表") { showing = false; onShowList() }
+          }
         }.padding(20).frame(width: 330)
           .foregroundStyle(.primary)
           // Keep text contrast stable even over a bright video frame.
@@ -64,5 +70,6 @@ struct DanmakuSettingsButton: View {
           // presentation too, so AppKit's popover and its labels stay in sync.
           .preferredColorScheme(colorScheme)
       }
+      .onChange(of: showing) { _, presented in onPresentationChange?(presented) }
   }
 }

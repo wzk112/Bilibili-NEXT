@@ -3,14 +3,25 @@ import SwiftUI
 
 struct PlaybackStatusOverlay: View {
   let playback: Playback
+  @State private var showsBuffering = false
   var body: some View {
-    if playback.loading || playback.buffering {
-      VStack(spacing: 10) {
-        ProgressView().controlSize(.small)
-        Text(playback.loading ? playback.loadingMessage : "缓冲中…").font(.callout)
-      }.padding(.horizontal, 22).padding(.vertical, 18)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20)).colorScheme(.dark)
-        .allowsHitTesting(false)
+    Group {
+      if playback.loading || (playback.buffering && showsBuffering) {
+        VStack(spacing: 10) {
+          ProgressView().controlSize(.small)
+          Text(playback.loading ? playback.loadingMessage : "缓冲中…").font(.callout)
+        }.padding(.horizontal, 22).padding(.vertical, 18)
+          .glassEffect(.regular, in: .rect(cornerRadius: 20)).colorScheme(.dark)
+          .allowsHitTesting(false)
+      }
+    }.task(id: playback.buffering) {
+      showsBuffering = false
+      guard playback.buffering else { return }
+      do {
+        try await Task.sleep(for: .milliseconds(450))
+        try Task.checkCancellation()
+        showsBuffering = playback.buffering
+      } catch { }
     }
   }
 }

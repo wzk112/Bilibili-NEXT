@@ -173,6 +173,14 @@ private actor BrokenNodeFixture: HTTPRangeStreaming {
     #expect(start.duration(to: .now) < .seconds(1))
     #expect(await fixture.active == 0)
   }
+  @Test func slowerProxiedCDNCanStillWinStartup() async throws {
+    let fixture = CDNFixture(["proxy.test": .init(headerDelay: .milliseconds(300))])
+    let transport = CDNTransport(source: fixture, health: CDNHealth(), probeTimeout: 0.06,
+      usesSystemProxy: { _ in true })
+    let selection = try await transport.select(representation(["proxy.test"]), headers: [:])
+    #expect(selection.host == "proxy.test")
+    #expect(await fixture.active == 0)
+  }
   @Test func cancellationStopsProbesAndDoesNotQuarantineHosts() async throws {
     let fixture = CDNFixture(["a.test": .init(bodyDelay: .seconds(30)), "b.test": .init(bodyDelay: .seconds(30))])
     let health = CDNHealth()

@@ -17,11 +17,12 @@ private struct InterfaceAnimation<Value: Equatable>: ViewModifier {
 
 private struct InterfaceTransition: ViewModifier {
   var mini: Bool
+  var sidebar = false
   @AppStorage("interfaceAnimations") private var enabled = true
   @Environment(\.accessibilityReduceMotion) private var reduced
   func body(content: Content) -> some View {
     content.transition(!enabled || reduced ? .opacity : .opacity.combined(with:
-      mini ? .scale(scale: 0.94, anchor: .bottomTrailing) : .offset(x: 24)))
+      sidebar ? .move(edge: .leading) : mini ? .scale(scale: 0.94, anchor: .bottomTrailing) : .offset(x: 24)))
   }
 }
 
@@ -39,4 +40,5 @@ struct InterfacePressStyle: ButtonStyle {
 extension View {
   func interfaceAnimation<V: Equatable>(_ value: V) -> some View { modifier(InterfaceAnimation(value: value)) }
   func interfaceTransition(mini: Bool = false) -> some View { modifier(InterfaceTransition(mini: mini)) }
+  func sidebarTransition() -> some View { modifier(InterfaceTransition(mini: false, sidebar: true)) }
 }

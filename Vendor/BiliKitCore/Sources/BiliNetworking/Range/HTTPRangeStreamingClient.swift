@@ -66,11 +66,12 @@ public final class HTTPRangeStreamingClient: HTTPRangeStreaming, Sendable {
 
     public convenience init() { self.init(maximumConnectionsPerHost: 6) }
 
-    public convenience init(maximumConnectionsPerHost: Int) {
+    public convenience init(maximumConnectionsPerHost: Int, connectionProxyDictionary: [AnyHashable: Any]? = nil) {
         let configuration = URLSessionConfiguration.credentialFreeEphemeral()
         configuration.timeoutIntervalForRequest = Self.idleTimeout
         configuration.timeoutIntervalForResource = Self.resourceTimeout
         configuration.httpMaximumConnectionsPerHost = max(1, min(32, maximumConnectionsPerHost))
+        configuration.connectionProxyDictionary = connectionProxyDictionary
         self.init(transport: URLSessionRangeTransport(configuration: configuration))
     }
 

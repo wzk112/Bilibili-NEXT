@@ -489,12 +489,13 @@ struct DanmakuComposer: View {
     @Bindable var dm = store.danmaku
     VStack(alignment: .leading, spacing: 7) {
       HStack {
-        Picker("位置", selection: $dm.mode) {
-          Text("滚动").tag(1)
-          Text("顶部").tag(5)
-          Text("底部").tag(4)
-        }.labelsHidden().frame(width: 90)
         Menu {
+          Picker("位置", selection: $dm.mode) {
+            Text("滚动").tag(1)
+            Text("顶部").tag(5)
+            Text("底部").tag(4)
+          }
+          Divider()
           Picker("字号", selection: $dm.fontSize) {
             Text("小").tag(18)
             Text("标准").tag(25)
@@ -508,9 +509,8 @@ struct DanmakuComposer: View {
             Text("蓝色").tag(0x66CCFF)
             Text("紫色").tag(0xCC66FF)
           }
-        } label: { Image(systemName: "textformat") }
-          .menuStyle(.borderlessButton).fixedSize().help("发送样式")
-        DanmakuSettingsButton()
+        } label: { Text("弹幕样式") }
+          .buttonStyle(.glass).fixedSize().help("设置发送弹幕的位置、字号和颜色")
         TextField(store.account == nil ? "登录后发送弹幕" : "发一条弹幕", text: $dm.message).textFieldStyle(
           .plain
         ).padding(10).appGlass(12).disabled(

@@ -1,6 +1,7 @@
 import AVKit
 
 @MainActor final class PlayerKeyboard {
+  static let speedChoices: [Float] = [0.5, 0.75, 1, 1.25, 1.5, 2]
   private weak var view: NativeVideoView?
   private weak var playback: Playback?
   private var monitor: Any?
@@ -29,10 +30,10 @@ import AVKit
     let responder = view?.window?.firstResponder
     return responder is NSTextView || responder is NSTextField
   }
-  private func handle(_ event: NSEvent) -> NSEvent? {
-    guard let view, let playback, playback.nativeView === view, view.player === playback.player,
+  func handle(_ event: NSEvent) -> NSEvent? {
+    guard let view, let playback, playback.nativeView === view, view.handlesPlaybackShortcuts,
           event.window === view.window, view.window?.isKeyWindow == true,
-          !view.isHidden, playback.player.currentItem != nil else { return event }
+          playback.player.currentItem != nil else { return event }
     if event.type == .keyUp, event.keyCode == 124, rightDown {
       let wasBoosted = boosted
       cancelHeldKey()
@@ -42,25 +43,50 @@ import AVKit
     guard event.type == .keyDown, !editingText,
           event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return event }
     if event.charactersIgnoringModifiers?.lowercased() == "f", let toggle = view.toggleFullscreen {
-      if !event.isARepeat { cancelHeldKey(); toggle() }
+      if !event.isARepeat { view.keyboardInteraction?(); cancelHeldKey(); toggle() }
       return nil
+    }
+    switch event.charactersIgnoringModifiers?.lowercased() {
+    case "[", "<":
+      view.keyboardInteraction?()
+      playback.setSpeed(Self.speedChoices.last(where: { $0 < playback.speed - 0.001 }) ?? Self.speedChoices[0])
+      return nil
+    case "]", ">":
+      view.keyboardInteraction?()
+      playback.setSpeed(Self.speedChoices.first(where: { $0 > playback.speed + 0.001 }) ?? Self.speedChoices.last!)
+      return nil
+    case "\\":
+      view.keyboardInteraction?(); playback.setSpeed(1)
+      return nil
+    case "m":
+      if !event.isARepeat { view.keyboardInteraction?(); playback.toggleMute() }
+      return nil
+    case "d" where view.toggleDanmaku != nil:
+      if !event.isARepeat { view.keyboardInteraction?(); view.toggleDanmaku?() }
+      return nil
+    default: break
     }
     switch event.keyCode {
     case 49:
-      if !event.isARepeat { cancelHeldKey(); playback.togglePlayback() }
+      if !event.isARepeat { view.keyboardInteraction?(); cancelHeldKey(); playback.togglePlayback() }
       return nil
     case 123:
-      if !event.isARepeat { playback.seekBy(-5) }
+      if !event.isARepeat { view.keyboardInteraction?(); playback.seekBy(-5) }
       return nil
     case 124:
       guard !rightDown, !event.isARepeat else { return nil }
+      view.keyboardInteraction?()
       rightDown = true
       holdTask = Task { [weak self] in
         do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
         guard let self, self.rightDown, !self.editingText, let view = self.view,
-          self.playback?.nativeView === view, !view.isHidden, view.window?.isKeyWindow == true else { return }
+          self.playback?.nativeView === view, view.handlesPlaybackShortcuts, view.window?.isKeyWindow == true else { return }
         self.boosted = self.playback?.beginTemporarySpeed() ?? false
       }
+      return nil
+    case 125, 126:
+      view.keyboardInteraction?()
+      playback.setVolume(playback.player.volume + (event.keyCode == 126 ? 0.05 : -0.05))
       return nil
     default: return event
     }
