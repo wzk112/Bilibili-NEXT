@@ -80,7 +80,7 @@ struct MacAccountFooter: View {
     }
   }
   private var settings: some View {
-    SettingsLink { Image(systemName: "gearshape").frame(width: 28, height: 28).contentShape(.rect) }
+    SettingsLink { Image(systemName: "gearshape").frame(width: AppMetrics.controlHeight, height: AppMetrics.controlHeight).contentShape(.rect) }
       .buttonStyle(.plain).foregroundStyle(.secondary)
       .help("设置").accessibilityLabel("设置").accessibilityIdentifier("open-settings")
   }

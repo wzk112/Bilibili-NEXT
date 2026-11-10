@@ -55,14 +55,14 @@ struct GuidePage: Identifiable {
 }
 
 enum GuideContent {
-  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.5"
+  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.7"
   // Increment only when guide content changes, not on every build.
-  static let revision = "2026-11-10-release-1.1.5"
+  static let revision = "2026-11-11-release-1.1.7"
   static let tutorial: [GuidePage] = [
-    .init(id: "account", title: "登录与账号", location: "左下角账号菜单", symbol: "person.crop.circle", paragraphs: [
+    .init(id: "account", title: "登录与账号", location: "左下角个人中心 → 账户信息", symbol: "person.crop.circle", paragraphs: [
       "点击“登录”，用哔哩哔哩 App 扫描二维码，并在手机上确认。同一次扫码会完成浏览与互动所需的登录，凭证保存在本机钥匙串。",
       "从旧版升级后，如果提示更新登录，点击“重新登录”即可。取消扫码会保留原登录；扫码本身不会投币。",
-      "账号菜单提供个人主页、设置、重新登录和退出登录。未登录时可以浏览公开内容，账号功能和部分清晰度需要登录。"]),
+      "个人中心提供消息、记录、收藏、稍后再看和下载；账户信息中可以管理黑名单、重新登录或退出登录。未登录时可以浏览公开内容，账号功能和部分清晰度需要登录。"]),
     .init(id: "browse", title: "浏览与搜索", location: "左侧浏览菜单 · 顶部搜索框", symbol: "magnifyingglass", paragraphs: [
       "推荐、热门、分区和关注动态分别提供视频列表。输入关键词搜索视频或用户，也可以粘贴 BV 号或视频链接直接打开。搜索页可调整排序、时长和时间范围。",
       "列表向下滚动时自动加载下一页。可以在“设置 → 外观与交互”关闭自动加载，改用“加载更多”按钮。加载失败时可在原位置重试。",
@@ -113,6 +113,12 @@ enum GuideContent {
       "使用指南和更新说明会在首次安装或对应版本首次打开时展示一次。之后可从“帮助”菜单或“设置 → 关于”重新打开。"], settingsTab: 0)
   ]
   static let currentUpdates: [GuidePage] = [
+    .init(id: "update-117-mac", title: "封面预览、主题与侧栏", location: "macOS 1.1.7 · 2026-11-11", symbol: "sidebar.left", paragraphs: [
+      "鼠标在封面停留约 650 毫秒后静音预览，移开或切页停止。设置新增白色、暗色和跟随系统主题，默认保留原外观。",
+      "侧栏可收起为图标或完全隐藏；消息、观看记录、收藏、稍后再看与下载统一从个人中心进入。"]),
+    .init(id: "update-116-ipad", title: "iPad 左右分栏与刷新", location: "iOS / iPadOS 0.1.6", symbol: "rectangle.split.2x1", paragraphs: [
+      "iPad 横屏左侧视频、右侧评论，播放时收起侧栏，顶部保留展开入口。视频按实际比例显示，竖屏和窄窗口改为上下布局。",
+      "手机和平板下拉直接刷新顶部内容；iPad 推荐、热门、分区增加常驻刷新按钮。"]),
     .init(id: "update-115-player", title: "Mac 播放与收藏夹修复", location: "macOS 1.1.5 · 2026-11-10", symbol: "play.rectangle", paragraphs: [
       "切换收藏夹立即刷新，快速切换时保留最后一次选择的结果。播放器新增滚动小窗、系统画中画、音量与倍速快捷键。",
       "全屏控件隐藏时隐藏指针，播放时防止显示器闲置休眠。HDR 按媒体实际传递函数呈现；可选择绕过 B 站域名的系统代理。"]),

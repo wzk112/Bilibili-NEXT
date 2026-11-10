@@ -6,13 +6,15 @@ macOS 新手指南和更新说明可从“帮助”菜单或“设置 → 关于
 
 <img src="Assets/Bilibili-NEXT-macOS.svg" width="128" alt="Bilibili NEXT icon">
 
-源码支持 macOS 15+、iOS / iPadOS 26+（macOS 26 使用 Liquid Glass） 的非官方哔哩哔哩客户端，主要使用 SwiftUI、Liquid Glass 和 AVPlayer。本次双端版本为 macOS 1.1.6（build 18，Apple silicon）与 iOS / iPadOS 0.1.6 开发预览（build 11，需要自签的 IPA）。安装文件以 [v1.1.6 发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.6) 的 Assets 为准。
+源码支持 macOS 15+、iOS / iPadOS 26+（macOS 26 使用 Liquid Glass） 的非官方哔哩哔哩客户端，主要使用 SwiftUI、Liquid Glass 和 AVPlayer。本次双端版本为 macOS 1.1.7（build 19，Apple silicon）与 iOS / iPadOS 0.1.6 开发预览（build 11，需要自签的 IPA）。安装文件以 [v1.1.7 发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.7) 的 Assets 为准。
 
 从 [GitHub Releases](https://github.com/wzk112/Bilibili-NEXT/releases/latest) 下载 Apple silicon 发布包，解压后将 `Bilibili NEXT.app` 放入应用程序目录。扫码登录后，登录信息保存在 macOS 钥匙串。开发构建使用本机已有的 Apple Development 签名；从早期临时签名版本迁移时，系统可能要求重新授权一次。
 
 当前发布包未进行 Developer ID 公证，其他 Mac 的系统信任流程尚未验证；也可以下载源码自行构建。
 
-## macOS 1.1.6 / iOS 0.1.6
+## macOS 1.1.7 / iOS 0.1.6
+
+Mac 新增封面静音预览、白色/暗色/系统主题，以及图标或完全隐藏侧栏；个人内容统一从个人中心进入。
 
 本次补充 iPad 横屏左视频、右评论，播放时收起侧栏并保留展开入口；视频使用实际比例，窄窗口和竖屏上下排布。移动端下拉刷新直接更新顶部内容，iPad 推荐、热门、分区增加常驻刷新按钮。
 
@@ -104,7 +106,7 @@ Scripts/build-app.sh
 
 <img src="Assets/Bilibili-NEXT-iOS.svg" width="112" alt="Bilibili NEXT iOS icon">
 
-本次 IPA 文件为 [v1.1.6 双端发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.6) 的 `Bilibili-NEXT-0.1.6-iOS-self-sign.ipa`，从 Assets 下载。**此 IPA 需要自行签名后安装，不能直接点击安装。** 包内仅含不带个人证书的临时签名结构，方便签名工具识别。使用自己的 Apple Account / 开发者证书和适用的描述文件完成签名；开发签名按系统提示启用开发者模式并信任开发者。签名有效期、设备限制和续签要求由自己的签名方式决定。当前没有 TestFlight / App Store 版本。安装与构建说明见 [IOS_INSTALL.md](IOS_INSTALL.md)。
+本次 IPA 文件为 [v1.1.7 双端发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.7) 的 `Bilibili-NEXT-0.1.6-iOS-self-sign.ipa`，从 Assets 下载。**此 IPA 需要自行签名后安装，不能直接点击安装。** 包内仅含不带个人证书的临时签名结构，方便签名工具识别。使用自己的 Apple Account / 开发者证书和适用的描述文件完成签名；开发签名按系统提示启用开发者模式并信任开发者。签名有效期、设备限制和续签要求由自己的签名方式决定。当前没有 TestFlight / App Store 版本。安装与构建说明见 [IOS_INSTALL.md](IOS_INSTALL.md)。
 
 已有独立的原生 iOS Xcode 工程：[Apps/iOS/BilibiliNEXT.xcodeproj](Apps/iOS/BilibiliNEXT.xcodeproj)。当前实现、真机验证和待迁移功能见 [IOS_STATUS.md](IOS_STATUS.md)；完整目标范围见 [IOS_APP_PLAN.md](IOS_APP_PLAN.md)。
 
