@@ -17,10 +17,16 @@ struct PlaybackResume {
   @ObservationIgnored weak var nativeView: NativeVideoView?
   let pictureInPicture = SystemPictureInPicture()
   @ObservationIgnored let screenActivity = PlaybackScreenActivity()
+  @ObservationIgnored let feedback = PlaybackFeedback()
+  @ObservationIgnored let sleepTimer = PlaybackSleepTimer()
+  @ObservationIgnored private var sleepPausedGeneration: UUID?
   private(set) var volume: Float = 1
   private(set) var muted = false
   private var volumeObservation: NSKeyValueObservation?
   private var muteObservation: NSKeyValueObservation?
+  private var bufferObservation: NSKeyValueObservation?
+  private var bufferDurationObservation: NSKeyValueObservation?
+  private(set) var bufferedRanges: [PlaybackBufferRange] = []
   #endif
   private var bridge = DASHToHLSBridge()
   private var videoTransport: ParallelVideoStream?
@@ -77,6 +83,13 @@ struct PlaybackResume {
   private var endObserver: NSObjectProtocol?
   var onProgress: ((String, Int, Double, Bool) -> Void)?
   var onEnded: (() -> Void)?
+  private var allowsStartupPlayback: Bool {
+    #if os(macOS)
+    sleepPausedGeneration != generation
+    #else
+    true
+    #endif
+  }
   func seek(to seconds: Double) {
     guard seconds.isFinite, seconds >= 0 else { return }
     player.seek(to: CMTime(seconds: min(seconds, max(0, durationSeconds)), preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
@@ -92,11 +105,13 @@ struct PlaybackResume {
   #if os(macOS)
   func setVolume(_ value: Float) {
     guard value.isFinite else { return }
+    feedback.clear()
     player.volume = min(1, max(0, value))
     if player.volume > 0 { player.isMuted = false }
     volume = player.volume; muted = player.isMuted
   }
   func toggleMute() {
+    feedback.clear()
     player.isMuted.toggle()
     muted = player.isMuted
   }
@@ -111,12 +126,18 @@ struct PlaybackResume {
     saveCurrentProgress()
   }
   func continuePlayback() {
+    #if os(macOS)
+    sleepPausedGeneration = nil
+    #endif
     if pendingResume != nil {
       pendingResume?.playing = true
       if player.currentItem?.status == .readyToPlay { player.playImmediately(atRate: speed) }
     } else if !wantsPlayback { togglePlayback() }
   }
   func togglePlayback() {
+    #if os(macOS)
+    sleepPausedGeneration = nil
+    #endif
     if pendingResume != nil {
       pendingResume?.playing.toggle()
       if pendingResume?.playing == true, player.currentItem?.status == .readyToPlay {
@@ -144,6 +165,12 @@ struct PlaybackResume {
   init() {
     player.preventsDisplaySleepDuringVideoPlayback = true
     #if os(macOS)
+    sleepTimer.onExpire = { [weak self] in
+      guard let self else { return }
+      self.sleepPausedGeneration = self.generation
+      self.pausePlayback()
+      self.feedback.show("已定时暂停", symbol: "moon.zzz")
+    }
     volumeObservation = player.observe(\.volume, options: [.initial, .new]) { [weak self] _, _ in
       Task { @MainActor [weak self] in
         guard let self else { return }
@@ -160,6 +187,9 @@ struct PlaybackResume {
     endObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: nil, queue: .main) { [weak self] notification in
       MainActor.assumeIsolated {
         guard let self, let item = notification.object as? AVPlayerItem, item === self.player.currentItem else { return }
+        #if os(macOS)
+        if self.sleepTimer.consumeEnd() { return }
+        #endif
         self.saveCurrentProgress(); self.onEnded?()
       }
     }
@@ -199,7 +229,7 @@ struct PlaybackResume {
     return saved >= Double(duration) - endMargin ? 0 : saved
   }
   func open(_ bvid: String, api: API, quality: Int? = nil, initialCID: Int? = nil, restoring: PlaybackResume? = nil, resume: @escaping (Int) -> Double) {
-    stop()
+    stop(preservingCountdown: true)
     automaticRecoveries = 0
     let token = generation
     loading = true
@@ -226,6 +256,9 @@ struct PlaybackResume {
   }
   func selectPage(_ cid: Int, api: API, resume: Double) {
     guard let d = detail else { return }
+    #if os(macOS)
+    sleepTimer.videoChanged()
+    #endif
     beginChange()
     selectedCID = cid
     selectedQuality = 0
@@ -464,7 +497,7 @@ struct PlaybackResume {
         throw BiliError(text: "系统播放器无法读取此视频流")
       }
       if item.status == .readyToPlay {
-        let wantsPlayback = pendingResume?.playing ?? playing
+        let wantsPlayback = (pendingResume?.playing ?? playing) && allowsStartupPlayback
         if !wantsPlayback && item.presentationSize.width > 0 { return }
         let time = player.currentTime().seconds
         if wantsPlayback, player.timeControlStatus == .waitingToPlayAtSpecifiedRate,
@@ -490,6 +523,8 @@ struct PlaybackResume {
   }
   private func releaseItem() {
     #if os(macOS)
+    bufferObservation = nil; bufferDurationObservation = nil; bufferedRanges = []
+    feedback.clear()
     screenActivity.setPlaying(false)
     #endif
     watchdog?.cancel()
@@ -519,6 +554,18 @@ struct PlaybackResume {
     item.audioTimePitchAlgorithm = .spectral
     item.preferredForwardBufferDuration = managedStartup ? min(3, preferredBuffer) : preferredBuffer
     player.replaceCurrentItem(with: item)
+    #if os(macOS)
+    let updateBuffer: @Sendable () -> Void = { [weak self, weak item] in
+      Task { @MainActor in
+        guard let self, let item, self.generation == token, self.player.currentItem === item else { return }
+        let duration = item.duration.seconds
+        self.bufferedRanges = PlaybackBufferRange.playable(item.loadedTimeRanges.map(\.timeRangeValue),
+          duration: duration.isFinite && duration > 0 ? duration : self.durationSeconds)
+      }
+    }
+    bufferObservation = item.observe(\.loadedTimeRanges, options: [.initial, .new]) { _, _ in updateBuffer() }
+    bufferDurationObservation = item.observe(\.duration, options: [.new]) { _, _ in updateBuffer() }
+    #endif
     var didStart = false
     statusObservation = item.observe(\.status, options: [.initial, .new]) {
       [weak self, weak item] _, _ in
@@ -541,7 +588,7 @@ struct PlaybackResume {
             if duration.isFinite, duration > 0 { self.durationSeconds = duration }
             if !managedStartup { self.loading = false }
             Task { await self.inspectFormat(item, token: token) }
-            if self.pendingResume?.playing ?? playing { self.player.playImmediately(atRate: self.speed) }
+            if (self.pendingResume?.playing ?? playing) && self.allowsStartupPlayback { self.player.playImmediately(atRate: self.speed) }
           }
         case .failed:
           if !managedStartup { self.loading = false }
@@ -588,7 +635,7 @@ struct PlaybackResume {
     }
   }
   func openLocal(_ url: URL, video: Video, cid: Int = 0, sidecar: URL? = nil, restoring: PlaybackResume? = nil) {
-    stop()
+    stop(preservingCountdown: true)
     detail = Detail(video: video, description: "", pages: [])
     streams = nil
     isOffline = true
@@ -660,6 +707,9 @@ struct PlaybackResume {
     return stats
   }
   func setSpeed(_ rate: Float) {
+    #if os(macOS)
+    feedback.clear()
+    #endif
     speed = rate
     if player.rate != 0 { player.rate = isBoosting ? temporarySpeed : rate }
   }
@@ -676,6 +726,9 @@ struct PlaybackResume {
   }
   func beginTemporarySpeed() -> Bool {
     guard !loading, !buffering, player.timeControlStatus == .playing, let item = player.currentItem else { return false }
+    #if os(macOS)
+    feedback.clear()
+    #endif
     temporarySpeed = Self.temporaryRate(isOffline: isOffline, canPlayFastForward: item.canPlayFastForward)
     isBoosting = true
     player.rate = temporarySpeed
@@ -706,6 +759,10 @@ struct PlaybackResume {
     onProgress?(detail.video.bvid, selectedCID, seconds, true)
   }
   private func beginChange() {
+    #if os(macOS)
+    bufferObservation = nil; bufferDurationObservation = nil; bufferedRanges = []
+    feedback.clear()
+    #endif
     replayRequest = nil
     saveCurrentProgress()
     endTemporarySpeed()
@@ -741,7 +798,12 @@ struct PlaybackResume {
     bridge = DASHToHLSBridge()
   }
   func stop() {
+    stop(preservingCountdown: false)
+  }
+  private func stop(preservingCountdown: Bool) {
     #if os(macOS)
+    if preservingCountdown { sleepTimer.videoChanged() } else { sleepTimer.cancel() }
+    sleepPausedGeneration = nil
     screenActivity.setPlaying(false)
     pictureInPicture.stop()
     personAvoidance.stop()

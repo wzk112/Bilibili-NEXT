@@ -244,6 +244,7 @@ struct PlaybackFeatureControls: View {
         Toggle("单集循环", isOn: $loop)
       } label: { Label("播放顺序", systemImage: "list.bullet") }
         .help("播放顺序")
+      PlaybackSleepMenu(playback: store.playback)
       Button { [weak store] in
         guard let store else { return }
         pictureInPicture.toggle(restore: { [weak store] in

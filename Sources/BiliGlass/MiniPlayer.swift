@@ -17,6 +17,7 @@ struct MiniPlayer: View {
       ZStack {
         MiniPlayerVideo(playback: store.playback)
         PlaybackStatusOverlay(playback: store.playback)
+        PlaybackFeedbackOverlay(feedback: store.playback.feedback)
         Color.clear.contentShape(.rect).onTapGesture(perform: onReturn ?? store.returnToPlayer).accessibilityLabel(returnLabel)
       }.frame(height: 169).background(.black).clipShape(.rect(cornerRadius: 12))
       Text(store.playback.detail?.video.title ?? "正在载入视频…").font(.callout.weight(.medium)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
