@@ -58,7 +58,7 @@ struct RootView: View {
     .onChange(of: store.navigationRevision) { store.coverPreview.stop() }
     .onChange(of: store.api.authenticationGeneration) { store.coverPreview.stop() }
     .onChange(of: phase) { if phase != .active { store.coverPreview.stop() } }
-    .tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 640, maxHeight: .infinity)
+    .tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity)
     .background { InitialWindowFocus().frame(width: 0, height: 0) }
     .appWindowBackground()
     .sheet(item: $store.imageGallery) { ImageGallery(target: $0) }
@@ -458,6 +458,7 @@ struct PlayerPage: View {
   @State private var expandedActionsWidth: CGFloat = 0
   @State private var compactActionsWidth: CGFloat = 0
   @State private var offlineDanmakuManager = false
+  @State private var displayedVideoWidth: CGFloat = 0
 
   private var usesScrollMiniPlayer: Bool {
     videoAboveViewport && !store.playback.pictureInPicture.isPresented
@@ -470,37 +471,43 @@ struct PlayerPage: View {
   var body: some View {
     @Bindable var p = store.playback
     GeometryReader { viewport in
-    let availableWidth = max(0, min(viewport.size.width, 1280) - 32)
-    let compactPlaybackControls = availableWidth < 900
+    let availableWidth = max(0, viewport.size.width - 32)
+    let compactPlaybackControls = displayedVideoWidth < 900
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
-        if let detail = p.detail { header(detail) }
-        InlinePlaybackSurface(store: store, isInlineVisible: !usesScrollMiniPlayer,
-          controlsScrollMiniPlayer: showsScrollMiniPlayer, usesCompactControls: compactPlaybackControls)
-          .frame(height: max(240, min((min(viewport.size.width, 1280) - 32) * 9 / 16, viewport.size.height - 250)))
-          .onGeometryChange(for: Bool.self) { proxy in
-            proxy.frame(in: .scrollView(axis: .vertical)).maxY <= 0
-          } action: { aboveViewport in
-            videoAboveViewport = aboveViewport
-            if !aboveViewport { dismissedScrollMiniPlayer = false }
+        PlaybackViewportLayout(viewportHeight: viewport.size.height - 32) {
+          Group {
+            if let detail = p.detail { header(detail) }
+            else { Color.clear.frame(height: 28) }
           }
-        if let detail = p.detail, detail.aid > 0 { DanmakuComposer(store: store, aid: detail.aid) }
-        if let error = p.error {
-          VStack(alignment: .leading, spacing: 10) {
-            ErrorBanner(text: error) { p.retry(api: store.api) }
-
-          }
-        }
-        informationToolbar(availableWidth: availableWidth, showsWatchLater: !compactPlaybackControls)
-        if let d = p.detail {
-          if d.aid > 0 {
-            VideoActionBar(store: store, detail: d, showsPlaybackOptions: compactPlaybackControls)
-          } else if compactPlaybackControls {
-            HStack {
-              Spacer(minLength: 0)
-              PlaybackOptionsControls(store: store, onShowDanmakuList: { offlineDanmakuManager = true })
+          InlinePlaybackSurface(store: store, isInlineVisible: !usesScrollMiniPlayer,
+            controlsScrollMiniPlayer: showsScrollMiniPlayer, usesCompactControls: compactPlaybackControls)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { displayedVideoWidth = $0 }
+            .onGeometryChange(for: Bool.self) { proxy in
+              proxy.frame(in: .scrollView(axis: .vertical)).maxY <= 0
+            } action: { aboveViewport in
+              videoAboveViewport = aboveViewport
+              if !aboveViewport { dismissedScrollMiniPlayer = false }
+            }
+          VStack(alignment: .leading, spacing: 14) {
+            if let detail = p.detail, detail.aid > 0 { DanmakuComposer(store: store, aid: detail.aid) }
+            if let error = p.error {
+              ErrorBanner(text: error) { p.retry(api: store.api) }
+            }
+            informationToolbar(availableWidth: availableWidth, showsWatchLater: !compactPlaybackControls)
+            if let d = p.detail {
+              if d.aid > 0 {
+                VideoActionBar(store: store, detail: d, showsPlaybackOptions: compactPlaybackControls)
+              } else if compactPlaybackControls {
+                HStack {
+                  Spacer(minLength: 0)
+                  PlaybackOptionsControls(store: store, onShowDanmakuList: { offlineDanmakuManager = true })
+                }
+              }
             }
           }
+        }
+        if let d = p.detail {
           if !d.description.isEmpty {
             Text(d.description).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
               .lineSpacing(5).padding(.top, 4)
@@ -509,7 +516,7 @@ struct PlayerPage: View {
           Divider().padding(.vertical, 8)
           if d.aid > 0 { CommentsView(store: store, aid: d.aid).padding(.top, 8) }
         }
-      }.padding(16).frame(width: min(viewport.size.width, 1280)).frame(maxWidth: .infinity)
+      }.padding(16).frame(width: viewport.size.width)
     }.scrollPosition($scrollPosition, anchor: .top)
       .clipShape(.rect(cornerRadius: AppLayout.panelRadius))
       .floatingGlass(AppLayout.panelRadius)
