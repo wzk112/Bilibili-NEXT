@@ -1,7 +1,8 @@
-import AVFoundation
+import AVKit
 import AppKit
 import Foundation
 import Testing
+import SwiftUI
 @testable import BiliGlass
 
 @Suite(.serialized) @MainActor struct CoverPreviewTests {
@@ -83,4 +84,30 @@ import Testing
     }
   }
 
+
+  @Test func previewRendersInItsOwnLayerAndLeavingReleasesTheMedia() async throws {
+    _ = NSApplication.shared
+    let model = CoverPreview(delay: .zero, prepare: { _ in
+      CoverPreviewSource(url: fixture, cid: 1, stop: {})
+    })
+    defer { model.stop() }
+    model.hover(video("render-fixture"))
+    await waitFor { model.activeID != nil }
+    #expect(model.activeID == "render-fixture")
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 180),
+      styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    let host = NSHostingView(rootView: CoverPreviewOverlay(preview: model, token: model.identity))
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+    for _ in 0..<300 where !model.ready || model.position < 0.1 {
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(model.ready && model.position > 0.1)
+    #expect(model.player.isMuted && model.player.volume == 0)
+    #expect(host.bounds.size == NSSize(width: 320, height: 180))
+    model.stop(videoID: "render-fixture")
+    #expect(!model.ready && model.activeID == nil && model.player.currentItem == nil)
+  }
 }
