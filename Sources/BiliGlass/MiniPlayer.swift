@@ -12,13 +12,13 @@ struct MiniPlayer: View {
         Label(store.playback.isPlaying ? "正在播放" : "已暂停", systemImage: "play.rectangle").font(.caption.weight(.medium)).foregroundStyle(.primary.opacity(0.85))
         Spacer()
         Button(action: onClose ?? store.closeMiniPlayer) { Image(systemName: "xmark") }
-          .buttonStyle(.plain).help("关闭迷你播放器").accessibilityLabel("关闭迷你播放器")
+          .buttonStyle(.pointerPlain).help("关闭迷你播放器").accessibilityLabel("关闭迷你播放器")
       }
       ZStack {
         MiniPlayerVideo(playback: store.playback)
         PlaybackStatusOverlay(playback: store.playback)
         Color.clear.contentShape(.rect).onTapGesture(perform: onReturn ?? store.returnToPlayer).accessibilityLabel(returnLabel)
-      }.frame(height: 169).background(.black).clipShape(.rect(cornerRadius: 12))
+      }.frame(height: 169).background(.black).clipShape(.rect(cornerRadius: AppLayout.mediaRadius))
       Text(store.playback.detail?.video.title ?? "正在载入视频…").font(.callout.weight(.medium)).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
       HStack {
         Button { store.playback.togglePlayback() } label: {
@@ -27,11 +27,10 @@ struct MiniPlayer: View {
           .disabled(store.playback.player.currentItem == nil)
         Spacer()
         Button(action: onReturn ?? store.returnToPlayer) { Label(returnLabel, systemImage: "arrow.up.left.square") }
-      }.buttonStyle(.appGlassButton)
+      }.buttonStyle(.pointerGlass)
     }.padding(12).frame(width: 324).foregroundStyle(.primary)
-      // Regular glass blurs text underneath while retaining background color
-      // and native refraction. An opaque backplate would lose that transparency.
-      .appGlassEffect(.regular, in: .rect(cornerRadius: 22))
+      // Keep the original material or the neutral theme panel color.
+      .appGlass(AppLayout.panelRadius, regular: true)
       .accessibilityElement(children: .contain).accessibilityLabel("迷你播放器")
   }
 }

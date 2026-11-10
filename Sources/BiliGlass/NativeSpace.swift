@@ -121,7 +121,7 @@ struct NativeDynamicsPage: View {
           } label: {
             Image(systemName: "arrow.clockwise")
           }.buttonStyle(.appGlassButton).disabled(loading).help("刷新动态")
-        }.padding(16).floatingGlass(22).contentShape(.rect(cornerRadius: 22))
+        }.padding(16).floatingGlass(AppLayout.panelRadius).contentShape(.rect(cornerRadius: AppLayout.panelRadius))
         Picker("动态类型", selection: $filter) {
           ForEach(NativeDynamicFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
         }.pickerStyle(.segmented).frame(maxWidth: 320).accessibilityIdentifier("dynamic-type-filter")
@@ -130,7 +130,7 @@ struct NativeDynamicsPage: View {
           VStack(alignment: .leading, spacing: 14) {
             DynamicContent(entry: item, store: store)
             DynamicActions(store: store, entry: item, comment: item.commentID > 0 ? { detail = item } : nil)
-          }.padding(20).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(24)
+          }.padding(20).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(AppLayout.panelRadius)
         }
         if !items.isEmpty && visibleItems.isEmpty && !loading {
           ContentUnavailableView("已加载内容中没有\(filter.rawValue)动态", systemImage: "line.3.horizontal.decrease",
@@ -198,7 +198,7 @@ struct DynamicContent: View {
           Thumbnail(url: entry.face, mode: .fill, placeholder: "person.crop.circle.fill").frame(
             width: 38, height: 38
           ).clipShape(Circle())
-        }.buttonStyle(.plain)
+        }.buttonStyle(.pointerPlain)
         VStack(alignment: .leading, spacing: 4) {
           Text(entry.author).font(.headline)
           Text(entry.date).font(.caption).foregroundStyle(.secondary)
@@ -210,7 +210,7 @@ struct DynamicContent: View {
       }
       if !entry.original.isEmpty {
         Text(entry.original).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
-          .padding(14).appGlass(14)
+          .padding(14).appGlass(AppLayout.itemRadius)
       }
       if let video = entry.video {
         Button {
@@ -218,12 +218,12 @@ struct DynamicContent: View {
         } label: {
           HStack(spacing: 14) {
             Thumbnail(url: video.cover, mode: .fill).frame(width: 180, height: 102).clipShape(
-              RoundedRectangle(cornerRadius: 12))
+              RoundedRectangle(cornerRadius: AppLayout.mediaRadius))
             Text(video.title).font(.headline).lineLimit(3).multilineTextAlignment(.leading)
             Spacer(minLength: 0)
             Image(systemName: "play.circle.fill").font(.title)
-          }.padding(12).appGlass(18).contentShape(.rect(cornerRadius: 18))
-        }.buttonStyle(.plain)
+          }.padding(12).appGlass(AppLayout.itemRadius).contentShape(.rect(cornerRadius: AppLayout.itemRadius))
+        }.buttonStyle(.pointerPlain)
       }
       if !entry.pictures.isEmpty {
         LazyVGrid(
@@ -231,7 +231,7 @@ struct DynamicContent: View {
         ) {
           ForEach(entry.pictures, id: \.self) { image in
             Thumbnail(url: image, mode: .fit).aspectRatio(1, contentMode: .fit).clipShape(
-              RoundedRectangle(cornerRadius: 12))
+              RoundedRectangle(cornerRadius: AppLayout.mediaRadius))
           }
         }
       }
@@ -258,7 +258,7 @@ struct NativeDynamicDetail: View {
             store: store, aid: entry.commentID, type: entry.commentType, model: comments,
             verificationURL: URL(string: "https://t.bilibili.com/" + entry.id))
         }.padding(22)
-      }.floatingGlass(24).padding(.horizontal, 16).padding(.bottom, 16)
+      }.floatingGlass(AppLayout.panelRadius).padding(.horizontal, 16).padding(.bottom, 16)
     }.frame(minWidth: 820, minHeight: 680).background { GlassBackdrop() }.onDisappear {
       comments.stop()
     }.onChange(of: store.navigationRevision) { dismiss() }
@@ -292,8 +292,8 @@ struct NativeRelationsPage: View {
               }
               Spacer()
               Image(systemName: "chevron.right").foregroundStyle(.secondary)
-            }.padding(18).floatingGlass(22).contentShape(Rectangle())
-          }.buttonStyle(.plain)
+            }.padding(18).floatingGlass(AppLayout.panelRadius).contentShape(Rectangle())
+          }.buttonStyle(.pointerPlain)
         }
         if loading {
           ProgressView().frame(maxWidth: .infinity)
@@ -356,15 +356,15 @@ struct NativeCollectionsPage: View {
           } label: {
             HStack(spacing: 16) {
               Thumbnail(url: row.cover, mode: .fill).frame(width: 140, height: 88).clipShape(
-                RoundedRectangle(cornerRadius: 12))
+                RoundedRectangle(cornerRadius: AppLayout.mediaRadius))
               VStack(alignment: .leading, spacing: 9) {
                 Text(row.title).font(.headline)
                 Text("\(row.count) 个视频").font(.caption).foregroundStyle(.secondary)
               }
               Spacer()
               Image(systemName: "chevron.right").foregroundStyle(.secondary)
-            }.padding(16).floatingGlass(22).contentShape(.rect(cornerRadius: 22))
-          }.buttonStyle(.plain)
+            }.padding(16).floatingGlass(AppLayout.panelRadius).contentShape(.rect(cornerRadius: AppLayout.panelRadius))
+          }.buttonStyle(.pointerPlain)
         }
         if loading {
           ProgressView().frame(maxWidth: .infinity).padding(20)
@@ -437,7 +437,7 @@ struct NativeCollectionVideos: View {
                 store.open(video.bvid)
               } label: {
                 VideoCard(video: video)
-              }.buttonStyle(.plain)
+              }.buttonStyle(.pointerPlain)
             }
           }
           if loading {

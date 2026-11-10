@@ -62,9 +62,9 @@ struct PreferencesView: View {
                 Button { store.preferencesTab = index } label: {
                   Label(categories[index].0, systemImage: categories[index].1)
                     .font(.body.weight(store.preferencesTab == index ? .semibold : .regular))
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(12).contentShape(.rect(cornerRadius: 14))
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(12).contentShape(.rect(cornerRadius: AppLayout.itemRadius))
                 }.buttonStyle(NavigationButtonStyle()).tint(.primary)
-                  .appGlass(14, tint: store.preferencesTab == index ? biliPink.opacity(0.2) : .clear)
+                  .appGlass(AppLayout.itemRadius, tint: store.preferencesTab == index ? biliPink.opacity(0.2) : .clear)
               }
             }
           }
@@ -89,7 +89,7 @@ struct PreferencesView: View {
             }.scrollIndicators(.hidden)
               .id(store.preferencesTab).interfaceTransition()
           }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipShape(.rect(cornerRadius: 24)).interfaceAnimation(store.preferencesTab)
+            .clipShape(.rect(cornerRadius: AppLayout.panelRadius)).interfaceAnimation(store.preferencesTab)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
       }.padding(24)
     }.frame(minWidth: 940, idealWidth: 980, minHeight: 700, idealHeight: 740).appAppearance().tint(biliPink)
@@ -100,7 +100,7 @@ struct PreferencesView: View {
     VStack(alignment: .leading, spacing: 18) {
       Text(title).font(.headline)
       content()
-    }.padding(22).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(24)
+    }.padding(22).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(AppLayout.panelRadius)
   }
   private var playbackSettings: some View {
     VStack(spacing: 18) {
@@ -183,7 +183,7 @@ struct PreferencesView: View {
             Spacer()
             Button(importing ? "正在处理…" : "选择图片…", action: chooseBackground).disabled(importing)
             if !backgroundImage.isEmpty { Button("恢复默认") { backgroundImage = "" } }
-          }.buttonStyle(.appGlassButton).tint(.primary)
+          }.buttonStyle(.pointerGlass).tint(.primary)
           toggleRow("模糊背景图片", value: $backgroundBlur).disabled(backgroundImage.isEmpty)
           sliderRow("背景可见度", value: $backgroundOpacity, range: 0.2...1, step: 0.05, display: "\(Int(backgroundOpacity * 100))%")
             .disabled(backgroundImage.isEmpty)
@@ -220,7 +220,7 @@ struct PreferencesView: View {
     section("显示") {
       Text("这是一条弹幕").font(.system(size: 25 * scale, weight: .semibold))
         .foregroundStyle(.white.opacity(opacity)).shadow(color: .black.opacity(0.8), radius: 1, y: 1)
-        .frame(maxWidth: .infinity).frame(height: 70).appGlass(16)
+        .frame(maxWidth: .infinity).frame(height: 70).appGlass(AppLayout.itemRadius)
       sliderRow("不透明度", value:$opacity, range:0.1...1, step:0.01, display:"\(Int(opacity*100))%")
       sliderRow("显示区域", value:$area, range:0.2...1, step:0.1, display:"\(Int(area*100))%")
       sliderRow("文字大小", value:$scale, range:0.5...2, step:0.1, display:"\(scale.formatted(.number.precision(.fractionLength(1))))×")
@@ -254,7 +254,7 @@ struct PreferencesView: View {
           Toggle("下载视频时同时保存弹幕", isOn:$downloadDanmaku).labelsHidden().toggleStyle(.switch).fixedSize()
         }
         Text(AppPaths.cache.path).font(.callout).textSelection(.enabled).lineLimit(3)
-        HStack {
+        HStack(spacing: 20) {
           Button("更改目录…") {
             let panel = NSOpenPanel()
             panel.canChooseDirectories = true
@@ -267,7 +267,7 @@ struct PreferencesView: View {
               at: AppPaths.cache, withIntermediateDirectories: true)
             NSWorkspace.shared.open(AppPaths.cache)
           }
-        }.buttonStyle(.appGlassButton).tint(.primary)
+        }.buttonStyle(.pointerGlass).tint(.primary)
         Text("修改目录后，新缓存保存到新位置，已有缓存仍可在下载页管理。").font(.caption).foregroundStyle(.secondary)
       }
       section("图片缓存") {

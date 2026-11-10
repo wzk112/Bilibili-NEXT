@@ -61,7 +61,7 @@ struct AboutView: View {
             Text(project.purpose).font(.callout).foregroundStyle(.secondary)
           }
         }
-        Button("查看完整第三方说明") { document = .init(title: "第三方组件与参考说明", resource: "THIRD_PARTY", ext: "md") }.buttonStyle(.appGlassButton)
+        Button("查看完整第三方说明") { document = .init(title: "第三方组件与参考说明", resource: "THIRD_PARTY", ext: "md") }.buttonStyle(.pointerGlass)
       }
     }.tint(.primary).sheet(item: $document) { item in
       VStack(alignment: .leading, spacing: 16) {
@@ -77,7 +77,7 @@ struct AboutView: View {
     VStack(alignment: .leading, spacing: 14) {
       Text(title).font(.headline)
       content()
-    }.padding(22).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(24)
+    }.padding(22).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(AppLayout.panelRadius)
   }
 }
 

@@ -166,7 +166,7 @@ struct InlinePlaybackSurface: View {
     .overlay {
       PlaybackDetailsOverlay(playback: playback, bottomInset: controlsVisible ? controlsHeight : 12)
     }
-    .clipShape(.rect(cornerRadius: 16))
+    .clipShape(.rect(cornerRadius: AppLayout.mediaRadius))
     .onContinuousHover { phase in
       switch phase {
       case .active:
@@ -210,7 +210,7 @@ struct PlaybackOptionsControls: View {
         onShowList: onShowDanmakuList)
       PlaybackQualityMenu(store: store)
       PlaybackSpeedMenu(playback: store.playback)
-    }.buttonStyle(.appGlassButton).fixedSize(horizontal: true, vertical: false)
+    }.buttonStyle(.pointerGlass).fixedSize(horizontal: true, vertical: false)
   }
 }
 
@@ -279,7 +279,7 @@ struct PlayerControls<AdditionalControls: View>: View {
         Button { showingVolume.toggle() } label: {
           Image(systemName: playback.muted || playback.volume == 0 ? "speaker.slash" : "speaker.wave.2")
         }
-          .buttonStyle(.appGlassButton).help("音量").accessibilityLabel("音量")
+          .buttonStyle(.pointerGlass).help("音量").accessibilityLabel("音量")
           .popover(isPresented: $showingVolume) {
             Slider(value: Binding(get: { Double(playback.volume) }, set: { playback.setVolume(Float($0)) }), in: 0...1)
               .labelsHidden().accessibilityLabel("音量").frame(width: 150).padding(16)
@@ -295,10 +295,10 @@ struct PlayerControls<AdditionalControls: View>: View {
         if let toggleFullscreen {
           Button(action: toggleFullscreen) {
             Image(systemName: fullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-          }.buttonStyle(.appGlassButton).help(fullscreen ? "退出全屏" : "全屏播放")
+          }.buttonStyle(.pointerGlass).help(fullscreen ? "退出全屏" : "全屏播放")
             .accessibilityLabel(fullscreen ? "退出全屏" : "全屏播放")
         }
-      }.padding(12).appGlassEffect(.regular, in: .rect(cornerRadius: 18))
+      }.padding(12).appGlassEffect(.regular, in: .rect(cornerRadius: AppLayout.panelRadius))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { controlsWidth = $0 }
         .interfaceAnimation(!fullscreen && controlsWidth < 860)
     }.onAppear { position = playback.positionSeconds }

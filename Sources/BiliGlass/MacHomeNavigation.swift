@@ -28,8 +28,8 @@ struct MacSidebar: View {
                 .frame(maxWidth: .infinity).frame(height: 44)
                 .padding(.horizontal, compact ? 4 : 10)
                 .background(store.destination == destination && !store.showPlayer ? biliPink.opacity(0.19) : .clear,
-                  in: .rect(cornerRadius: compact ? 16 : 12))
-                .contentShape(.rect(cornerRadius: compact ? 16 : 12))
+                  in: .rect(cornerRadius: AppLayout.panelRadius - (compact ? 4 : 8)))
+                .contentShape(.rect(cornerRadius: AppLayout.panelRadius - (compact ? 4 : 8)))
               }
               .buttonStyle(NavigationButtonStyle()).help(destination.rawValue)
               .accessibilityLabel(destination.rawValue).accessibilityIdentifier("sidebar-" + page.rawValue)
@@ -71,7 +71,7 @@ struct MacAccountFooter: View {
         }
       }.contentShape(.rect)
     }
-    .buttonStyle(.plain).help("个人中心：消息、观看记录、收藏、稍后再看与下载")
+    .buttonStyle(.pointerPlain).help("个人中心：消息、观看记录、收藏、稍后再看与下载")
     .accessibilityLabel("个人中心").accessibilityIdentifier("personal-center")
     .overlay(alignment: .topTrailing) {
       if store.messageUnread.counts.total > 0 {
@@ -81,7 +81,7 @@ struct MacAccountFooter: View {
   }
   private var settings: some View {
     SettingsLink { Image(systemName: "gearshape").frame(width: AppMetrics.controlHeight, height: AppMetrics.controlHeight).contentShape(.rect) }
-      .buttonStyle(.plain).foregroundStyle(.secondary)
+      .buttonStyle(.pointerPlain).foregroundStyle(.secondary)
       .help("设置").accessibilityLabel("设置").accessibilityIdentifier("open-settings")
   }
 }
@@ -121,7 +121,7 @@ struct PersonalActionsRow: View {
           }.font(.callout).frame(maxWidth: .infinity, minHeight: 26)
             .padding(.horizontal, 10).padding(.vertical, 13).floatingGlass(12)
             .contentShape(.rect(cornerRadius: 12))
-        }.buttonStyle(.plain).help(destination.rawValue).accessibilityLabel(destination.rawValue)
+        }.buttonStyle(.pointerPlain).help(destination.rawValue).accessibilityLabel(destination.rawValue)
           .accessibilityIdentifier("personal-" + destination.rawValue)
       }
     }
