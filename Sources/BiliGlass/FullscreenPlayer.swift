@@ -87,13 +87,13 @@ struct FullscreenPlayerContent: View {
       PlaybackStatusOverlay(playback: store.playback)
       SubtitleOverlay(extras: store.extras, playback: store.playback, fullscreen: true)
       if store.playback.isBoosting {
-        Text(store.playback.boostLabel).padding(12).glassEffect(.regular, in: .capsule).frame(maxHeight: .infinity, alignment: .top).padding(.top, 24).allowsHitTesting(false)
+        Text(store.playback.boostLabel).padding(12).appGlassEffect(.regular, in: .capsule).frame(maxHeight: .infinity, alignment: .top).padding(.top, 24).allowsHitTesting(false)
       }
       VStack(spacing:0) {
         HStack {
           Text(store.playback.detail?.video.title ?? "播放").font(.headline).lineLimit(2)
             .padding(.horizontal, 14).padding(.vertical, 10)
-            .glassEffect(.regular, in: .rect(cornerRadius: 16))
+            .appGlassEffect(.regular, in: .rect(cornerRadius: 16))
           Spacer(minLength: 0)
         }.allowsHitTesting(false)
         Spacer().allowsHitTesting(false)
@@ -111,7 +111,7 @@ struct FullscreenPlayerContent: View {
             }
             PlaybackQualityMenu(store: store)
             PlaybackSpeedMenu(playback: store.playback)
-          }.buttonStyle(.glass)
+          }.buttonStyle(.appGlassButton)
         }
           .frame(maxWidth: 1400)
           .onHover { hoveringControls = $0; if $0 { wake() } }

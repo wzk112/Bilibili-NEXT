@@ -63,7 +63,7 @@ struct MessageShareCard: View {
           Thumbnail(url: share.cover, mode: .fill, placeholder: "play.rectangle")
             .frame(height: 150).clipped().clipShape(.rect(cornerRadius: 12))
             .overlay {
-              if opening { ProgressView().padding(12).glassEffect(.regular, in: .circle) }
+              if opening { ProgressView().padding(12).appGlassEffect(.regular, in: .circle) }
               else if share.isVideo {
                 Image(systemName: "play.fill").font(.title3).foregroundStyle(.white)
                   .padding(12).background(.black.opacity(0.5), in: .circle)

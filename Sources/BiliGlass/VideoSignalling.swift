@@ -110,7 +110,6 @@ struct VideoSignalling: Sendable {
       ? .hlg
       : info.transfer == 16 || info.dolbyProfile == 5
         || (info.dolbyProfile == 8 && info.compatibility == 1) ? .pq : attrs.dynamicRange
-    #if os(macOS)
     // The quality ID is only a fallback. SDR-compatible Dolby base layers and
     // explicit SDR transfer functions must not inherit a PQ hint from playurl.
     let explicitHDR = info.transfer == 16 || info.transfer == 18 || info.dolbyProfile == 5
@@ -118,9 +117,6 @@ struct VideoSignalling: Sendable {
     let explicitSDR = [1, 6, 7, 13, 14, 15].contains(info.transfer ?? -1)
       || (info.dolbyProfile == 8 && info.compatibility == 2)
     let range: VideoDynamicRange = !explicitHDR && explicitSDR ? .sdr : metadataRange
-    #else
-    let range = metadataRange
-    #endif
     var codec = video.codecs
     var supplemental: String?
     if let base = info.baseCodec {

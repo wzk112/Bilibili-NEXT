@@ -28,7 +28,7 @@ struct ImageGallery: View {
         Button { change(-1) } label: { Image(systemName:"chevron.left") }.disabled(index == 0).help("上一张").keyboardShortcut(.leftArrow,modifiers:[])
         Button { change(1) } label: { Image(systemName:"chevron.right") }.disabled(index+1 >= target.urls.count).help("下一张").keyboardShortcut(.rightArrow,modifiers:[])
         Button("关闭") { dismiss() }.keyboardShortcut(.cancelAction)
-      }.buttonStyle(.glass)
+      }.buttonStyle(.appGlassButton)
       ZStack {
         Color.black.opacity(0.2)
         if let image {
@@ -45,7 +45,7 @@ struct ImageGallery: View {
         if original != nil { Text(ByteCountFormatter.string(fromByteCount:Int64(original?.count ?? 0),countStyle:.file)).font(.caption).foregroundStyle(.secondary) }
         if image == nil && !loading { Button("重试") { Task { await load() } } }
         Button(saved ? "已保存" : "保存原图…") { save() }.disabled(original == nil)
-      }.buttonStyle(.glass)
+      }.buttonStyle(.appGlassButton)
       if let error, image != nil { Text(error).font(.caption).foregroundStyle(.secondary) }
     }.padding(20).frame(minWidth:700,minHeight:520).frame(width:900,height:680)
       .background { GlassBackdrop() }

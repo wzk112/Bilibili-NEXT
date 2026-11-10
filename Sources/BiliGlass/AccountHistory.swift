@@ -129,7 +129,7 @@ struct HistoryPage: View {
             } else if let error = store.historySync.error {
               Text(error + "。本机记录已保留。").font(.caption).foregroundStyle(.secondary)
             }
-            GlassEffectContainer(spacing: 0) {
+            AppGlassContainer(spacing: 0) {
               LazyVGrid(columns: [GridItem(.adaptive(minimum: 240, maximum: 390), spacing: 18)], spacing: 20) {
                 ForEach(combined) { entry in
                   Button { store.openHistory(entry) } label: {
@@ -157,7 +157,7 @@ struct HistoryPage: View {
         } else {
           Text("仅保存在这台 Mac 上的播放记录").font(.callout).foregroundStyle(.secondary)
           if store.history.isEmpty { ContentUnavailableView("还没有本机记录", systemImage: "clock") }
-          GlassEffectContainer(spacing: 0) {
+          AppGlassContainer(spacing: 0) {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 240, maximum: 390), spacing: 18)], spacing: 20) {
               ForEach(store.history) { entry in
                 Button { store.open(entry.video.bvid) } label: { VideoCard(video: entry.video) }.buttonStyle(.plain)

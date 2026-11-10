@@ -18,14 +18,14 @@ struct RootView: View {
           sidebar.frame(width: AppLayout.sidebarWidth).sidebarTransition()
         }
         VStack(spacing: 12) {
-          GlassEffectContainer { topbar }
+          AppGlassContainer { topbar }
           if let reason = store.loginUpgradeReason, !store.loginUpgradeDismissed {
             HStack(spacing: 12) {
               Image(systemName: "person.crop.circle.badge.exclamationmark")
               Text(reason.message).font(.callout).fixedSize(horizontal: false, vertical: true)
               Spacer(minLength: 0)
-              Button("重新登录") { store.login() }.buttonStyle(.glassProminent)
-              Button("稍后") { store.loginUpgradeDismissed = true }.buttonStyle(.glass)
+              Button("重新登录") { store.login() }.buttonStyle(.appGlassProminent)
+              Button("稍后") { store.loginUpgradeDismissed = true }.buttonStyle(.appGlassButton)
             }.padding(14).floatingGlass(18)
           }
           if searchFocused && !store.showPlayer { SearchAssistance(store: store) }
@@ -96,7 +96,7 @@ struct RootView: View {
           } label: {
             Image(systemName: "xmark")
           }.buttonStyle(.plain)
-        }.padding(14).glassEffect(.regular, in: .capsule).padding(20)
+        }.padding(14).appGlassEffect(.regular, in: .capsule).padding(20)
       }
     }
     .sheet(isPresented: $store.showLogin, onDismiss: { store.closeLogin() }) {
@@ -183,7 +183,7 @@ struct RootView: View {
         // Glass sampling must stay inside the scrolling viewport. Sharing a
         // container with the fixed account footer lets the scrolled glass/text
         // render through that footer on short windows.
-        GlassEffectContainer(spacing: 16) {
+        AppGlassContainer(spacing: 16) {
           VStack(spacing: 14) {
             let pages = navigation.preferences.visible
             let browse = pages.filter(\.isBrowse).compactMap { Destination(rawValue: $0.title) }
@@ -262,7 +262,7 @@ struct RootView: View {
           store.leavePlayer()
         } label: {
           Image(systemName: "chevron.left")
-        }.buttonStyle(.glass).help("返回")
+        }.buttonStyle(.appGlassButton).help("返回")
       }
       HStack(spacing: 10) {
         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
@@ -285,7 +285,7 @@ struct RootView: View {
       } label: {
         Image(systemName: "arrow.clockwise")
       }.help("刷新")
-    }.buttonStyle(.glass).tint(.primary).padding(.horizontal, 12).frame(height: AppLayout.toolbarHeight)
+    }.buttonStyle(.appGlassButton).tint(.primary).padding(.horizontal, 12).frame(height: AppLayout.toolbarHeight)
       .floatingGlass(AppLayout.panelRadius).interfaceAnimation(sidebarVisible)
   }
   @ViewBuilder private var content: some View {
@@ -323,6 +323,9 @@ struct RootView: View {
       case .downloads: DownloadPage(store: store)
       case .messages: NativeInboxPage(store: store)
       case .web: WebFunctionsPage(store: store)
+      case .live: CatalogPage(store: store, kind: .live)
+      case .bangumi: CatalogPage(store: store, kind: .bangumi)
+      case .cinema: CatalogPage(store: store, kind: .cinema)
       }
   }
   private var accountButton: some View {
@@ -689,7 +692,7 @@ struct PlayerPage: View {
       }
       PlaybackFeatureControls(store: store)
       downloadMenu
-    }.buttonStyle(.glass).controlSize(.regular)
+    }.buttonStyle(.appGlassButton).controlSize(.regular)
   }
 
   @ViewBuilder private var downloadMenu: some View {
@@ -789,7 +792,7 @@ struct LoginSheet: View {
           store.showLogin = false
         } label: {
           Image(systemName: "xmark")
-        }.buttonStyle(.glass).help("关闭")
+        }.buttonStyle(.appGlassButton).help("关闭")
       }
       ZStack {
         RoundedRectangle(cornerRadius: 16).fill(.white)
@@ -798,7 +801,7 @@ struct LoginSheet: View {
             store.loginExpired ? 0.15 : 1)
         }
         if store.qrImage == nil && !store.loginExpired { ProgressView() }
-        if store.loginExpired { Button("刷新二维码") { store.refreshQR() }.buttonStyle(.glassProminent) }
+        if store.loginExpired { Button("刷新二维码") { store.refreshQR() }.buttonStyle(.appGlassProminent) }
       }.frame(width: 230, height: 230)
       Text(store.loginStatus).font(.callout).foregroundStyle(.secondary)
       Text("一次扫码即可使用浏览、收藏与投币。登录不会自动投币。")

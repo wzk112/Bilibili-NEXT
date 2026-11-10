@@ -20,6 +20,6 @@ struct MobileComposerIcon: View {
   var body: some View {
     Image(systemName: name).font(.system(size: 20, weight: .regular))
       .frame(width: 44, height: 44)
-      .glassEffect(.regular.interactive(), in: .circle)
+      .appGlassEffect(.regular.interactive(), in: .circle)
   }
 }

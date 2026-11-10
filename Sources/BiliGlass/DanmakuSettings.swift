@@ -47,7 +47,7 @@ struct DanmakuSettingsButton: View {
   @AppStorage("danmakuArea") private var area = 0.5
   var body: some View {
     Button { showing.toggle() } label: { Image(systemName: "slider.horizontal.3") }
-      .buttonStyle(.glass).help("弹幕设置").accessibilityLabel("弹幕设置")
+      .buttonStyle(.appGlassButton).help("弹幕设置").accessibilityLabel("弹幕设置")
       .popover(isPresented: $showing) {
         VStack(alignment: .leading, spacing: 14) {
           Text("弹幕设置").font(.headline)

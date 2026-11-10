@@ -1,6 +1,6 @@
 # Contributing
 
-Use macOS 26 or later, Xcode 26 or later, and Swift 6.2 or later. The app uses
+Build with Xcode 26 or later on a supported macOS host, and Swift 6.2 or later. The deployment target is macOS 15; guard newer system APIs and preserve the native material fallback. The app uses
 native SwiftUI, AppKit and AVPlayer; preserve text input, accessibility and
 keyboard behavior when changing controls.
 
@@ -41,3 +41,5 @@ only when guide content changes, not for routine rebuilds. `GuideUpgradeTests`
 checks first install, old installation, repeated launch and revision receipts.
 The app's purpose statement does not restrict the MIT license. Preserve original
 third-party copyright notices and keep the About page consistent with `THIRD_PARTY.md`.
+
+macOS update archives use Sparkle 2.9.6. The release signing key is held in the maintainer's Keychain under account `BilibiliNEXT`; never commit a private key. `package-release.sh` generates `appcast.xml` alongside the assets. Publish that signed feed in the same GitHub Release as its referenced macOS ZIP, because the app reads `releases/latest/download/appcast.xml`. Re-signing or modifying the ZIP requires generating the appcast again. See [Sparkle setup](https://sparkle-project.org/documentation/) for the signing and installation model.

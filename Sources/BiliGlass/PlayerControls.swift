@@ -134,7 +134,7 @@ struct InlinePlaybackSurface: View {
         bottomInset: controlsVisible ? controlsHeight + 8 : 18)
       if playback.isBoosting {
         Label(playback.boostLabel, systemImage: "forward.fill").font(.callout).padding(10)
-          .glassEffect(.regular, in: .capsule).padding(16)
+          .appGlassEffect(.regular, in: .capsule).padding(16)
           .frame(maxHeight: .infinity, alignment: .top).colorScheme(.dark).allowsHitTesting(false)
       }
     }
@@ -210,7 +210,7 @@ struct PlaybackOptionsControls: View {
         onShowList: onShowDanmakuList)
       PlaybackQualityMenu(store: store)
       PlaybackSpeedMenu(playback: store.playback)
-    }.buttonStyle(.glass).fixedSize(horizontal: true, vertical: false)
+    }.buttonStyle(.appGlassButton).fixedSize(horizontal: true, vertical: false)
   }
 }
 
@@ -238,11 +238,11 @@ struct PlayerControls<AdditionalControls: View>: View {
       HStack(spacing: fullscreen ? 14 : 8) {
         Button { playback.focusPlayer(); playback.togglePlayback() } label: {
           Image(systemName: !playback.isPlaying ? "play.fill" : "pause.fill").frame(width: 20)
-        }.buttonStyle(.glass).help(!playback.isPlaying ? "播放" : "暂停")
+        }.buttonStyle(.appGlassButton).help(!playback.isPlaying ? "播放" : "暂停")
           .accessibilityLabel(!playback.isPlaying ? "播放" : "暂停")
         if let nextAction {
           Button(action: nextAction) { Image(systemName: "forward.end") }
-            .buttonStyle(.glass).help("下一集").accessibilityLabel("下一集")
+            .buttonStyle(.appGlassButton).help("下一集").accessibilityLabel("下一集")
         }
         Text(clock(dragging ? position : current)).font(.caption.monospacedDigit()).frame(
           minWidth: 42)
@@ -279,7 +279,7 @@ struct PlayerControls<AdditionalControls: View>: View {
         Button { showingVolume.toggle() } label: {
           Image(systemName: playback.muted || playback.volume == 0 ? "speaker.slash" : "speaker.wave.2")
         }
-          .buttonStyle(.glass).help("音量").accessibilityLabel("音量")
+          .buttonStyle(.appGlassButton).help("音量").accessibilityLabel("音量")
           .popover(isPresented: $showingVolume) {
             Slider(value: Binding(get: { Double(playback.volume) }, set: { playback.setVolume(Float($0)) }), in: 0...1)
               .labelsHidden().accessibilityLabel("音量").frame(width: 150).padding(16)
@@ -295,10 +295,10 @@ struct PlayerControls<AdditionalControls: View>: View {
         if let toggleFullscreen {
           Button(action: toggleFullscreen) {
             Image(systemName: fullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-          }.buttonStyle(.glass).help(fullscreen ? "退出全屏" : "全屏播放")
+          }.buttonStyle(.appGlassButton).help(fullscreen ? "退出全屏" : "全屏播放")
             .accessibilityLabel(fullscreen ? "退出全屏" : "全屏播放")
         }
-      }.padding(12).glassEffect(.regular, in: .rect(cornerRadius: 18))
+      }.padding(12).appGlassEffect(.regular, in: .rect(cornerRadius: 18))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { controlsWidth = $0 }
         .interfaceAnimation(!fullscreen && controlsWidth < 860)
     }.onAppear { position = playback.positionSeconds }

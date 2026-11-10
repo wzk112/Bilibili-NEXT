@@ -1407,4 +1407,91 @@ import UIKit
           predicate: NSPredicate(format: "value == %@", value), object: element)
       ], timeout: timeout) == .completed
   }
+  func testLiveFullscreenPreservesPlaybackAndReturnsToRoom() throws {
+    XCUIDevice.shared.orientation = .portrait
+    defer { XCUIDevice.shared.orientation = .portrait }
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-ui", "--qa-live-fixture", "gesture.mp4", "-startPage", "live"]
+    app.launch()
+    let enter = app.buttons["live-enter-fullscreen"]
+    let playback = app.buttons["live-play-pause"]
+    XCTAssertTrue(enter.waitForExistence(timeout: 15))
+    XCTAssertTrue(waitForValue("live-play-pause", "正在播放", app: app))
+    attach("live-room-inline", app: app)
+    playback.tap()
+    XCTAssertTrue(waitForValue("live-play-pause", "已暂停", app: app))
+    enter.tap()
+    let exit = app.buttons["live-exit-fullscreen"]
+    XCTAssertTrue(exit.waitForExistence(timeout: 10))
+    XCTAssertTrue(waitForValue("live-play-pause", "已暂停", app: app))
+    if UIDevice.current.userInterfaceIdiom == .phone {
+      expectation(for: NSPredicate { _, _ in app.frame.width > app.frame.height }, evaluatedWith: app)
+      waitForExpectations(timeout: 10)
+    } else {
+      XCUIDevice.shared.orientation = .landscapeLeft
+    }
+    playback.tap()
+    XCTAssertTrue(waitForValue("live-play-pause", "正在播放", app: app))
+    attach("live-room-fullscreen", app: app)
+    exit.tap()
+    XCTAssertTrue(enter.waitForExistence(timeout: 10))
+    XCTAssertTrue(waitForValue("live-play-pause", "正在播放", app: app))
+    XCTAssertTrue(app.buttons["关闭直播间"].exists)
+    if UIDevice.current.userInterfaceIdiom == .phone {
+      expectation(for: NSPredicate { _, _ in app.frame.height > app.frame.width }, evaluatedWith: app)
+      waitForExpectations(timeout: 10)
+    }
+    attach("live-room-returned", app: app)
+  }
+
+  func testIssue8CommentsKeepVideoVisible() throws {
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-ui", "--qa-navigation"]
+    app.launch()
+    let viewport = app.descendants(matching: .any)["player-viewport"].firstMatch
+    let information = app.scrollViews["player-information"]
+    XCTAssertTrue(viewport.waitForExistence(timeout: 15))
+    let frame = viewport.frame
+    for _ in 0..<3 { information.swipeUp() }
+    XCTAssertTrue(viewport.isHittable)
+    XCTAssertEqual(viewport.frame.minY, frame.minY, accuracy: 2)
+    XCTAssertEqual(viewport.frame.height, frame.height, accuracy: 2)
+    attach("issue-8-video-pinned-while-reading", app: app)
+  }
+
+  func testIssue8RootEdgeSwipeReturnsToList() throws {
+    guard UIDevice.current.userInterfaceIdiom == .phone else { throw XCTSkip("Phone back gesture") }
+    let app = feedbackApp()
+    app.buttons["video-card-BV1xx411c7mD"].tap()
+    XCTAssertTrue(app.descendants(matching: .any)["player-viewport"].firstMatch.waitForExistence(timeout: 10))
+    app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.55)).press(forDuration: 0.05,
+      thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.55)))
+    XCTAssertTrue(app.buttons["mini-player-open"].waitForExistence(timeout: 5))
+    attach("issue-8-edge-swipe-return", app: app)
+  }
+
+  func testIssue8FullscreenDoubleTapAndBackArrow() throws {
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-fixture", ProcessInfo.processInfo.environment["BILI_IOS_FIXTURE"] ?? "gesture.mp4"]
+    app.launch()
+    XCTAssertTrue(app.buttons["播放详情"].waitForExistence(timeout: 15))
+    app.buttons["播放详情"].tap()
+    XCTAssertTrue(waitForValue("rendered-frame-status", "是", app: app))
+    app.buttons["完成"].tap()
+    app.buttons["全屏"].tap()
+    let back = app.buttons["player-fullscreen-back"]
+    XCTAssertTrue(back.waitForExistence(timeout: 10))
+    let surface = app.descendants(matching: .any)["video-player"].firstMatch
+    surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).doubleTap()
+    XCTAssertEqual(app.buttons["player-play-pause"].value as? String, "已暂停")
+    surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).doubleTap()
+    XCTAssertEqual(app.buttons["player-play-pause"].value as? String, "正在播放")
+    surface.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.75)).press(forDuration: 0.05,
+      thenDragTo: surface.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.3)))
+    XCTAssertTrue(back.exists)
+    back.tap()
+    XCTAssertTrue(app.buttons["播放详情"].waitForExistence(timeout: 5))
+    attach("issue-8-fullscreen-gestures", app: app)
+  }
+
 }

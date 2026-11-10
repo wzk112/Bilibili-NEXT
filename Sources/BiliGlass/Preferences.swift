@@ -55,7 +55,7 @@ struct PreferencesView: View {
       HStack(alignment: .top, spacing: 20) {
         VStack(alignment: .leading, spacing: 20) {
           Label("设置", systemImage: "slider.horizontal.3").font(.title2.weight(.semibold)).padding(.horizontal, 10)
-          GlassEffectContainer(spacing: 8) {
+          AppGlassContainer(spacing: 8) {
             VStack(spacing: 8) {
               ForEach(categories.indices, id: \.self) { index in
                 Button { store.preferencesTab = index } label: {
@@ -74,7 +74,7 @@ struct PreferencesView: View {
           Text(categories[store.preferencesTab].0).font(.title2.weight(.semibold)).padding(.horizontal, 6).padding(.top, 4)
           ZStack(alignment: .top) {
             ScrollView {
-              GlassEffectContainer(spacing: 16) {
+              AppGlassContainer(spacing: 16) {
               VStack(alignment: .leading, spacing: 16) {
                 switch store.preferencesTab {
                 case 0: appearanceSettings
@@ -176,7 +176,7 @@ struct PreferencesView: View {
           Spacer()
           Button(importing ? "正在处理…" : "选择图片…", action: chooseBackground).disabled(importing)
           if !backgroundImage.isEmpty { Button("恢复默认") { backgroundImage = "" } }
-        }.buttonStyle(.glass).tint(.primary)
+        }.buttonStyle(.appGlassButton).tint(.primary)
         toggleRow("模糊背景图片", value: $backgroundBlur).disabled(backgroundImage.isEmpty)
         sliderRow("背景可见度", value: $backgroundOpacity, range: 0.2...1, step: 0.05, display: "\(Int(backgroundOpacity * 100))%")
           .disabled(backgroundImage.isEmpty)
@@ -259,7 +259,7 @@ struct PreferencesView: View {
               at: AppPaths.cache, withIntermediateDirectories: true)
             NSWorkspace.shared.open(AppPaths.cache)
           }
-        }.buttonStyle(.glass).tint(.primary)
+        }.buttonStyle(.appGlassButton).tint(.primary)
         Text("修改目录后，新缓存保存到新位置，已有缓存仍可在下载页管理。").font(.caption).foregroundStyle(.secondary)
       }
       section("图片缓存") {
@@ -268,7 +268,7 @@ struct PreferencesView: View {
             await ThumbnailCache.shared.clear()
             cleared = true
           }
-        }.buttonStyle(.glass).tint(.primary)
+        }.buttonStyle(.appGlassButton).tint(.primary)
         Text("解码图片缓存上限 32 MB，按显示尺寸加载；原图仅使用 128 MB 磁盘缓存。正在显示的图片另占内存。").font(.caption).foregroundStyle(.secondary)
       }
     }

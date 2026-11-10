@@ -1,10 +1,14 @@
 # iOS / iPadOS 安装
 
-本次手机安装包为 **0.1.4 开发预览（build 8）**，对应 [v1.1.4 双端版本](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.4)。可用文件以页面 Assets 为准。支持 iPhone / iPad，最低 iOS / iPadOS 26，真机架构 arm64。
+本次手机安装包为 **0.1.5 开发预览（build 10）**，对应 [v1.1.5 双端版本](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.5)。可用文件以页面 Assets 为准。支持 iPhone / iPad，最低 iOS / iPadOS 26，真机架构 arm64。
+
+## 0.1.5 的导入兼容调整
+
+针对 #7 截图中的“兼容解压已完成但未得到可用的浅层主包”，新打包流程统一使用 `Payload/BilibiliNEXT.app/Info.plist` 和不带空格的 `BilibiliNEXT` 可执行文件，将主配置转换为 XML，并排除 ZIP 的额外平台属性。显示名称仍为 Bilibili NEXT，Bundle ID 保持一致。`validate-ipa.py --portable` 会校验这些条件。公开下载是否已有该修复，以 Release 版本为准；尚未取得报告者签名工具的复测，不能认定其个案已经完全解决。
 
 ## 下载 IPA 自行签名
 
-1. 下载 `Bilibili-NEXT-0.1.4-iOS-self-sign.ipa`。文件名中的 `self-sign` 表示需要自行签名，不能直接点击安装。包内只有不含个人证书的临时签名结构，不是有效的设备安装签名。
+1. 下载 `Bilibili-NEXT-0.1.5-iOS-self-sign.ipa`。文件名中的 `self-sign` 表示需要自行签名，不能直接点击安装。包内只有不含个人证书的临时签名结构，不是有效的设备安装签名。
 2. 使用自己的 Apple Account / 开发者证书，以及与设备和 Bundle ID 匹配的描述文件，在所选签名工具中完成签名并安装。发布包不包含作者的证书、描述文件或账号数据。
 3. 如果使用开发签名，按设备提示启用开发者模式、信任开发者。签名的有效期、设备限制、续签与安装方式取决于自己的账号及所用工具。
 4. 打开应用，用哔哩哔哩 App 扫码并确认登录。保存二维码后切换到官方 App 扫码，返回时会继续查询同一个二维码。升级后如果提示缺少客户端互动授权，重新扫码一次即可；取消扫码保留现有登录。
@@ -16,7 +20,7 @@
 ## 提示“IPA 不完整”或无法安装
 
 - 从 Release 的 **Assets** 下载 `.ipa`，不要下载源码 ZIP、网页或尚未完成的下载文件，也不要只修改它们的后缀名。
-- 核对同一 Release 的 `Bilibili-NEXT-1.1.4-SHA256SUMS.txt`。Mac 可执行 `shasum -a 256 文件名.ipa`；Windows PowerShell 可执行 `Get-FileHash 文件名.ipa -Algorithm SHA256`。不一致时重新下载。
+- 核对同一 Release 的 `Bilibili-NEXT-1.1.5-SHA256SUMS.txt`。Mac 可执行 `shasum -a 256 文件名.ipa`；Windows PowerShell 可执行 `Get-FileHash 文件名.ipa -Algorithm SHA256`。不一致时重新下载。
 - 校验一致后仍报错，请提供签名工具名称与版本、iOS 版本、失败阶段（导入、签名或安装）和完整错误截图。不要提供 Apple Account 密码、私钥、证书密码或描述文件。
 - “无法验证完整性”也可能发生在签名或安装阶段；仅凭这句提示不能判断 ZIP 是否损坏。核实自己的证书、描述文件、设备及 Bundle ID 是否匹配，避免删除旧应用后丢失数据。
 
@@ -40,10 +44,10 @@ IOS_PLATFORM=device DEVELOPMENT_TEAM=YOUR_TEAM IOS_DEVICE_ID=YOUR_UDID Scripts/b
 OUTPUT_DIR="$PWD/.build/release-assets" Scripts/package-ios.sh
 
 # 检查打包结构、主程序和临时签名
-python3 Scripts/validate-ipa.py .build/release-assets/Bilibili-NEXT-0.1.4-iOS-self-sign.ipa
+python3 Scripts/validate-ipa.py .build/release-assets/Bilibili-NEXT-0.1.5-iOS-self-sign.ipa
 ```
 
-脚本在 `.build/ios-package.*` 保留归档与日志，默认不上传；IPA 只包含 `Payload/Bilibili NEXT.app`。打包后自动检查 ZIP 完整性、主程序、设备架构、资源和临时签名。不代表所有第三方签名工具都已实测。
+脚本在 `.build/ios-package.*` 保留归档与日志，默认不上传；0.1.5 起 IPA 只包含 `Payload/BilibiliNEXT.app`。打包后自动检查 ZIP 完整性、主程序、设备架构、资源和临时签名。不代表所有第三方签名工具都已实测。
 
 ## 当前范围
 

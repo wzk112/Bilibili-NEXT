@@ -18,9 +18,9 @@ struct LoadMoreFooter: View {
         ProgressView().controlSize(.small).accessibilityLabel("正在加载下一页")
       } else if let error {
         Text(error).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-        Button("重试本页", action: load).buttonStyle(.glass)
+        Button("重试本页", action: load).buttonStyle(.appGlassButton)
       } else if hasMore {
-        Button(title, action: load).buttonStyle(.glass)
+        Button(title, action: load).buttonStyle(.appGlassButton)
         if automatic { Text("向下滚动自动加载").font(.caption).foregroundStyle(.secondary) }
       } else if count > 0 {
         Text("已加载全部内容").font(.caption).foregroundStyle(.secondary)

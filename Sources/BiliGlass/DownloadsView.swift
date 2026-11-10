@@ -12,12 +12,12 @@ struct DownloadPage: View {
   }
   var body: some View {
     ScrollView {
-      GlassEffectContainer(spacing: 20) {
+      AppGlassContainer(spacing: 20) {
       LazyVStack(alignment: .leading, spacing: 20) {
         HStack {
           Text("下载").font(AppLayout.pageTitle)
           Spacer()
-          SettingsLink { Label("下载设置", systemImage: "gearshape") }.buttonStyle(.glass)
+          SettingsLink { Label("下载设置", systemImage: "gearshape") }.buttonStyle(.appGlassButton)
         }
         Picker("显示", selection: $filter) {
           Text("全部").tag(0)
@@ -64,7 +64,7 @@ struct DownloadPage: View {
               }.font(.caption).foregroundStyle(.secondary)
             }
             if job.cancelled || job.error != nil {
-              Button("继续") { store.downloads.retry(job, api: store.api) }.buttonStyle(.glass)
+              Button("继续") { store.downloads.retry(job, api: store.api) }.buttonStyle(.appGlassButton)
             } else {
               Button {
                 store.downloads.pause(job)
@@ -96,7 +96,7 @@ struct DownloadPage: View {
             if FileManager.default.fileExists(atPath: entry.path) {
               Button("播放") {
                 store.openSaved(entry)
-              }.buttonStyle(.glass)
+              }.buttonStyle(.appGlassButton)
               Button {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: entry.path)])
               } label: {

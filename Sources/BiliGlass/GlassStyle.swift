@@ -33,7 +33,7 @@ private struct GlassSurface: ViewModifier {
   @AppStorage("glassStyle") private var style = "clear"
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   func body(content: Content) -> some View {
-    content.glassEffect((style == "clear" && !reduceTransparency ? Glass.clear : Glass.regular)
+    content.appGlassEffect((style == "clear" && !reduceTransparency ? AppGlass.clear : AppGlass.regular)
       .tint(tint).interactive(interactive), in: .rect(cornerRadius: radius))
   }
 }

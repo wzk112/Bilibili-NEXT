@@ -55,9 +55,9 @@ struct GuidePage: Identifiable {
 }
 
 enum GuideContent {
-  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.4"
+  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.5"
   // Increment only when guide content changes, not on every build.
-  static let revision = "2026-11-03-release-1.1.4"
+  static let revision = "2026-11-10-release-1.1.5"
   static let tutorial: [GuidePage] = [
     .init(id: "account", title: "登录与账号", location: "左下角账号菜单", symbol: "person.crop.circle", paragraphs: [
       "点击“登录”，用哔哩哔哩 App 扫描二维码，并在手机上确认。同一次扫码会完成浏览与互动所需的登录，凭证保存在本机钥匙串。",
@@ -113,6 +113,19 @@ enum GuideContent {
       "使用指南和更新说明会在首次安装或对应版本首次打开时展示一次。之后可从“帮助”菜单或“设置 → 关于”重新打开。"], settingsTab: 0)
   ]
   static let currentUpdates: [GuidePage] = [
+    .init(id: "update-115-player", title: "Mac 播放与收藏夹修复", location: "macOS 1.1.5 · 2026-11-10", symbol: "play.rectangle", paragraphs: [
+      "切换收藏夹立即刷新，快速切换时保留最后一次选择的结果。播放器新增滚动小窗、系统画中画、音量与倍速快捷键。",
+      "全屏控件隐藏时隐藏指针，播放时防止显示器闲置休眠。HDR 按媒体实际传递函数呈现；可选择绕过 B 站域名的系统代理。"]),
+    .init(id: "update-115-catalog", title: "直播、追番与影视", location: "macOS 1.1.5 / iOS 0.1.5", symbol: "play.tv", paragraphs: [
+      "新增直播推荐、直播间号入口、番剧与影视分类目录、剧集选集和追剧管理。手机端从“放映厅”进入。",
+      "直播采用原生 HLS 播放，剧集复用原生播放器。账号、会员、地区和版权限制由服务端决定，受限时可在官网查看。"]),
+    .init(id: "update-115-system", title: "系统兼容与软件更新", location: "macOS 1.1.5", symbol: "arrow.down.circle", paragraphs: [
+      "最低系统扩展至 macOS 15；旧系统使用系统材质和标准按钮，macOS 26 继续使用 Liquid Glass。",
+      "在“设置 → 关于”检查更新，或开启自动检查、下载及退出时安装。更新包通过 Sparkle 签名验证。"], settingsTab: 4),
+    .init(id: "update-015-mobile", title: "边播放边看评论与全屏手势", location: "iOS 0.1.5", symbol: "hand.draw", paragraphs: [
+      "视频固定在播放页上方，简介与评论独立滚动。左边缘右滑返回，双击画面暂停或继续。",
+      "全屏左侧上下滑动调亮度、右侧调音量，中间下滑退出；左上角另有返回箭头。推荐页下拉加载更多，并保留手动刷新入口。",
+      "自签包使用不带空格的内部目录与可执行文件名，并转换为 XML 配置，改善第三方签名工具的导入兼容性。"]),
     .init(id: "update-114-danmaku", title: "弹幕补载与文字对比度", location: "macOS 1.1.4 · 2026-11-03", symbol: "text.bubble", paragraphs: [
       "Mac 与移动版补载普通弹幕时保留正在显示的文字，减少补载过程中弹幕突然消失或重新出现的情况。",
       "Mac 弹幕设置弹出面板使用清晰的文字和背景，在明亮视频画面及浅色外观下更容易阅读。"], settingsTab: 2),
@@ -241,7 +254,7 @@ struct FeatureGuideView: View {
         }
         if mode != .tutorial {
           Button(tutorial ? "查看更新说明" : "查看完整使用指南") { selected = 0; tutorial.toggle() }
-            .buttonStyle(.glass)
+            .buttonStyle(.appGlassButton)
         }
       }.padding(20).frame(width: 246).background(.regularMaterial)
       VStack(alignment: .leading, spacing: 20) {
@@ -252,7 +265,7 @@ struct FeatureGuideView: View {
                 Label("需要更新登录", systemImage: "person.crop.circle.badge.exclamationmark").font(.headline)
                 Text(reason.message)
                 Text("可以稍后处理。原登录会保留，扫码不会自动投币。").font(.callout).foregroundStyle(.secondary)
-                Button("重新登录") { close(); store.login() }.buttonStyle(.glassProminent)
+                Button("重新登录") { close(); store.login() }.buttonStyle(.appGlassProminent)
               }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
                 .background(biliPink.opacity(0.08), in: .rect(cornerRadius: 16))
             }
@@ -266,7 +279,7 @@ struct FeatureGuideView: View {
               Text(paragraph).font(.body).lineSpacing(6).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
             }
             if let tab = page.settingsTab {
-              Button("打开相关设置") { store.preferencesTab = tab; openSettings() }.buttonStyle(.glass)
+              Button("打开相关设置") { store.preferencesTab = tab; openSettings() }.buttonStyle(.appGlassButton)
             }
           }.padding(4).frame(maxWidth: .infinity, alignment: .leading)
         }.id("\(tutorial)-\(selected)")
@@ -275,9 +288,9 @@ struct FeatureGuideView: View {
           Text("\(selected + 1) / \(pages.count)").font(.callout).monospacedDigit().foregroundStyle(.secondary)
           Spacer()
           Button("上一页") { selected -= 1 }.disabled(selected == 0)
-          if selected + 1 < pages.count { Button("下一页") { selected += 1 }.buttonStyle(.glassProminent) }
+          if selected + 1 < pages.count { Button("下一页") { selected += 1 }.buttonStyle(.appGlassProminent) }
           Button(selected + 1 == pages.count ? "完成" : "关闭") { close() }.keyboardShortcut(.cancelAction)
-        }.buttonStyle(.glass)
+        }.buttonStyle(.appGlassButton)
       }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity)
     }.background(Color(nsColor: .windowBackgroundColor)).tint(biliPink).appAppearance()
   }

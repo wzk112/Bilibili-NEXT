@@ -70,10 +70,10 @@ struct MobileActionBar: View {
               Button("重新登录") { store.login() }
             }
             Link("在网页打开", destination: VideoShareLink.make(bvid: detail.video.bvid, page: 1, seconds: nil))
-          }.font(.caption).buttonStyle(.glass).disabled(model.loading || model.operation != nil)
+          }.font(.caption).buttonStyle(.appGlassButton).disabled(model.loading || model.operation != nil)
         }
       } else if model.notice != nil && model.relation == nil {
-        Button("刷新状态") { Task { await refresh() } }.buttonStyle(.glass)
+        Button("刷新状态") { Task { await refresh() } }.buttonStyle(.appGlassButton)
       }
     }.onChange(of: identity) { tripleProgress = 0 }
       .onChange(of: scenePhase) { if scenePhase != .active { tripleProgress = 0 } }

@@ -17,7 +17,7 @@ import SwiftUI
   override init() {
     super.init()
     videoLayer.videoGravity = .resizeAspect
-    videoLayer.preferredDynamicRange = .automatic
+    if #available(macOS 26, *) { videoLayer.preferredDynamicRange = .automatic }
   }
 
   func prepare() {

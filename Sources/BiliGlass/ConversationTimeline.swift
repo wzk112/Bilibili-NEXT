@@ -19,7 +19,7 @@ struct ConversationTimeline<Content: View>: View {
           Button("更早的消息") {
             prepend = (inbox.messages.first?.id, geometry.height, geometry.offset)
             Task { await inbox.loadMessages(api: store.api, older: true) }
-          }.buttonStyle(.glass).disabled(inbox.loadingMessages)
+          }.buttonStyle(.appGlassButton).disabled(inbox.loadingMessages)
         }
         ForEach(inbox.messages) { message in bubble(message).id(message.id) }
         Color.clear.frame(height: 1).id("bottom")

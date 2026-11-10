@@ -27,11 +27,11 @@ struct MiniPlayer: View {
           .disabled(store.playback.player.currentItem == nil)
         Spacer()
         Button(action: onReturn ?? store.returnToPlayer) { Label(returnLabel, systemImage: "arrow.up.left.square") }
-      }.buttonStyle(.glass)
+      }.buttonStyle(.appGlassButton)
     }.padding(12).frame(width: 324).foregroundStyle(.primary)
       // Regular glass blurs text underneath while retaining background color
       // and native refraction. An opaque backplate would lose that transparency.
-      .glassEffect(.regular, in: .rect(cornerRadius: 22))
+      .appGlassEffect(.regular, in: .rect(cornerRadius: 22))
       .accessibilityElement(children: .contain).accessibilityLabel("迷你播放器")
   }
 }
@@ -42,7 +42,8 @@ private struct MiniPlayerVideo: NSViewRepresentable {
   func makeNSView(context: Context) -> AVPlayerView {
     let view = AVPlayerView(frame: .zero)
     view.controlsStyle = .none; view.allowsVideoFrameAnalysis = false
-    view.videoGravity = .resizeAspect; view.preferredDisplayDynamicRange = .automatic
+    view.videoGravity = .resizeAspect
+    if #available(macOS 26, *) { view.preferredDisplayDynamicRange = .automatic }
     view.player = playback.player
     return view
   }

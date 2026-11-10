@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import plistlib
+import re
 import stat
 import struct
 import subprocess
@@ -12,7 +13,7 @@ import tempfile
 import zipfile
 
 
-def validate(path, allow_unsigned=False):
+def validate(path, allow_unsigned=False, portable=False):
     path = Path(path)
     with zipfile.ZipFile(path) as archive:
         entries = archive.infolist()
@@ -31,6 +32,10 @@ def validate(path, allow_unsigned=False):
         for key in ['CFBundleIdentifier', 'CFBundleExecutable', 'CFBundleShortVersionString', 'CFBundleVersion']:
             assert isinstance(info.get(key), str) and info[key] and '$(' not in info[key], 'Missing or unresolved ' + key
         executable = info['CFBundleExecutable']
+        if portable:
+            assert re.fullmatch(r'[A-Za-z0-9_.-]+\.app', next(iter(apps))), 'Nonportable app directory'
+            assert re.fullmatch(r'[A-Za-z0-9_.-]+', executable), 'Nonportable executable name'
+            assert archive.read(root + 'Info.plist').startswith(b'<?xml'), 'Portable package requires XML Info.plist'
         assert executable == PurePosixPath(executable).name and executable not in ['.', '..'], 'Invalid executable name'
         assert info.get('CFBundlePackageType') == 'APPL', 'Not an application'
         assert info.get('CFBundleSupportedPlatforms') == ['iPhoneOS'], 'Not an iOS device build'
@@ -83,8 +88,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('ipa', type=Path)
     parser.add_argument('--allow-unsigned', action='store_true', help='Inspect older packages without a signature structure')
+    parser.add_argument('--portable', action='store_true', help='Require ASCII bundle paths and XML Info.plist for third-party importers')
     args = parser.parse_args()
     try:
-        print(json.dumps(validate(args.ipa, args.allow_unsigned), indent=2, ensure_ascii=False))
+        print(json.dumps(validate(args.ipa, args.allow_unsigned, args.portable), indent=2, ensure_ascii=False))
     except (AssertionError, KeyError, ValueError, OSError, struct.error, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         parser.exit(1, 'IPA validation failed: ' + str(error) + '\n')

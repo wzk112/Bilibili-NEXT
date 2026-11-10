@@ -65,7 +65,7 @@ struct PlaybackSequenceTests {
     let preferences = BrowsePreferences(defaults: defaults)
     #expect(preferences.visible.prefix(3) == [.downloads, .messages, .history])
     #expect(Set(preferences.order).count == preferences.order.count)
-    #expect(preferences.phoneTabs == [3, 2, 4])
+    #expect(preferences.phoneTabs == [3, 2, 0, 4])
     #expect(preferences.resolvedStart == .history)
     defaults.set("recommend,popular,regions,dynamic,history,favorites,later,profile", forKey: "hiddenNavigationItems")
     #expect(BrowsePreferences(defaults: defaults).resolvedStart == .downloads)

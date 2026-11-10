@@ -25,6 +25,7 @@ struct Video: Identifiable, Codable, Hashable {
   var ownerID: Int? = nil
   var progress: Int? = nil
   var recommendationTrackID: String? = nil
+  var episodeID: Int? = nil
   static func deduplicated(_ videos: [Video], excluding: Set<String> = []) -> [Video] {
     var seen = excluding
     return videos.filter { seen.insert($0.id).inserted }
@@ -167,6 +168,9 @@ final class Vault {
   var session: URLSession { injectedSession ?? networkSession.session }
   var cookies: [String: String] = [:]
   var appCoinAuthorization: AppCoinAuthorization?
+  let catalogDefaults: UserDefaults
+  var catalogEpisodes: [String: Int] = [:]
+  var catalogDetails: [String: Detail] = [:]
   private var wbiKey: String?
   private var navigationTask: (id: UUID, task: Task<[String: Any], Error>)?
   var authenticationGeneration = UUID()
@@ -178,8 +182,9 @@ final class Vault {
   private var legacyAuthorizationAccount: String {
     credentialAccount == "cookies" ? AppCoinAuthorization.vaultAccount : credentialAccount + ".legacy-authorization"
   }
-  init(loadCredentials: Bool = true, transport: URLSession? = nil, credentialAccount: String = "cookies") {
+  init(loadCredentials: Bool = true, transport: URLSession? = nil, credentialAccount: String = "cookies", catalogDefaults: UserDefaults = .standard) {
     self.credentialAccount = credentialAccount
+    self.catalogDefaults = catalogDefaults
     let c = URLSessionConfiguration.ephemeral
     c.httpCookieStorage = nil
     c.httpShouldSetCookies = false
@@ -267,7 +272,7 @@ final class Vault {
       if let key = wbiKey { params = Self.sign(params, key: key) }
     }
     let host =
-      path.hasPrefix("/x/passport") ? "https://passport.bilibili.com" : "https://api.bilibili.com"
+      path.hasPrefix("/x/passport") ? "https://passport.bilibili.com" : (path.hasPrefix("/xlive/") || path.hasPrefix("/room/v1/Room/") || path.hasPrefix("/live_user/")) ? "https://api.live.bilibili.com" : "https://api.bilibili.com"
     var u = URLComponents(string: host + path)!
     u.queryItems = params.sorted { $0.key < $1.key }.map {
       URLQueryItem(name: $0.key, value: $0.value)
@@ -275,6 +280,9 @@ final class Vault {
     var req = URLRequest(url: u.url!)
     req.setValue("application/json", forHTTPHeaderField: "Accept")
     API.mediaHeaders.forEach { req.setValue($1, forHTTPHeaderField: $0) }
+    if host == "https://api.live.bilibili.com" {
+      req.setValue("https://live.bilibili.com/" + (params["room_id"] ?? params["id"] ?? ""), forHTTPHeaderField: "Referer")
+    }
     if let bvid = params["bvid"] {
       req.setValue("https://www.bilibili.com/video/" + bvid + "/", forHTTPHeaderField: "Referer")
     }
@@ -433,6 +441,11 @@ final class Vault {
     return (d["result"] as? [[String: Any]] ?? []).compactMap(Video.parse)
   }
   func detail(_ bvid: String) async throws -> Detail {
+    if let detail = catalogDetails[bvid] { return detail }
+    if let id = (catalogDefaults.dictionary(forKey: "catalogEpisodeIDs") as? [String: Int])?[bvid] {
+      _ = try await catalogSeason(id, episode: true)
+      if let detail = catalogDetails[bvid] { return detail }
+    }
     let d = try await request("/x/web-interface/wbi/view", ["bvid": bvid], signed: true)
     guard let video = Video.parse(d) else { throw BiliError(text: "视频不可用") }
     return Detail(
@@ -446,6 +459,11 @@ final class Vault {
       counts: VideoCounts(d["stat"] as? [String: Any] ?? [:]), collection: VideoCollection.parse(d["ugc_season"]))
   }
   func streams(bvid: String, cid: Int, quality: Int = 127) async throws -> Streams {
+    if let episode = catalogEpisodes[bvid] {
+      let data = try await request("/pgc/player/web/playurl", ["ep_id": String(episode), "cid": String(cid),
+        "qn": String(quality), "fnval": "4048", "fnver": "0", "fourk": "1"])
+      return try Self.parseStreams(data)
+    }
     let d = try await request(
       "/x/player/playurl",
       [
@@ -553,7 +571,9 @@ final class Vault {
   static func dynamicRange(_ j: [String: Any]) -> VideoDynamicRange {
     let transfer = j["color_transfer"] as? Int ?? j["transfer_characteristics"] as? Int
     if transfer == 18 { return .hlg }
-    if transfer == 16 || [125, 126].contains(j["id"] as? Int ?? 0) { return .pq }
+    if transfer == 16 { return .pq }
+    if [1, 6, 7, 13, 14, 15].contains(transfer ?? -1) { return .sdr }
+    if [125, 126].contains(j["id"] as? Int ?? 0) { return .pq }
     return .sdr
   }
   static func videoCandidates(_ videos: [MediaRepresentation], quality: Int,

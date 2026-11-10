@@ -4,6 +4,7 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
   private var memoryPressure: DispatchSourceMemoryPressure?
   func applicationDidFinishLaunching(_ notification: Notification) {
     PlaybackTemporaryFiles.cleanup()
+    AppUpdater.shared.start()
     // Explicitly load the current resource for the running Dock tile; older
     // locally replaced bundles may still have a cached LaunchServices icon.
     if let iconURL = Bundle.main.url(forResource: "AppIcon-Flat", withExtension: "icns") {
@@ -30,6 +31,9 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
       .windowStyle(.hiddenTitleBar)
       .commands {
         CommandGroup(replacing: .newItem) {}
+        CommandGroup(after: .appInfo) {
+          Button("检查更新…") { AppUpdater.shared.check() }.disabled(!AppUpdater.shared.canCheck)
+        }
         CommandGroup(replacing: .help) {
           Button("使用指南") { store.guide.show(.tutorial) }
           Button("更新说明") { store.guide.show(.update(previous: nil)) }

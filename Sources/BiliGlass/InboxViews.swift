@@ -26,7 +26,7 @@ struct NativeInboxPage: View {
         ContentUnavailableView {
           Label("登录后查看消息", systemImage: "envelope")
         } actions: {
-          Button("登录") { store.login() }.buttonStyle(.glass)
+          Button("登录") { store.login() }.buttonStyle(.appGlassButton)
         }
       } else if [1, 2, 3].contains(tab) {
         NativeNotificationsPage(store: store, kind: tab)
@@ -101,7 +101,7 @@ struct NativeInboxPage: View {
           } else if inbox.hasMore {
             Button("加载更多会话") {
               Task { await inbox.load(api: store.api, more: true, systemOnly: tab == 4) }
-            }.buttonStyle(.glass).padding(12)
+            }.buttonStyle(.appGlassButton).padding(12)
           }
         }.padding(.horizontal, 8).padding(.bottom, 12)
       }
@@ -127,7 +127,7 @@ struct NativeInboxPage: View {
             Task { await inbox.loadMessages(api: store.api) }
           } label: {
             Image(systemName: "arrow.clockwise")
-          }.buttonStyle(.glass).help("刷新会话")
+          }.buttonStyle(.appGlassButton).help("刷新会话")
         }.padding(16)
         Divider().padding(.horizontal, 16)
         ConversationTimeline(store: store) { message in
@@ -140,17 +140,17 @@ struct NativeInboxPage: View {
             Button("验证登录") {
               store.webTarget = WebTarget(
                 url: URL(string: "https://message.bilibili.com/#/whisper")!, title: "消息验证")
-            }.buttonStyle(.glass)
+            }.buttonStyle(.appGlassButton)
           }.padding(12)
         }
         Divider().padding(.horizontal, 16)
         HStack {
           EmojiPicker(api: store.api) { emote in inbox.emotes[emote.token] = emote; inbox.drafts[selected.id, default: ""] += emote.token }
-          Button { if let url = ImageAttachment.choose().first { imageDrafts[selected.id] = url } } label: { Image(systemName: "photo.badge.plus") }.buttonStyle(.glass).help("发送图片").accessibilityLabel("添加私信图片")
+          Button { if let url = ImageAttachment.choose().first { imageDrafts[selected.id] = url } } label: { Image(systemName: "photo.badge.plus") }.buttonStyle(.appGlassButton).help("发送图片").accessibilityLabel("添加私信图片")
           if let image = imageDrafts[selected.id] {
             Text(image.lastPathComponent).font(.caption).lineLimit(1)
             Button("取消图片") { imageDrafts[selected.id] = nil }.buttonStyle(.plain)
-            Button("发送图片") { Task { if let account = store.account, await inbox.sendImage(image, api: store.api, account: account) { imageDrafts[selected.id] = nil } } }.buttonStyle(.glassProminent)
+            Button("发送图片") { Task { if let account = store.account, await inbox.sendImage(image, api: store.api, account: account) { imageDrafts[selected.id] = nil } } }.buttonStyle(.appGlassProminent)
           }
           Spacer()
         }.padding(.horizontal, 14).padding(.top, 10).disabled(inbox.sending)
@@ -167,7 +167,7 @@ struct NativeInboxPage: View {
               Task { await inbox.send(api: store.api, account: account) }
             }
           }
-          .buttonStyle(.glassProminent).disabled(
+          .buttonStyle(.appGlassProminent).disabled(
             inbox.sending
               || (inbox.drafts[selected.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty
@@ -207,7 +207,7 @@ struct NativeInboxPage: View {
           message.retracted ? .secondary : .primary
         ).fixedSize(horizontal: false, vertical: true)
         if let bvid = message.video {
-          Button("播放视频") { store.open(bvid) }.buttonStyle(.glass)
+          Button("播放视频") { store.open(bvid) }.buttonStyle(.appGlassButton)
         } else if let link = message.link, message.image == nil {
           Link("查看详情", destination: link).font(.caption)
         }
@@ -286,7 +286,7 @@ struct NativeNotificationsPage: View {
         if loading {
           ProgressView().frame(maxWidth: .infinity).padding(20)
         } else if hasMore {
-          Button("加载更多") { Task { await load(reset: false) } }.buttonStyle(.glass).frame(
+          Button("加载更多") { Task { await load(reset: false) } }.buttonStyle(.appGlassButton).frame(
             maxWidth: .infinity)
         } else if rows.isEmpty && error == nil {
           ContentUnavailableView("暂无消息", systemImage: "bell").frame(maxWidth: .infinity)
@@ -382,14 +382,14 @@ struct NativeNoticeComment: View {
                 if comments.childHasMore[root.id] != false {
                   Button(comments.childLoading.contains(root.id) ? "加载中" : "加载更多回复") {
                     Task { await comments.children(root, aid: target.oid, api: store.api, pageSize: 49) }
-                  }.disabled(comments.childLoading.contains(root.id)).buttonStyle(.glass)
+                  }.disabled(comments.childLoading.contains(root.id)).buttonStyle(.appGlassButton)
                 }
               }
             }
             CommentSubmissionReceipt(comments: comments).id("submission")
             if let error = comments.error { ErrorBanner(text: error) { retry += 1 } }
             if let url = notice.originalPageURL {
-              Button("查看原页面") { originalPage = WebTarget(url: url, title: "原页面") }.buttonStyle(.glass)
+              Button("查看原页面") { originalPage = WebTarget(url: url, title: "原页面") }.buttonStyle(.appGlassButton)
             }
           }.padding(4)
         }.onChange(of: comments.sending) {

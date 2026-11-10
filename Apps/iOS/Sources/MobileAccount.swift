@@ -249,17 +249,17 @@ struct MobileLogin: View {
               Image(decorative: image, scale: 1).interpolation(.none).resizable().scaledToFit()
                 .padding(16).opacity(store.loginExpired ? 0.15 : 1)
             } else if !store.loginExpired { ProgressView() }
-            if store.loginExpired { Button("刷新二维码") { store.refreshQR() }.buttonStyle(.glass) }
+            if store.loginExpired { Button("刷新二维码") { store.refreshQR() }.buttonStyle(.appGlassButton) }
           }.frame(width: 220, height: 220).accessibilityIdentifier("login-qr")
           Text(store.loginStatus).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
             .accessibilityIdentifier("login-status")
           Button(saving ? "正在保存…" : "保存二维码到相册") { Task { await saveQR() } }
-            .buttonStyle(.glassProminent).disabled(store.qrImage == nil || store.loginExpired || saving)
+            .buttonStyle(.appGlassProminent).disabled(store.qrImage == nil || store.loginExpired || saving)
           if let saveMessage { Text(saveMessage).font(.caption).foregroundStyle(.secondary) }
           Text("登录信息仅保存在本机钥匙串。取消后保留原登录。").font(.caption).foregroundStyle(.secondary)
           DisclosureGroup("其他登录方式") {
             VStack(spacing: 12) {
-              Button("使用网页登录") { store.closeLogin(); web = true }.buttonStyle(.glass)
+              Button("使用网页登录") { store.closeLogin(); web = true }.buttonStyle(.appGlassButton)
               Text("网页登录使用网页投币通道；如遇非法访问，请使用上方扫码登录获取客户端授权。")
                 .font(.caption).foregroundStyle(.secondary)
             }.padding(.top, 12)
@@ -549,7 +549,7 @@ struct MobileProfile: View {
             }
             if mid != store.account?.mid {
               Button(p.isFollowed ? "已关注" : "关注") { Task { await follow(p) } }
-                .buttonStyle(.glass).disabled(changing)
+                .buttonStyle(.appGlassButton).disabled(changing)
             }
           }.frame(maxWidth: .infinity).padding(.vertical, 12)
         }
@@ -568,7 +568,7 @@ struct MobileProfile: View {
         }
         if videos.hasMore && !videos.loading && !videos.items.isEmpty {
           Button("加载更多投稿") { Task { await loadVideos() } }
-            .buttonStyle(.glass).frame(maxWidth: .infinity)
+            .buttonStyle(.appGlassButton).frame(maxWidth: .infinity)
         }
       }.padding(16)
     }.navigationTitle(profile?.name ?? "个人主页").navigationBarTitleDisplayMode(.inline)

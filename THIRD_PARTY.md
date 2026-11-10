@@ -28,3 +28,11 @@ References consulted, no code copied:
 - AVPlayer fast-forward behavior and I-frame fallback: https://developer.apple.com/library/archive/qa/qa1772/_index.html
 
 This is an unofficial client. Bilibili names, videos, thumbnails and account data belong to their respective owners.
+
+## Sparkle
+
+macOS automatic updates use [Sparkle 2.9.6](https://github.com/sparkle-project/Sparkle), BSD-2-Clause. Its bundled license and third-party notices are retained in Contents/Resources/Sparkle-LICENSE.txt. Update archives are verified with EdDSA signatures; the private signing key remains in the release maintainer's Keychain under account `BilibiliNEXT`.
+
+The shared package now targets macOS 15. Native Liquid Glass and explicit AVKit dynamic-range preferences are guarded on older macOS versions.
+
+Live catalog, HLS, room metadata and websocket packet layouts are protocol references from the community API documentation and [BiliKit's current websocket notes](https://github.com/streetartist/BiliKit/blob/main/Bilibili-Live-API-master/API.WebSocket.md). The Swift implementation is independent; it requests zlib protocol v2 and uses the system zlib library. No implementation from those references is bundled.

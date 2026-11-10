@@ -12,7 +12,7 @@ import SwiftUI
     var completed = false
     var failure: String?
     let coordinator = OfficialChallengeCoordinator(api: api, challenge: challenge, completed: { completed = true },
-      error: Binding(get: { failure }, set: { failure = $0 }))
+      error: Binding(get: { failure }, set: { failure = $0 }), webSession: WebSession())
     let view = coordinator.makeView()
     defer { coordinator.stop(view) }
     for _ in 0..<100 {
@@ -37,7 +37,7 @@ import SwiftUI
     var completed = false
     var failure: String?
     let coordinator = OfficialChallengeCoordinator(api: api, challenge: challenge, completed: { completed = true },
-      error: Binding(get: { failure }, set: { failure = $0 }))
+      error: Binding(get: { failure }, set: { failure = $0 }), webSession: WebSession())
     let view = coordinator.makeView()
     defer { coordinator.stop(view) }
     for _ in 0..<100 {

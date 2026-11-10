@@ -115,12 +115,12 @@ struct NativeDynamicsPage: View {
         HStack {
           Text(mid == nil ? "关注动态" : "动态").font(.title2.bold())
           Spacer()
-          Button("发布动态") { composing = true }.buttonStyle(.glass).disabled(store.account == nil)
+          Button("发布动态") { composing = true }.buttonStyle(.appGlassButton).disabled(store.account == nil)
           Button {
             Task { await load(reset: true) }
           } label: {
             Image(systemName: "arrow.clockwise")
-          }.buttonStyle(.glass).disabled(loading).help("刷新动态")
+          }.buttonStyle(.appGlassButton).disabled(loading).help("刷新动态")
         }.padding(16).floatingGlass(22).contentShape(.rect(cornerRadius: 22))
         Picker("动态类型", selection: $filter) {
           ForEach(NativeDynamicFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
@@ -248,7 +248,7 @@ struct NativeDynamicDetail: View {
       HStack {
         Text("动态").font(.headline)
         Spacer()
-        Button("完成") { dismiss() }.buttonStyle(.glass)
+        Button("完成") { dismiss() }.buttonStyle(.appGlassButton)
       }.padding(16)
       ScrollView {
         VStack(alignment: .leading, spacing: 22) {
@@ -298,7 +298,7 @@ struct NativeRelationsPage: View {
         if loading {
           ProgressView().frame(maxWidth: .infinity)
         } else if hasMore {
-          Button("加载更多") { Task { await load() } }.buttonStyle(.glass).frame(maxWidth: .infinity)
+          Button("加载更多") { Task { await load() } }.buttonStyle(.appGlassButton).frame(maxWidth: .infinity)
         }
       }.padding(AppLayout.pageInset)
     }.task { await load() }
@@ -371,7 +371,7 @@ struct NativeCollectionsPage: View {
         } else if rows.isEmpty && error == nil {
           ContentUnavailableView("暂无合集", systemImage: "square.stack").frame(maxWidth: .infinity)
         } else if hasMore {
-          Button("加载更多") { Task { await load() } }.buttonStyle(.glass).frame(maxWidth: .infinity)
+          Button("加载更多") { Task { await load() } }.buttonStyle(.appGlassButton).frame(maxWidth: .infinity)
         }
       }.padding(AppLayout.pageInset)
     }.task { await load() }.sheet(item: $selected) { collection in
@@ -424,7 +424,7 @@ struct NativeCollectionVideos: View {
       HStack {
         Text(collection.title).font(.title2.bold())
         Spacer()
-        Button("完成") { dismiss() }.buttonStyle(.glass)
+        Button("完成") { dismiss() }.buttonStyle(.appGlassButton)
       }.padding(20)
       ScrollView {
         LazyVStack(spacing: 20) {
@@ -443,7 +443,7 @@ struct NativeCollectionVideos: View {
           if loading {
             ProgressView()
           } else if hasMore {
-            Button("加载更多") { Task { await load() } }.buttonStyle(.glass)
+            Button("加载更多") { Task { await load() } }.buttonStyle(.appGlassButton)
           }
         }.padding(20)
       }
@@ -505,10 +505,10 @@ struct NativeAccountPage: View {
           LabeledContent("硬币", value: (details["money"] as? Double ?? 0).formatted())
           LabeledContent("大会员", value: (details["vipStatus"] as? Int ?? 0) == 1 ? "已开通" : "未开通")
         }
-        SettingsLink { Label("应用设置", systemImage: "gearshape") }.buttonStyle(.glass)
+        SettingsLink { Label("应用设置", systemImage: "gearshape") }.buttonStyle(.appGlassButton)
         Link("管理哔哩哔哩账户", destination: URL(string: "https://account.bilibili.com/account/home")!)
           .font(.callout)
-        Button("退出登录", role: .destructive) { store.logout() }.buttonStyle(.glass)
+        Button("退出登录", role: .destructive) { store.logout() }.buttonStyle(.appGlassButton)
       }
       Spacer(minLength: 0)
     }.padding(24).floatingGlass(24).task {

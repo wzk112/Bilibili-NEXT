@@ -47,7 +47,7 @@ struct OfficialWebPanel: View {
         Text(target.title).font(.headline)
         Spacer()
         if state.loading { ProgressView().controlSize(.small) }
-        Button("重新加载") { state.webView?.reload() }.buttonStyle(.glass)
+        Button("重新加载") { state.webView?.reload() }.buttonStyle(.appGlassButton)
       }.padding(14)
       if let error = state.error {
         ErrorBanner(text: error) { state.webView?.reload() }.padding(12)

@@ -259,7 +259,7 @@ struct PlaybackFeatureControls: View {
       }.disabled(!pictureInPicture.isPossible && !pictureInPicture.isPresented)
         .help(pictureInPicture.isPresented ? "退出画中画" : "画中画")
       if let error = store.extras.subtitleError { Text(error).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
-    }.buttonStyle(.glass)
+    }.buttonStyle(.appGlassButton)
   }
 }
 struct VideoDiscovery: View {
@@ -267,7 +267,7 @@ struct VideoDiscovery: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       if !store.extras.tags.isEmpty {
-        ScrollView(.horizontal) { HStack { ForEach(store.extras.tags) { tag in Button(tag.title) { store.query = tag.title; store.search() }.buttonStyle(.glass) } } }
+        ScrollView(.horizontal) { HStack { ForEach(store.extras.tags) { tag in Button(tag.title) { store.query = tag.title; store.search() }.buttonStyle(.appGlassButton) } } }
       }
       let parts = PlaybackSequence.parts(store.playback.detail)
       if !parts.isEmpty { sequence("分 P · \(parts.count) P", items: parts, parts: true) }
@@ -292,7 +292,7 @@ struct VideoDiscovery: View {
     VStack(alignment: .leading, spacing: 10) {
       Label(title, systemImage: parts ? "rectangle.split.3x1" : "rectangle.stack").font(.headline)
       ScrollView(.horizontal) {
-        GlassEffectContainer(spacing: 10) {
+        AppGlassContainer(spacing: 10) {
           LazyHStack(spacing: 10) {
             ForEach(items) { item in
               let current = item.bvid == store.playback.detail?.video.bvid
@@ -306,7 +306,7 @@ struct VideoDiscovery: View {
                   .padding(.horizontal, 12).padding(.vertical, 8).foregroundStyle(.primary)
                   .contentShape(.rect(cornerRadius: 12))
               }.buttonStyle(InterfacePressStyle())
-                .glassEffect(.regular.tint(current ? biliPink.opacity(0.22) : .clear).interactive(),
+                .appGlassEffect(.regular.tint(current ? biliPink.opacity(0.22) : .clear).interactive(),
                   in: .rect(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(current ? biliPink.opacity(0.7) : .clear, lineWidth: 1))
                 .accessibilityAddTraits(current ? .isSelected : [])

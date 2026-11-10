@@ -59,7 +59,7 @@ import os
     }
   }
 }
-private struct MobilePlayerWindowReader: UIViewControllerRepresentable {
+struct MobilePlayerWindowReader: UIViewControllerRepresentable {
   let orientation: MobilePlayerOrientation
   var requestLandscape = false
   final class WindowController: UIViewController {
@@ -199,9 +199,9 @@ struct MobileVideoSurface: View {
     ZStack {
       MobileNativePlayer(store: store, pip: pip, fullscreen: fullscreen, onSwipeDown: {
         if fullscreen { toggleFullscreen() } else { store.returnFromPlayer() }
-      })
+      }, onSingleTap: { visible.toggle() })
         .ignoresSafeArea(edges: fullscreen ? .all : [])
-        .onTapGesture { visible.toggle() }
+
       if visible {
         VStack(spacing: 0) {
           LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom)
@@ -212,6 +212,11 @@ struct MobileVideoSurface: View {
         }.ignoresSafeArea(edges: fullscreen ? .all : []).allowsHitTesting(false)
         VStack(spacing: 0) {
           HStack(spacing: fullscreen ? 24 : 16) {
+            if fullscreen {
+              Button(action: toggleFullscreen) {
+                Image(systemName: "chevron.left").frame(width: 44, height: 44).contentShape(.rect)
+              }.accessibilityLabel("返回播放页").accessibilityIdentifier("player-fullscreen-back")
+            }
             Menu {
               if let streams = store.playback.streams {
                 ForEach(Array(Set(streams.videos.map(\.id))).sorted(by: >), id: \.self) { quality in
@@ -292,6 +297,7 @@ struct MobileVideoSurface: View {
         if !seeking { position = store.playback.positionSeconds.isFinite ? min(max(0, store.playback.positionSeconds), max(1, duration)) : 0 }
       }
       .onChange(of: scenePhase) { if scenePhase != .active { store.playback.endTemporarySpeed() } }
+      .onChange(of: store.playback.isPlaying) { if !store.playback.isPlaying { visible = true } }
       .sheet(isPresented: $settings) { MobileDanmakuSettings() }
   }
 }

@@ -37,6 +37,7 @@ private enum TabletDestination: String, CaseIterable, Identifiable {
   case recommend = "推荐"
   case popular = "热门"
   case regions = "分区"
+  case live = "直播", bangumi = "追番", cinema = "影视"
   case dynamic = "关注动态"
   case messages = "消息"
   case history = "观看记录"
@@ -52,6 +53,9 @@ private enum TabletDestination: String, CaseIterable, Identifiable {
     case .recommend: "house"
     case .popular: "flame"
     case .regions: "square.grid.2x2"
+    case .live: "dot.radiowaves.left.and.right"
+    case .bangumi: "sparkles.tv"
+    case .cinema: "film"
     case .dynamic: "person.2"
     case .messages: "bubble.left.and.bubble.right"
     case .history: "clock"
@@ -111,7 +115,7 @@ struct MobileTabletRoot: View {
               if store.isPlaybackOpen && !store.showPlayer {
                 MobileMiniPlayer(store: store)
                   .padding(8).frame(maxWidth: expanded ? 420 : .infinity)
-                  .glassEffect(.regular, in: .rect(cornerRadius: 22))
+                  .appGlassEffect(.regular, in: .rect(cornerRadius: 22))
                   .padding(12).interfaceTransition(mini: true)
               }
             }.interfaceAnimation(store.isPlaybackOpen && !store.showPlayer)
@@ -171,7 +175,7 @@ struct MobileTabletRoot: View {
         Text("Bilibili NEXT").font(.headline)
         Spacer(minLength: 0)
       }.padding(.horizontal, 18).frame(height: 68)
-        .glassEffect(.regular, in: .rect(cornerRadius: 24)).padding(.horizontal, 8)
+        .appGlassEffect(.regular, in: .rect(cornerRadius: 24)).padding(.horizontal, 8)
       // Glass backgrounds remain outside every scroll viewport, so their
       // shadows are never flattened/cropped into a rectangular tint.
       ViewThatFits(in: .vertical) {
@@ -197,7 +201,7 @@ struct MobileTabletRoot: View {
             .font(.subheadline).lineLimit(1)
           Spacer(minLength: 0)
         }.padding(.horizontal, 14).frame(minHeight: 58)
-      }.buttonStyle(.plain).glassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
+      }.buttonStyle(.plain).appGlassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
         .padding(.horizontal, 8)
         .disabled(store.restoring && store.account == nil)
         .accessibilityIdentifier("tablet-account")
@@ -208,7 +212,7 @@ struct MobileTabletRoot: View {
     let pages = navigation.preferences.visible
     let browse = pages.filter(\.isBrowse).compactMap { TabletDestination(rawValue: $0.title) }
     let library = pages.filter { !$0.isBrowse }.compactMap { TabletDestination(rawValue: $0.title) }
-    return GlassEffectContainer(spacing: 16) {
+    return AppGlassContainer(spacing: 16) {
       VStack(spacing: 16) {
         if !browse.isEmpty { group("浏览", key: "browse", items: browse, scrolling: scrolling) }
         if !library.isEmpty { group("资料库", key: "library", items: library, scrolling: scrolling) }
@@ -226,7 +230,7 @@ struct MobileTabletRoot: View {
         }.scrollIndicators(.hidden).scrollEdgeEffectHidden()
           .accessibilityIdentifier("tablet-navigation-scroll-" + key)
       } else { navigationRows(items) }
-    }.padding(12).glassEffect(.regular, in: .rect(cornerRadius: 24))
+    }.padding(12).appGlassEffect(.regular, in: .rect(cornerRadius: 24))
   }
 
   private func navigationRows(_ items: [TabletDestination]) -> some View {
@@ -277,7 +281,7 @@ struct MobileTabletRoot: View {
         Image(systemName: "gearshape").frame(width: 44, height: 44)
       }.accessibilityLabel("设置").accessibilityIdentifier("tablet-settings")
     }.padding(.horizontal, 12).frame(minHeight: 68)
-      .glassEffect(.regular, in: .rect(cornerRadius: 24))
+      .appGlassEffect(.regular, in: .rect(cornerRadius: 24))
   }
 
   @ViewBuilder private var destination: some View {
@@ -285,6 +289,9 @@ struct MobileTabletRoot: View {
     case .recommend: MobileHome(store: store, destination: 0)
     case .popular: MobileHome(store: store, destination: 1)
     case .regions: MobileHome(store: store, destination: 2)
+    case .live: CatalogPage(store: store, kind: .live)
+    case .bangumi: CatalogPage(store: store, kind: .bangumi)
+    case .cinema: CatalogPage(store: store, kind: .cinema)
     case .dynamic: MobileDynamics(store: store)
     case .messages: MobileInbox(store: store)
     case .history: MobileHistory(store: store)

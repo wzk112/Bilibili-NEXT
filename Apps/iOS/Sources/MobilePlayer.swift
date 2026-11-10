@@ -1,6 +1,7 @@
 import AVKit
 import SwiftUI
 import UIKit
+import MediaPlayer
 
 @MainActor @Observable final class MobilePiPSession {
   var controller: AVPictureInPictureController?
@@ -28,6 +29,7 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
   var pip: MobilePiPSession? = nil
   var fullscreen = false
   var onSwipeDown: (() -> Void)? = nil
+  var onSingleTap: (() -> Void)? = nil
   @AppStorage("danmakuEnabled") private var enabled = true
   @AppStorage("danmakuOpacity") private var opacity = 0.85
   @AppStorage("danmakuScale") private var scale = 1.0
@@ -49,8 +51,17 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
     pan.maximumNumberOfTouches = 1
     pan.delegate = context.coordinator
     surface.addGestureRecognizer(pan)
+    let doubleTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.doubleTap))
+    doubleTap.numberOfTapsRequired = 2
+    let singleTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.singleTap))
+    singleTap.require(toFail: doubleTap)
+    surface.addGestureRecognizer(doubleTap)
+    surface.addGestureRecognizer(singleTap)
+    surface.addSubview(context.coordinator.volumeView)
     context.coordinator.onSwipeDown = onSwipeDown
-    surface.accessibilityHint = "横向拖动调整进度，向下滑动返回，长按临时加速"
+    context.coordinator.onSingleTap = onSingleTap
+    context.coordinator.fullscreen = fullscreen
+    surface.accessibilityHint = "双击播放或暂停，横向拖动调整进度，全屏左侧滑动调亮度、右侧调音量，中间下滑返回，长按临时加速"
     surface.accessibilityIdentifier = "video-player"
     context.coordinator.ready = surface.videoLayer.observe(\.isReadyForDisplay, options: [.initial, .new]) { [weak store] _, change in
       let rendered = change.newValue ?? false
@@ -106,6 +117,8 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
   }
   func updateUIViewController(_ controller: UIViewController, context: Context) {
     context.coordinator.onSwipeDown = onSwipeDown
+    context.coordinator.onSingleTap = onSingleTap
+    context.coordinator.fullscreen = fullscreen
     if UIApplication.shared.applicationState != .active { context.coordinator.cancelPan() }
     context.coordinator.canvas.configure(items: store.danmaku.items, enabled: enabled, opacity: opacity, scale: scale, area: area, playing: store.playback.isPlaying, fullscreen: fullscreen)
     context.coordinator.caption.text = store.extras.text(at: store.playback.positionSeconds)
@@ -161,6 +174,13 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
       return label
     }()
     var onSwipeDown: (() -> Void)?
+    var onSingleTap: (() -> Void)?
+    var fullscreen = false
+    let volumeView = MPVolumeView(frame: CGRect(x: -1000, y: 0, width: 100, height: 40))
+    private var adjustment: String?
+    private var initialLevel: Float = 0
+    @objc func singleTap() { onSingleTap?() }
+    @objc func doubleTap() { store.playback.togglePlayback() }
     private var panAxis: NSLayoutConstraint.Axis?
     private var seekStart = 0.0
     private var seekDuration = 0.0
@@ -185,6 +205,7 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
     }
     func cancelPan() {
       panAxis = nil
+      adjustment = nil
       seekItem = nil
       seekPreview.isHidden = true
     }
@@ -202,8 +223,25 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
           seekTarget = seekStart
           seekItem = store.playback.player.currentItem
           seekPreview.isHidden = false
+        } else if fullscreen {
+          let fraction = gesture.location(in: view).x / max(1, view.bounds.width)
+          adjustment = fraction < 0.35 ? "亮度" : fraction > 0.65 ? "音量" : nil
+          if let adjustment {
+            initialLevel = adjustment == "亮度" ? Float(view.window?.screen.brightness ?? 0.5) : AVAudioSession.sharedInstance().outputVolume
+            seekPreview.isHidden = false
+          }
         }
       case .changed:
+        if let adjustment {
+          let level = max(0, min(1, initialLevel - Float(gesture.translation(in: view).y / max(1, view.bounds.height))))
+          if adjustment == "亮度" { view.window?.screen.brightness = CGFloat(level) }
+          else if let slider = volumeView.subviews.compactMap({ $0 as? UISlider }).first {
+            slider.setValue(level, animated: false)
+            slider.sendActions(for: .valueChanged)
+          }
+          seekPreview.text = "  \(adjustment) \(Int(level * 100))%  "
+          return
+        }
         guard panAxis == .horizontal else { return }
         guard canSeek, seekItem === store.playback.player.currentItem else { cancelPan(); return }
         let delta = Double(gesture.translation(in: view).x / max(1, view.bounds.width)) * min(120, seekDuration)
@@ -217,7 +255,7 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
           guard canSeek, seekItem === store.playback.player.currentItem,
             abs(gesture.translation(in: view).x) > 12 else { return }
           store.playback.seek(to: seekTarget)
-        } else if panAxis == .vertical {
+        } else if panAxis == .vertical && adjustment == nil {
           let travel = gesture.translation(in: view)
           if travel.y > 72 && travel.y > abs(travel.x) * 1.3 { onSwipeDown?() }
         }
@@ -234,7 +272,10 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
       }
       if let window = view.window, editing(window) { return false }
       let velocity = pan.velocity(in: view)
+      // Leave the leading edge to the page's back gesture.
+      if !fullscreen && pan.location(in: view).x < 24 && velocity.x > 0 { return false }
       if abs(velocity.x) > abs(velocity.y) * 1.3 { return canSeek }
+      if fullscreen && abs(velocity.y) > abs(velocity.x) * 1.3 { return true }
       return velocity.y > abs(velocity.x) * 1.3 && onSwipeDown != nil
     }
     init(store: Store) { self.store = store }
@@ -444,26 +485,24 @@ struct MobilePlayerContent: View {
         }
     }
   }
-  @ViewBuilder private var playerLayout: some View {
-    if columns || UIDevice.current.userInterfaceIdiom == .pad {
-      GeometryReader { geometry in
+  private var playerLayout: some View {
+    GeometryReader { geometry in
+      VStack(spacing: 0) {
+        video.frame(height: min(min(1280, geometry.size.width) * 9 / 16,
+          max(150, geometry.size.height * 0.48)))
         ScrollView {
-          VStack(alignment: .leading, spacing: 20) {
-            video.frame(height: min(min(1280, max(0, geometry.size.width - 40)) * 9 / 16,
-              max(180, geometry.size.height - 170)))
-            information
-          }.frame(maxWidth: 1280).padding(20).frame(maxWidth: .infinity)
+          information.padding(columns ? 20 : 16).frame(maxWidth: 1280)
+            .frame(maxWidth: .infinity)
         }.scrollDismissesKeyboard(.interactively).scrollPosition($visit.scroll)
           .accessibilityIdentifier("player-information")
       }
-    } else {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 18) {
-          video.aspectRatio(16 / 9, contentMode: .fit)
-          information.padding(.horizontal, 16).padding(.bottom, 16)
-        }
-      }.scrollDismissesKeyboard(.interactively).scrollPosition($visit.scroll)
     }
+    .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { value in
+      guard value.startLocation.x < 24, value.translation.width > 90,
+        abs(value.translation.height) < value.translation.width * 0.5 else { return }
+      if store.playerNavigation.path.isEmpty { store.returnFromPlayer() }
+      else { store.playerNavigation.path.removeLast() }
+    })
   }
   private var video: some View {
     Group {

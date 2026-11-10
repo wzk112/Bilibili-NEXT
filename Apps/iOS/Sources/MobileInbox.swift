@@ -40,7 +40,7 @@ struct MobileInbox: View {
           }.padding(12).background(MobileSurface.inset, in: .rect(cornerRadius: 6))
             .padding(.horizontal, 16).padding(.bottom, 12)
         }
-        GlassEffectContainer(spacing: 12) {
+        AppGlassContainer(spacing: 12) {
           // These four persistent controls need their full geometry before the
           // glass container is composited. Only the conversation rows are lazy.
           Grid(horizontalSpacing: 12, verticalSpacing: 16) {
@@ -75,7 +75,7 @@ struct MobileInbox: View {
           ContentUnavailableView {
             Label("登录后查看消息", systemImage: "bubble.left.and.bubble.right")
           } actions: {
-            Button("登录") { store.login() }.buttonStyle(.glassProminent)
+            Button("登录") { store.login() }.buttonStyle(.appGlassProminent)
           }
         } else {
           LazyVStack(spacing: 0) {
@@ -174,7 +174,7 @@ private struct MobileInboxShortcut: View {
     VStack(spacing: 10) {
       Image(systemName: icon).font(.system(size: 25, weight: .semibold))
         .frame(width: 54, height: 54).foregroundStyle(color)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        .appGlassEffect(.regular, in: .rect(cornerRadius: 16))
         .overlay(alignment: .topTrailing) { MessageUnreadBadge(count: unread).offset(x: 12, y: -12) }
       Text(title).font(.caption.weight(.medium)).foregroundStyle(.primary)
         .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)

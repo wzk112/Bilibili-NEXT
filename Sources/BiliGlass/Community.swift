@@ -76,6 +76,7 @@ extension API {
   func post(_ path: String, _ values: [String: String], videoBVID: String? = nil) async throws -> [String: Any] {
     try Task.checkCancellation()
     let allowed = [
+      "/pgc/web/follow/add", "/pgc/web/follow/del", "/msg/send",
       "/x/v2/reply/add", "/x/v2/reply/action", "/x/v2/reply/del", "/x/v2/dm/post",
       "/x/web-interface/archive/like", "/x/web-interface/archive/like/triple", "/x/web-interface/coin/add", "/x/v3/fav/resource/deal",
       "/x/v2/history/toview/add", "/x/v2/history/toview/del", "/x/v2/history/report", "/x/relation/modify",
@@ -90,8 +91,10 @@ extension API {
     let auth = authenticationGeneration
     var body = values
     body["csrf"] = csrf
+    if path == "/msg/send" { body["csrf_token"] = csrf }
     let originalBody = body
-    var url = URLComponents(string: "https://api.bilibili.com" + path)!
+    let host = path == "/msg/send" ? "https://api.live.bilibili.com" : "https://api.bilibili.com"
+    var url = URLComponents(string: host + path)!
     if let grant = consumeVerification(path: path, body: body) {
       url.queryItems = [URLQueryItem(name: "gaia_vtoken", value: grant.token)]
       if grant.challenge.code == -401 {
@@ -107,7 +110,7 @@ extension API {
     req.setValue(
       cookies.map { "\($0.key)=\($0.value)" }.joined(separator: "; "), forHTTPHeaderField: "Cookie")
     Self.mediaHeaders.forEach { req.setValue($1, forHTTPHeaderField: $0) }
-    req.setValue("https://www.bilibili.com", forHTTPHeaderField: "Origin")
+    req.setValue(path == "/msg/send" ? "https://live.bilibili.com" : "https://www.bilibili.com", forHTTPHeaderField: "Origin")
     if let videoBVID, videoID(videoBVID) == videoBVID {
       req.setValue("https://www.bilibili.com/video/\(videoBVID)/", forHTTPHeaderField: "Referer")
     }

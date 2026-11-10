@@ -21,7 +21,7 @@ struct EmojiPicker: View {
     } label: {
       #if os(iOS)
       Image(systemName: "face.smiling").font(.system(size: 20, weight: .regular))
-        .frame(width: 44, height: 44).glassEffect(.regular.interactive(), in: .circle)
+        .frame(width: 44, height: 44).appGlassEffect(.regular.interactive(), in: .circle)
       #else
       Image(systemName: "face.smiling")
       #endif
@@ -29,7 +29,7 @@ struct EmojiPicker: View {
     #if os(iOS)
     .buttonStyle(.plain)
     #else
-    .buttonStyle(.glass)
+    .buttonStyle(.appGlassButton)
     #endif
     .help("表情").accessibilityLabel("表情")
       .popover(isPresented: $showing) {

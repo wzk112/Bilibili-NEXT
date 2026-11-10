@@ -6,13 +6,21 @@ macOS 新手指南和更新说明可从“帮助”菜单或“设置 → 关于
 
 <img src="Assets/Bilibili-NEXT-macOS.svg" width="128" alt="Bilibili NEXT icon">
 
-面向 macOS 26+、iOS / iPadOS 26+ 的非官方哔哩哔哩客户端，主要使用 SwiftUI、Liquid Glass 和 AVPlayer。本次双端版本为 macOS 1.1.4（build 15，Apple silicon）与 iOS / iPadOS 0.1.4 开发预览（build 8，需要自签的 IPA）。安装文件以 [v1.1.4 发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.4) 的 Assets 为准。
+源码支持 macOS 15+、iOS / iPadOS 26+（macOS 26 使用 Liquid Glass） 的非官方哔哩哔哩客户端，主要使用 SwiftUI、Liquid Glass 和 AVPlayer。本次双端版本为 macOS 1.1.5（build 17，Apple silicon）与 iOS / iPadOS 0.1.5 开发预览（build 10，需要自签的 IPA）。安装文件以 [v1.1.5 发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.5) 的 Assets 为准。
 
 从 [GitHub Releases](https://github.com/wzk112/Bilibili-NEXT/releases/latest) 下载 Apple silicon 发布包，解压后将 `Bilibili NEXT.app` 放入应用程序目录。扫码登录后，登录信息保存在 macOS 钥匙串。开发构建使用本机已有的 Apple Development 签名；从早期临时签名版本迁移时，系统可能要求重新授权一次。
 
 当前发布包未进行 Developer ID 公证，其他 Mac 的系统信任流程尚未验证；也可以下载源码自行构建。
 
-## 本次更新
+## macOS 1.1.5 / iOS 0.1.5
+
+已整合 PR #12/#14，补充 macOS 15 材质回退、收藏夹刷新、全屏指针、防休眠及播放快捷键；在“设置 → 关于”接入 Sparkle 检查与自动更新。更新包及签名 appcast 作为同一 Release 的 Assets 提供。
+
+新增直播、追番、影视目录。Mac 和 iPad 从侧栏进入，手机从首页的“直播、追番与影视”菜单进入。直播提供推荐、分区、主播/标题搜索、房间号、关注列表、原生 HLS、画质与音量、实时弹幕、发送和关注；网页直播间保留完整官方服务。番剧与影视提供分类、选集、追剧与账号权限内的原生播放。
+
+iOS 固定视频区以便边播放边看评论，补充边缘返回、双击暂停、全屏音量/亮度和左上角返回箭头。按钮采用统一系统控件尺寸，内容卡片使用统一文字高度与对齐。具体实现、验收和未完成的原环境复测见 [本轮 Issue 记录](ISSUE_FIXES_2026-11-10.md)。手机和平板直播间提供明确的全屏按钮、返回箭头及画质/弹幕控制，进出全屏保留播放状态。
+
+## 已保留的交互改进
 
 移动端增加返回时继续／停止小窗播放选项、单双列视频布局和下载批量管理；删除缓存不会删除外部导出文件，索引保存失败保留记录供重试。iPhone 视频画面贴齐两侧，标题先于播放选项；支持横拖调进度、下滑返回及手动全屏请求横屏。iPad 宽窗口可手动收起和恢复侧栏。
 
@@ -60,9 +68,9 @@ macOS 功能：31 个视频主分区；播放页相关推荐、标签、合集�
 - 设置页使用原生 Liquid Glass 侧栏和分组卡片，提供深色/浅色/跟随系统、通透/柔和玻璃、自定义背景图片及模糊、动画、自动播放、恢复进度、账号进度同步、评论排序、视频加载并发、下载连接数、同时任务数、前向缓冲、弹幕和缓存管理。
 - 自定义背景模糊在后台生成并缓存；保持原生玻璃材质，避免每帧重新模糊背景。设置窗口可调整大小，侧栏与顶部工具栏统一高度和间距。
 - 返回推荐/热门时复用近期列表；手动刷新保留原内容直到新内容返回。启动复用当前账号的首页快照，再获取新推荐；封面保留有容量上限的解码缓存。
-- 官方验证码在独立验证面板中打开，只有这一类验证流程使用 WebKit；需要用户本人完成。面板复用本应用登录，不读取 Edge 的登录凭据。
+- 官方验证码和补充官网服务在独立 WebKit 面板中打开；需要用户本人完成。面板复用本应用登录，不读取 Edge 的登录凭据。
 
-新观看进度按约 30 秒限频同步，暂停或离开播放页时提交当前位置；退出进程前保存本机进度，不保证退出时网络请求已完成。旧版本积累的本机记录会合并显示，不批量上传。同步失败时保留本机记录。图片支持 JPEG、PNG、WebP、GIF，单张最大 10 MB。动态与消息发送失败保留草稿；网络结果不确定时应先刷新确认，应用不自动重发。番剧、直播和创作中心仍在浏览器打开，暂未覆盖网页端所有服务。
+新观看进度按约 30 秒限频同步，暂停或离开播放页时提交当前位置；退出进程前保存本机进度，不保证退出时网络请求已完成。旧版本积累的本机记录会合并显示，不批量上传。同步失败时保留本机记录。图片支持 JPEG、PNG、WebP、GIF，单张最大 10 MB。动态与消息发送失败保留草稿；网络结果不确定时应先刷新确认，应用不自动重发。番剧、影视和直播已增加原生入口；网页完整直播间与创作中心等补充服务仍使用官网。
 
 ## 构建
 
@@ -74,7 +82,7 @@ swift test --package-path Vendor/BiliKitCore
 Scripts/build-app.sh
 ```
 
-提交源码后可运行 `Scripts/package-release.sh` 生成 macOS ZIP、DMG、未签名 iOS IPA、源码包和 SHA-256 校验值。完整开发约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+提交源码后可运行 `Scripts/package-release.sh` 生成 macOS ZIP、DMG、自签用 iOS IPA、源码包、签名 appcast 和 SHA-256 校验值。完整开发约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 构建脚本优先选择本机 Apple Development 签名；可通过 `SIGNING_IDENTITY` 指定已有签名身份。没有可用身份时使用临时签名，此时重新构建可能再次触发钥匙串授权。不要在多次构建中交替更换签名身份。
 
@@ -94,7 +102,7 @@ Scripts/build-app.sh
 
 <img src="Assets/Bilibili-NEXT-iOS.svg" width="112" alt="Bilibili NEXT iOS icon">
 
-本次 IPA 文件为 [v1.1.4 双端发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.4) 的 `Bilibili-NEXT-0.1.4-iOS-self-sign.ipa`，从 Assets 下载。**此 IPA 需要自行签名后安装，不能直接点击安装。** 包内仅含不带个人证书的临时签名结构，方便签名工具识别。使用自己的 Apple Account / 开发者证书和适用的描述文件完成签名；开发签名按系统提示启用开发者模式并信任开发者。签名有效期、设备限制和续签要求由自己的签名方式决定。当前没有 TestFlight / App Store 版本。安装与构建说明见 [IOS_INSTALL.md](IOS_INSTALL.md)。
+本次 IPA 文件为 [v1.1.5 双端发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.5) 的 `Bilibili-NEXT-0.1.5-iOS-self-sign.ipa`，从 Assets 下载。**此 IPA 需要自行签名后安装，不能直接点击安装。** 包内仅含不带个人证书的临时签名结构，方便签名工具识别。使用自己的 Apple Account / 开发者证书和适用的描述文件完成签名；开发签名按系统提示启用开发者模式并信任开发者。签名有效期、设备限制和续签要求由自己的签名方式决定。当前没有 TestFlight / App Store 版本。安装与构建说明见 [IOS_INSTALL.md](IOS_INSTALL.md)。
 
 已有独立的原生 iOS Xcode 工程：[Apps/iOS/BilibiliNEXT.xcodeproj](Apps/iOS/BilibiliNEXT.xcodeproj)。当前实现、真机验证和待迁移功能见 [IOS_STATUS.md](IOS_STATUS.md)；完整目标范围见 [IOS_APP_PLAN.md](IOS_APP_PLAN.md)。
 

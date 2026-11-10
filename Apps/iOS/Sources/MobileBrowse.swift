@@ -78,7 +78,7 @@ struct MobileError: View {
   var body: some View {
     VStack(spacing: 12) {
       Label(text, systemImage: "exclamationmark.circle").font(.callout).textSelection(.enabled)
-      if let retry { Button("重试", action: retry).buttonStyle(.glass) }
+      if let retry { Button("重试", action: retry).buttonStyle(.appGlassButton) }
     }.frame(maxWidth: .infinity).padding(20).background(
       .regularMaterial, in: .rect(cornerRadius: 18))
   }
@@ -186,6 +186,7 @@ struct MobileVideoList: View {
   @Bindable var store: Store
   let loader: @MainActor (Int) async throws -> [Video]
   @State private var model: VideoListModel
+  @AppStorage("autoLoadMore") private var autoLoadMore = true
   init(
     title: String, store: Store, model: VideoListModel? = nil, refreshOnReturn: Bool = false,
     showsNavigationTitle: Bool = true,
@@ -200,7 +201,7 @@ struct MobileVideoList: View {
   }
   var body: some View {
     ScrollView {
-      VStack(spacing: 20) {
+      LazyVStack(spacing: 20) {
         MobileVideoGrid(videos: model.items, store: store)
         if model.loading { ProgressView("正在加载").padding() }
         if let error = model.error {
@@ -212,13 +213,23 @@ struct MobileVideoList: View {
           ContentUnavailableView("暂无内容", systemImage: "play.rectangle")
         }
         if !model.items.isEmpty && model.hasMore && !model.loading {
-          Button("加载更多") { Task { await model.load(loader: loader) } }.buttonStyle(.glass).padding()
+          Button("加载更多") { Task { await model.load(loader: loader) } }.buttonStyle(.appGlassButton).padding()
+            .onAppear { if autoLoadMore { Task { await model.load(loader: loader) } } }
         }
       }.padding(16)
     }.modifier(RememberedScroll(memory: model.scroll, tracking: !store.showPlayer && !model.loading))
       .accessibilityIdentifier("browse-list")
       .modifier(BrowseNavigationTitle(title: title, enabled: showsNavigationTitle))
-      .refreshable { await model.load(reset: true, loader: loader) }
+      .refreshable {
+        if title == "推荐", !model.items.isEmpty, model.hasMore { await model.load(loader: loader) }
+        else { await model.load(reset: true, loader: loader) }
+      }
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("刷新", systemImage: "arrow.clockwise") { Task { await model.load(reset: true, loader: loader) } }
+            .disabled(model.loading).accessibilityLabel("刷新列表")
+        }
+      }
       .task(id: store.homeReturnRevision) {
         let refresh = refreshOnReturn && store.isRecommendedVisible && !store.showPlayer
           && UserDefaults.standard.bool(forKey: "refreshHomeOnReturn")
@@ -308,7 +319,9 @@ struct MobileRoot: View {
         Tab(tabTitle(tab), systemImage: tabSymbol(tab), value: tab) {
           NavigationStack {
             switch tab {
-            case 0: MobileHome(store: store)
+            case 0:
+              if navigation.preferences.visible.contains(where: \.isHome) { MobileHome(store: store) }
+              else { CatalogHub(store: store) }
             case 1: MobileDynamics(store: store)
             case 2: MobileInbox(store: store)
             case 3:
@@ -348,6 +361,10 @@ private struct MobileRootPresentation: ViewModifier {
   let columns: Bool
   func body(content: Content) -> some View {
     content
+      .fullScreenCover(item: Binding(get: { store.liveRoom }, set: { value in
+        if value == nil { store.liveRoom?.stop() }
+        store.liveRoom = value
+      })) { model in CatalogLivePlayer(store: store, model: model) }
       .fullScreenCover(
         isPresented: Binding(
           get: {
@@ -382,12 +399,14 @@ private struct MobileRootPresentation: ViewModifier {
 }
 struct MobileHome: View {
   @Bindable var store: Store
+  @State private var selectedCatalog: CatalogKind?
   var destination: Int? = nil
   @State private var tab: Int
   init(store: Store, destination: Int? = nil) {
     self.store = store
     self.destination = destination
     _tab = State(initialValue: store.phoneHomeTab)
+    _selectedCatalog = State(initialValue: CatalogKind.allCases.first { $0.page == store.browseDestination })
   }
   private var navigation = NavigationCustomization()
   var body: some View {
@@ -437,9 +456,19 @@ struct MobileHome: View {
       if old != 0 && value == 0 { store.homeReturnRevision += 1 }
     }
     .onAppear { normalizeTab(); store.phoneHomeTab = destination ?? self.tab }
+    .navigationDestination(item: $selectedCatalog) { kind in
+      CatalogHub(store: store, initialKind: kind) { store.open($0) }
+    }
     .toolbar {
       if destination == nil {
         ToolbarItem(placement: .topBarTrailing) {
+          if CatalogKind.allCases.contains(where: { navigation.preferences.allows($0.page) }) {
+            Menu {
+              ForEach(CatalogKind.allCases.filter { navigation.preferences.allows($0.page) }) { kind in
+                Button(kind.rawValue, systemImage: kind.symbol) { selectedCatalog = kind }
+              }
+            } label: { Image(systemName: "play.tv") }.accessibilityLabel("直播、追番与影视")
+          }
           NavigationLink {
             MobileSearch(store: store)
           } label: {

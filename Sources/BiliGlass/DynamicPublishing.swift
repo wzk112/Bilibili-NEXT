@@ -107,7 +107,7 @@ struct DynamicComposer: View {
       HStack {
         EmojiPicker(api: store.api) { draft.emotes[$0.token] = $0; draft.text += $0.token }
         if repost == nil {
-          Button { for url in ImageAttachment.choose(multiple: true) where !draft.images.contains(url) && draft.images.count < 9 { draft.images.append(url) } } label: { Label("添加图片", systemImage: "photo.badge.plus") }.buttonStyle(.glass)
+          Button { for url in ImageAttachment.choose(multiple: true) where !draft.images.contains(url) && draft.images.count < 9 { draft.images.append(url) } } label: { Label("添加图片", systemImage: "photo.badge.plus") }.buttonStyle(.appGlassButton)
         }
         Spacer(); Text("\(draft.text.count) / 2000").font(.caption).foregroundStyle(draft.text.count > 2000 ? .red : .secondary)
       }
@@ -124,7 +124,7 @@ struct DynamicComposer: View {
           guard let account = store.account else { return }
           Task { if await draft.publish(api: store.api, mid: account.mid, repostID: repost?.id) { published(); dismiss() } }
         }.disabled(store.account == nil || draft.text.count > 2000 || (draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && draft.images.isEmpty && repost == nil))
-      }.buttonStyle(.glass)
+      }.buttonStyle(.appGlassButton)
     }.padding(24).frame(width: 620).background { GlassBackdrop() }.disabled(draft.publishing).interactiveDismissDisabled(draft.publishing)
   }
 }
@@ -145,7 +145,7 @@ struct DynamicActions: View {
         Button { reposting = true } label: { Label(entry.repostCount > 0 ? String(entry.repostCount) : "转发", systemImage: "arrowshape.turn.up.right") }.disabled(store.account == nil)
         if let comment { Button(action: comment) { Label(entry.commentCount > 0 ? String(entry.commentCount) : "评论", systemImage: "bubble") } }
         Spacer()
-      }.buttonStyle(.glass)
+      }.buttonStyle(.appGlassButton)
       if let error { Text(error).font(.caption).foregroundStyle(.secondary) }
     }.onAppear { liked = entry.liked; count = entry.likeCount }
       .sheet(isPresented: $reposting) { DynamicComposer(store: store, draft: draft, repost: entry) { store.interactionMessage = "动态已转发" } }

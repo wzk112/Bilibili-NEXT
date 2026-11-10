@@ -83,6 +83,7 @@ struct WebTarget: Identifiable {
   var conversationPresented = false
   var isPlaybackOpen = false
   var showLogin = false
+  var liveRoom: LiveRoomModel?
   var webTarget: WebTarget?
   var message: String?
   var qrImage: CGImage?

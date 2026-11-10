@@ -51,6 +51,23 @@ class IPAValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, 'signature structure'):
             validator.validate(self.path)
 
+    def test_portable_bundle_is_accepted(self):
+        self.pack()
+        result = validator.validate(self.path, allow_unsigned=True, portable=True)
+        self.assertEqual(result['bundleID'], 'test.local')
+
+    def test_portable_import_rejects_spaces_and_binary_plist(self):
+        self.files = {name.replace('Test.app', 'Test App.app'): data for name, data in self.files.items()}
+        self.pack()
+        with self.assertRaisesRegex(AssertionError, 'Nonportable app directory'):
+            validator.validate(self.path, allow_unsigned=True, portable=True)
+        self.files = {name.replace('Test App.app', 'Test.app'): data for name, data in self.files.items()}
+        name = self.root + 'Info.plist'
+        self.files[name] = plistlib.dumps(plistlib.loads(self.files[name]), fmt=plistlib.FMT_BINARY)
+        self.pack()
+        with self.assertRaisesRegex(AssertionError, 'XML Info.plist'):
+            validator.validate(self.path, allow_unsigned=True, portable=True)
+
     def test_truncated_executable(self):
         self.files[self.root + 'Test'] = b'not a complete Mach-O'
         self.pack()

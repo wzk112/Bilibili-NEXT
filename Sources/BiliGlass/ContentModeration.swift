@@ -70,7 +70,7 @@ struct VideoReportForm: View {
       TextField("详细说明", text: $description, axis: .vertical).lineLimit(4...8).textFieldStyle(.roundedBorder)
       TextField("原创出处或证据链接（适用时填写）", text: $source).textFieldStyle(.roundedBorder)
       if let error { Text(error).foregroundStyle(.red).font(.callout) }
-      HStack { Button("取消") { dismiss() }; Spacer(); Button(busy ? "正在提交" : "提交举报") { submit() }.disabled(busy || selected == 0 || description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }.buttonStyle(.glass)
+      HStack { Button("取消") { dismiss() }; Spacer(); Button(busy ? "正在提交" : "提交举报") { submit() }.disabled(busy || selected == 0 || description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }.buttonStyle(.appGlassButton)
     }.padding(24).frame(width: 540).background { GlassBackdrop() }.disabled(busy)
       .task {
         do { aid = try await store.api.videoAid(video); let data = try await store.api.request("/x/web-interface/appeal/v2/tags", ["aid": String(aid), "from": "app", "version": "v1"]); reasons = VideoReportReason.parse(data["tags"]); selected = reasons.first?.id ?? 0; if reasons.isEmpty { error = "未能读取可用的举报原因" } }
@@ -131,10 +131,10 @@ struct BlockedAuthorsPage: View {
   @State private var busy: Set<Int> = []
   var body: some View {
     VStack(alignment: .leading, spacing: 18) {
-      HStack { Text("黑名单").font(.title2.bold()); Spacer(); Button("完成") { dismiss() }.buttonStyle(.glass).keyboardShortcut(.cancelAction) }
+      HStack { Text("黑名单").font(.title2.bold()); Spacer(); Button("完成") { dismiss() }.buttonStyle(.appGlassButton).keyboardShortcut(.cancelAction) }
       ScrollView { LazyVStack(spacing: 12) {
         ForEach(model.rows) { row in
-          HStack { Text(row.name); Spacer(); Button("解除拉黑") { unblock(row.id) }.buttonStyle(.glass).disabled(busy.contains(row.id)) }.padding(12).appGlass(12)
+          HStack { Text(row.name); Spacer(); Button("解除拉黑") { unblock(row.id) }.buttonStyle(.appGlassButton).disabled(busy.contains(row.id)) }.padding(12).appGlass(12)
         }
         if model.rows.isEmpty && !model.loading && model.error == nil { ContentUnavailableView("黑名单为空", systemImage: "person.slash") }
         LoadMoreFooter(loading: model.loading, hasMore: model.hasMore, error: model.error, count: model.rows.count, title: "加载更多黑名单") { Task { await model.load(api: store.api) } }

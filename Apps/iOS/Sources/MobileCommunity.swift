@@ -35,7 +35,7 @@ struct MobileComments: View {
   var body: some View {
     LazyVStack(alignment: .leading, spacing: 18) {
       HStack {
-        Text("评论").font(.headline)
+        Text(model.hasLoadedCount ? "评论 \(model.count ?? 0)" : "评论").font(.headline)
         Spacer()
         Picker("排序", selection: $model.sort) {
           Text("最热").tag(1)
@@ -51,7 +51,7 @@ struct MobileComments: View {
         if reply.count > (model.expanded[reply.id] ?? reply.children).count
           && model.childHasMore[reply.id] != false
         {
-          Button(model.childLoading.contains(reply.id) ? "加载中" : "展开更多回复") {
+          Button(model.childLoading.contains(reply.id) ? "加载中" : "共 \(reply.count) 条回复 · 展开更多") {
             Task { await model.children(reply, aid: aid, api: store.api) }
           }.disabled(model.childLoading.contains(reply.id))
         }
@@ -69,7 +69,7 @@ struct MobileComments: View {
       if model.hasMore && !model.loading {
         Button("加载更多评论") {
           model.load(aid: aid, type: type, api: store.api, more: !model.items.isEmpty)
-        }.buttonStyle(.glass).frame(maxWidth: .infinity)
+        }.buttonStyle(.appGlassButton).frame(maxWidth: .infinity)
       }
       if !model.loading && model.items.isEmpty && model.error == nil {
         Text("还没有评论").foregroundStyle(.secondary)
@@ -101,7 +101,7 @@ struct MobileCommentComposer: View {
       }
       TextField(store.account == nil ? "登录后评论" : "发表评论", text: $model.draft, axis: .vertical)
         .lineLimit(2...6).textFieldStyle(.plain).padding(12)
-        .glassEffect(.regular, in: .rect(cornerRadius: 18)).disabled(model.sending)
+        .appGlassEffect(.regular, in: .rect(cornerRadius: 18)).disabled(model.sending)
         .accessibilityIdentifier("comment-draft")
       let composeLayout =
         textSize.isAccessibilitySize
@@ -123,7 +123,7 @@ struct MobileCommentComposer: View {
           } else {
             Task { await model.send(aid: aid, api: store.api) }
           }
-        }.buttonStyle(.glassProminent).disabled(
+        }.buttonStyle(.appGlassProminent).disabled(
           model.sending || photoBusy || model.draft.count > 1000
             || (model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
               && model.attachments.isEmpty)
@@ -208,6 +208,9 @@ struct MobileReply: View {
             Text(reply.name).font(.subheadline.weight(.medium)).foregroundStyle(.primary).lineLimit(
               1)
           }.buttonStyle(.plain)
+          if reply.mid == store.playback.detail?.ownerID {
+            Text("UP主").font(.caption2.weight(.semibold)).foregroundStyle(biliPink)
+          }
           Spacer(minLength: 8)
           Button {
             if store.account == nil {
@@ -288,7 +291,7 @@ struct MobileGallery: View {
         } else if let error {
           VStack(spacing: 16) {
             Text(error).foregroundStyle(.white).padding()
-            Button("重试") { retry += 1 }.buttonStyle(.glass)
+            Button("重试") { retry += 1 }.buttonStyle(.appGlassButton)
           }
         } else {
           ProgressView().tint(.white)
@@ -364,7 +367,7 @@ struct MobileInteractionSheet: View {
                   VStack(spacing: 8) { Image(systemName: "c.circle").font(.title2); Text("\(value) 枚").font(.headline) }
                     .frame(maxWidth: .infinity).padding(.vertical, 12).contentShape(.rect(cornerRadius: 16))
                 }.buttonStyle(.plain).foregroundStyle(.primary)
-                  .glassEffect(.regular.tint(amount == value ? biliPink.opacity(0.22) : .clear), in: .rect(cornerRadius: 16))
+                  .appGlassEffect(.regular.tint(amount == value ? biliPink.opacity(0.22) : .clear), in: .rect(cornerRadius: 16))
                   .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(amount == value ? biliPink : .clear, lineWidth: 1.5).allowsHitTesting(false) }
                   .opacity(value > choice.available ? 0.4 : 1)
                   .disabled(busy || value > choice.available)

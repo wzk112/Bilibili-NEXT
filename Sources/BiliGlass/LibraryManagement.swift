@@ -18,12 +18,12 @@ struct LibraryToolbar: View {
       TextField(store.destination == .favorites ? "搜索当前收藏夹" : "搜索稍后再看", text: $store.libraryQuery)
         .textFieldStyle(.roundedBorder).frame(maxWidth: 300)
         .onSubmit { if store.destination == .favorites { store.reload() } }
-      if store.destination == .favorites { Button("搜索") { store.reload() }.buttonStyle(.glass) }
+      if store.destination == .favorites { Button("搜索") { store.reload() }.buttonStyle(.appGlassButton) }
       if !store.videos.isEmpty {
-        Button { if let first = store.videos.first { store.openFeedVideo(first) } } label: { Label("播放列表", systemImage: "play.fill") }.buttonStyle(.glass)
+        Button { if let first = store.videos.first { store.openFeedVideo(first) } } label: { Label("播放列表", systemImage: "play.fill") }.buttonStyle(.appGlassButton)
       }
       Spacer()
-      Button("管理") { managing = true }.buttonStyle(.glass)
+      Button("管理") { managing = true }.buttonStyle(.appGlassButton)
     }.sheet(isPresented: $managing) { LibraryManager(store: store) }
   }
 }
@@ -48,14 +48,14 @@ struct LibraryManager: View {
           Picker("目标收藏夹", selection: $target) { Text("选择收藏夹").tag(0); ForEach(store.folders.filter { $0.id != store.selectedFolder }) { Text($0.title).tag($0.id) } }
           Button("复制到") { run(.copy) }.disabled(target == 0 || selected.isEmpty)
           Button("移动到") { run(.move) }.disabled(target == 0 || selected.isEmpty)
-        }.buttonStyle(.glass)
+        }.buttonStyle(.appGlassButton)
       }
       HStack {
         Button(selected.count == store.videos.count ? "取消全选" : "选择已加载视频") { selected = selected.count == store.videos.count ? [] : Set(store.videos.map(\.bvid)) }
         if !favorites { Button("选择已看完") { selected = Set(store.videos.filter { $0.progress == -1 || ($0.duration > 0 && ($0.progress ?? 0) >= $0.duration) }.map(\.bvid)) } }
         Spacer(); Text("已选 \(selected.count)").foregroundStyle(.secondary)
         Button("移除所选", role: .destructive) { confirm = true }.disabled(selected.isEmpty)
-      }.buttonStyle(.glass)
+      }.buttonStyle(.appGlassButton)
       ScrollView { LazyVStack(spacing: 10) { ForEach(store.videos) { video in
         Toggle(isOn: Binding(get: { selected.contains(video.bvid) }, set: { if $0 { selected.insert(video.bvid) } else { selected.remove(video.bvid) } })) {
           HStack(spacing: 12) { Thumbnail(url: video.cover, mode: .fill).frame(width: 104, height: 59).clipShape(.rect(cornerRadius: 8)); VStack(alignment: .leading) { Text(video.title).lineLimit(2); Text(video.author).font(.caption).foregroundStyle(.secondary) }; Spacer() }
@@ -115,7 +115,7 @@ struct FavoriteFolderEditor: View {
         Button("删除收藏夹", role: .destructive) { deleting = true }.disabled(!ready || busy)
         Spacer(); Button("取消") { dismiss() }.disabled(busy)
         Button("保存") { save(deleting: false) }.disabled(!ready || busy || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || title.count > 20)
-      }.buttonStyle(.glass)
+      }.buttonStyle(.appGlassButton)
     }.padding(24).frame(width: 480).background { GlassBackdrop() }
       .task {
         do {

@@ -1,13 +1,16 @@
 import SwiftUI
 
 enum StartPage: String, CaseIterable, Identifiable {
-  case recommend, popular, regions, dynamic, messages, history, favorites, later, downloads, profile, web
+  case recommend, popular, regions, live, bangumi, cinema, dynamic, messages, history, favorites, later, downloads, profile, web
   var id: String { rawValue }
   var title: String {
     switch self {
     case .recommend: "推荐"
     case .popular: "热门"
     case .regions: "分区"
+    case .live: "直播"
+    case .bangumi: "追番"
+    case .cinema: "影视"
     case .dynamic: "关注动态"
     case .messages: "消息"
     case .history: "观看记录"
@@ -23,6 +26,9 @@ enum StartPage: String, CaseIterable, Identifiable {
     case .recommend: "house"
     case .popular: "flame"
     case .regions: "square.grid.2x2"
+    case .live: "dot.radiowaves.left.and.right"
+    case .bangumi: "sparkles.tv"
+    case .cinema: "film"
     case .dynamic: "person.2"
     case .messages: "bubble.left.and.bubble.right"
     case .history: "clock"
@@ -34,6 +40,7 @@ enum StartPage: String, CaseIterable, Identifiable {
     }
   }
   var phoneTab: Int {
+    if [.live, .bangumi, .cinema].contains(self) { return 0 }
     if isHome { return 0 }
     if self == .dynamic { return 1 }
     if self == .messages { return 2 }
@@ -42,7 +49,7 @@ enum StartPage: String, CaseIterable, Identifiable {
   }
   var isHome: Bool { [.recommend, .popular, .regions].contains(self) }
   var isLibrary: Bool { [.history, .favorites, .later, .downloads].contains(self) }
-  var isBrowse: Bool { isHome || self == .dynamic || self == .messages }
+  var isBrowse: Bool { isHome || [.live, .bangumi, .cinema, .dynamic, .messages].contains(self) }
   static var supported: [Self] {
     #if os(iOS)
       allCases.filter { $0 != .web }

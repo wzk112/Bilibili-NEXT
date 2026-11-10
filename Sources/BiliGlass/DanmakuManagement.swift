@@ -54,7 +54,7 @@ struct DanmakuManagement: View {
     HStack {
       DatePicker("月份", selection: $month, in: ...Date(), displayedComponents: .date).fixedSize()
       Picker("有弹幕的日期", selection: $day) { Text("选择日期").tag(""); ForEach(dates, id: \.self) { Text($0).tag($0) } }.fixedSize()
-      Button("查看历史") { loadHistory() }.buttonStyle(.glass).disabled(day.isEmpty || busy || store.playback.isOffline)
+      Button("查看历史") { loadHistory() }.buttonStyle(.appGlassButton).disabled(day.isEmpty || busy || store.playback.isOffline)
       Spacer()
     }
   }
@@ -63,11 +63,11 @@ struct DanmakuManagement: View {
       HStack {
         Picker("规则类型", selection: $ruleType) { Text("关键词").tag(0); Text("正则表达式").tag(1); Text("发送者哈希").tag(2) }.fixedSize()
         TextField("屏蔽内容", text: $ruleText).textFieldStyle(.roundedBorder)
-        Button("添加") { mutateRule(type: ruleType, text: ruleText) }.buttonStyle(.glass).disabled(ruleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy)
-        Button("同步") { Task { await loadRules() } }.buttonStyle(.glass).disabled(busy)
+        Button("添加") { mutateRule(type: ruleType, text: ruleText) }.buttonStyle(.appGlassButton).disabled(ruleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy)
+        Button("同步") { Task { await loadRules() } }.buttonStyle(.appGlassButton).disabled(busy)
       }
       ScrollView { LazyVStack(spacing: 8) { ForEach(rules) { rule in
-        HStack { Text(rule.type == 0 ? "关键词" : rule.type == 1 ? "正则" : "发送者").font(.caption).foregroundStyle(.secondary).frame(width: 55); Text(rule.filter).textSelection(.enabled); Spacer(); Button("删除") { removeRule(rule) }.buttonStyle(.glass).disabled(busy) }.padding(10).appGlass(10)
+        HStack { Text(rule.type == 0 ? "关键词" : rule.type == 1 ? "正则" : "发送者").font(.caption).foregroundStyle(.secondary).frame(width: 55); Text(rule.filter).textSelection(.enabled); Spacer(); Button("删除") { removeRule(rule) }.buttonStyle(.appGlassButton).disabled(busy) }.padding(10).appGlass(10)
       } } }
       Text("同步成功后应用于普通弹幕；本机屏蔽词仍单独保留。").font(.caption).foregroundStyle(.secondary)
     }
@@ -132,7 +132,7 @@ struct DanmakuReportForm: View {
       Picker("原因", selection: $reason) { Text("违法违禁").tag(1); Text("色情低俗").tag(2); Text("赌博诈骗").tag(3); Text("人身攻击").tag(4); Text("侵犯隐私").tag(5); Text("垃圾广告").tag(6); Text("引战").tag(7); Text("剧透").tag(8); Text("恶意刷屏").tag(9); Text("视频无关").tag(10); Text("其他").tag(11); Text("青少年不良信息").tag(12) }
       TextField("补充说明", text: $description, axis: .vertical).lineLimit(3...5).textFieldStyle(.roundedBorder)
       if let error { Text(error).foregroundStyle(.red) }
-      HStack { Button("取消") { dismiss() }; Spacer(); Button("提交举报") { submit() }.disabled(busy) }.buttonStyle(.glass)
+      HStack { Button("取消") { dismiss() }; Spacer(); Button("提交举报") { submit() }.disabled(busy) }.buttonStyle(.appGlassButton)
     }.padding(24).frame(width: 450)
   }
   private func submit() {

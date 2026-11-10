@@ -64,7 +64,7 @@ struct SearchAssistance: View {
       }
       ScrollView(.horizontal) {
         HStack { ForEach(Array((store.query.isEmpty ? store.searchHistory : suggestions).prefix(8)), id: \.self) { term in
-          Button(term) { store.query = term; store.search() }.buttonStyle(.glass)
+          Button(term) { store.query = term; store.search() }.buttonStyle(.appGlassButton)
         } }
       }
     }.padding(12).floatingGlass(18)

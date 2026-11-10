@@ -18,7 +18,7 @@ struct MobileDynamics: View {
           ContentUnavailableView {
             Label("登录后查看关注动态", systemImage: "person.2")
           } actions: {
-            Button("登录") { store.login() }.buttonStyle(.glass)
+            Button("登录") { store.login() }.buttonStyle(.appGlassButton)
           }
         }
         if store.account != nil && items.isEmpty && !busy && error == nil {
@@ -35,7 +35,7 @@ struct MobileDynamics: View {
           MobileError(text: error) { Task { await load(reset: items.isEmpty || !hasMore) } }
         }
         if !items.isEmpty && hasMore && !busy {
-          Button("加载更多动态") { Task { await load() } }.buttonStyle(.glass)
+          Button("加载更多动态") { Task { await load() } }.buttonStyle(.appGlassButton)
         }
       }.padding(16).frame(maxWidth: 760).frame(maxWidth: .infinity)
     }.navigationTitle("动态").toolbar {
@@ -249,7 +249,7 @@ struct MobileDynamicComposer: View {
           TextEditor(text: $draft.text).scrollContentBackground(.hidden).padding(10).frame(
             minHeight: 150
           )
-          .glassEffect(.regular, in: .rect(cornerRadius: 20))
+          .appGlassEffect(.regular, in: .rect(cornerRadius: 20))
           HStack {
             EmojiPicker(api: store.api) {
               draft.emotes[$0.token] = $0
@@ -388,7 +388,7 @@ struct MobileConversation: View {
               }.disabled(inbox.sending)
             }
           }
-          GlassEffectContainer(spacing: 8) {
+          AppGlassContainer(spacing: 8) {
             HStack(alignment: .center, spacing: 8) {
               EmojiPicker(api: store.api) { emote in
                 inbox.emotes[emote.token] = emote
@@ -405,7 +405,7 @@ struct MobileConversation: View {
                   set: { inbox.drafts[conversation.id] = $0 }), axis: .vertical
               ).lineLimit(1...5).textFieldStyle(.plain)
                 .padding(.horizontal, 14).padding(.vertical, 10).frame(minHeight: 44)
-                .glassEffect(.regular, in: .rect(cornerRadius: 22))
+                .appGlassEffect(.regular, in: .rect(cornerRadius: 22))
                 .accessibilityIdentifier("message-input")
               Button {
                 guard let account = store.account else { return }
@@ -413,7 +413,7 @@ struct MobileConversation: View {
               } label: {
                 Image(systemName: "arrow.up").font(.system(size: 20, weight: .semibold))
                   .foregroundStyle(.white).frame(width: 44, height: 44)
-                  .glassEffect(.regular.tint(biliPink).interactive(), in: .circle)
+                  .appGlassEffect(.regular.tint(biliPink).interactive(), in: .circle)
               }.buttonStyle(.plain).accessibilityLabel("发送").disabled(
                 inbox.sending
                   || (inbox.drafts[conversation.id] ?? "").trimmingCharacters(
