@@ -76,7 +76,8 @@ struct RootView: View {
     .onChange(of: store.navigationRevision) { store.coverPreview.stop() }
     .onChange(of: store.api.authenticationGeneration) { store.coverPreview.stop() }
     .onChange(of: phase) { if phase != .active { searchFocused = false; store.coverPreview.stop() } }
-    .tint(biliPink).appAppearance().frame(minWidth: 1020, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity)
+    .tint(biliPink).appAppearance().buttonStyle(.appGlassButton)
+    .frame(minWidth: 1020, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity)
     .background { InitialWindowFocus().frame(width: 0, height: 0) }
     .appWindowBackground()
     .background {
@@ -239,7 +240,7 @@ struct RootView: View {
             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
           }.buttonStyle(.pointerPlain).help("清除搜索")
         }
-      }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: 28)
+      }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: AppLayout.mainToolbarHeight)
         .background(.primary.opacity(0.06), in: .rect(cornerRadius: 8))
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { searchFieldFrame = $0 }
       }.onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { headerLeadingFrame = $0 }
@@ -682,9 +683,13 @@ struct PlayerPage: View {
 @MainActor private enum LocalPlaybackFixture {
   static var url: URL? {
     let arguments = ProcessInfo.processInfo.arguments
-    guard let index = arguments.firstIndex(of: "--local-playback-fixture"),
-      arguments.indices.contains(index + 1) else { return nil }
-    return URL(fileURLWithPath: arguments[index + 1])
+    if let index = arguments.firstIndex(of: "--local-playback-fixture"),
+      arguments.indices.contains(index + 1) {
+      return URL(fileURLWithPath: arguments[index + 1])
+    }
+    guard let bundleID = Bundle.main.bundleIdentifier, bundleID.hasSuffix(".FeedbackQA"),
+      let path = UserDefaults.standard.string(forKey: "qaLocalPlaybackFixture") else { return nil }
+    return URL(fileURLWithPath: path)
   }
   static func prepare(store: Store, url: URL) {
     store.playback.onProgress = nil

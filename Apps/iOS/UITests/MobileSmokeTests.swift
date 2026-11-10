@@ -1145,6 +1145,42 @@ import UIKit
     }
   }
 
+  func testModuleControlsKeepTouchTargetsAndRowsAligned() {
+    XCUIDevice.shared.orientation = .portrait
+    for appearance in ["light", "dark"] {
+      let app = feedbackApp(extra: ["-appearance", appearance])
+      let refresh = app.buttons["刷新列表"]
+      XCTAssertTrue(refresh.waitForExistence(timeout: 8))
+      XCTAssertTrue(refresh.isHittable)
+      XCTAssertGreaterThanOrEqual(refresh.frame.width, 44)
+      XCTAssertGreaterThanOrEqual(refresh.frame.height, 44)
+      XCTAssertTrue(app.frame.contains(refresh.frame))
+      let first = app.buttons["video-card-BV1xx411c7mD"]
+      XCTAssertTrue(first.isHittable)
+      attach("module-controls-" + appearance, app: app)
+      first.tap()
+      let favorite = app.buttons["video-favorite"]
+      if UIDevice.current.userInterfaceIdiom == .pad {
+        if !favorite.isHittable {
+          revealIPadElement(favorite, scroll: app.scrollViews["player-information"])
+        }
+      } else {
+        for _ in 0..<6 where !favorite.isHittable { app.swipeUp() }
+      }
+      XCTAssertTrue(favorite.isHittable)
+      let actions = ["video-coin", "video-favorite"].map { app.buttons[$0] }
+      for control in actions {
+        XCTAssertGreaterThanOrEqual(control.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(control.frame.height, 44)
+        XCTAssertTrue(app.frame.contains(control.frame))
+      }
+      XCTAssertEqual(actions[0].frame.midY, actions[1].frame.midY, accuracy: 1)
+      XCTAssertEqual(actions[0].frame.height, actions[1].frame.height, accuracy: 1)
+      attach("module-actions-" + appearance, app: app)
+      app.terminate()
+    }
+  }
+
   func testFeedbackReturnPreservesEachBrowsePosition() {
     if UIDevice.current.userInterfaceIdiom == .pad { XCUIDevice.shared.orientation = .landscapeLeft }
     defer { XCUIDevice.shared.orientation = .portrait }

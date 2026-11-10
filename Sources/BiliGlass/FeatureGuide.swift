@@ -55,9 +55,9 @@ struct GuidePage: Identifiable {
 }
 
 enum GuideContent {
-  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.7"
+  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.8"
   // Increment only when guide content changes, not on every build.
-  static let revision = "2026-11-11-release-1.1.7"
+  static let revision = "2026-11-11-release-1.1.8"
   static let tutorial: [GuidePage] = [
     .init(id: "account", title: "登录与账号", location: "左下角个人中心 → 账户信息", symbol: "person.crop.circle", paragraphs: [
       "点击“登录”，用哔哩哔哩 App 扫描二维码，并在手机上确认。同一次扫码会完成浏览与互动所需的登录，凭证保存在本机钥匙串。",
@@ -113,6 +113,12 @@ enum GuideContent {
       "使用指南和更新说明会在首次安装或对应版本首次打开时展示一次。之后可从“帮助”菜单或“设置 → 关于”重新打开。"], settingsTab: 0)
   ]
   static let currentUpdates: [GuidePage] = [
+    .init(id: "update-118-ui", title: "界面尺寸与播放首屏", location: "macOS 1.1.8 / iOS 0.1.7", symbol: "rectangle.3.group", paragraphs: [
+      "统一面板、媒体和内部项目的圆角与模块标题，Mac 工具栏按钮与搜索框同高，手机刷新按钮保留至少 44 点触控范围。",
+      "Mac 搜索历史与联想悬浮显示，不挤动内容；播放器按标题和操作区之外的可用空间安排 16:9 视频。"]),
+    .init(id: "update-118-playback", title: "缓冲进度与定时暂停", location: "macOS 1.1.8", symbol: "moon.zzz", paragraphs: [
+      "进度条显示系统播放器报告的可播放缓冲区间。支持 15、30、60 分钟后暂停，或本集结束后暂停。",
+      "音量、静音与倍速快捷键显示短暂反馈；定时到期暂停播放，本集结束模式阻止自动连播。"]),
     .init(id: "update-117-mac", title: "封面预览、主题与侧栏", location: "macOS 1.1.7 · 2026-11-11", symbol: "sidebar.left", paragraphs: [
       "鼠标在封面停留约 650 毫秒后静音预览，移开或切页停止。设置新增白色、暗色和跟随系统主题，默认保留原外观。",
       "侧栏可收起为图标或完全隐藏；消息、观看记录、收藏、稍后再看与下载统一从个人中心进入。"]),

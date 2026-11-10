@@ -552,7 +552,7 @@ struct MobilePlayerContent: View {
   private var video: some View {
     Group {
       if active { MobileVideoPlayer(store: store) } else { Color.black }
-    }.background(.black).clipShape(.rect(cornerRadius: UIDevice.current.userInterfaceIdiom == .pad ? 16 : 0))
+    }.background(.black).clipShape(.rect(cornerRadius: UIDevice.current.userInterfaceIdiom == .pad ? AppMetrics.mediaRadius : 0))
       .accessibilityElement(children: .contain)
       .accessibilityIdentifier("player-viewport")
   }
@@ -701,7 +701,7 @@ struct MobilePlayerContent: View {
         Spacer(minLength: 4)
         Image(systemName: "chevron.right")
       }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary, in: .rect(cornerRadius: 14))
+        .background(.quaternary, in: .rect(cornerRadius: AppMetrics.itemRadius))
     }.buttonStyle(InterfacePressStyle()).accessibilityIdentifier("sequence-" + kind.rawValue)
   }
   @ViewBuilder private func description(_ detail: Detail) -> some View {

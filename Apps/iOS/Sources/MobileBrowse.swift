@@ -3,7 +3,7 @@ import SwiftUI
 
 let biliPink = Color(red: 0.86, green: 0.24, blue: 0.43)
 extension View {
-  func appGlass(_ radius: CGFloat = 18) -> some View {
+  func appGlass(_ radius: CGFloat = AppMetrics.panelRadius) -> some View {
     padding(12).background(.regularMaterial, in: .rect(cornerRadius: radius))
   }
 }
@@ -36,9 +36,9 @@ struct MobileVideoCard: View {
   let video: Video
   @ScaledMetric(relativeTo: .subheadline) private var titleHeight = 38
   var body: some View {
-    VStack(alignment: .leading, spacing: 9) {
+    VStack(alignment: .leading, spacing: 8) {
       Thumbnail(url: video.cover).aspectRatio(16 / 9, contentMode: .fit).clipShape(
-        .rect(cornerRadius: 14)
+        .rect(cornerRadius: AppMetrics.mediaRadius)
       )
       .overlay(alignment: .bottom) {
         HStack {
@@ -48,7 +48,7 @@ struct MobileVideoCard: View {
           Text(clock(Double(video.duration))).monospacedDigit()
         }.font(.caption2).foregroundStyle(.white).padding(7)
           .background(LinearGradient(colors: [.clear, .black.opacity(0.8)], startPoint: .top, endPoint: .bottom))
-          .clipShape(.rect(cornerRadius: 14))
+          .clipShape(.rect(cornerRadius: AppMetrics.mediaRadius))
       }
       Text(video.title).font(.subheadline.weight(.medium)).lineLimit(2).frame(
         maxWidth: .infinity, minHeight: titleHeight, alignment: .topLeading)
@@ -61,7 +61,7 @@ struct MobileVideoCard: View {
     }.padding(UIDevice.current.userInterfaceIdiom == .pad ? 12 : 0)
       .background {
         if UIDevice.current.userInterfaceIdiom == .pad {
-          RoundedRectangle(cornerRadius: 22).fill(.regularMaterial)
+          RoundedRectangle(cornerRadius: AppMetrics.panelRadius).fill(.regularMaterial)
         }
       }.contentShape(Rectangle())
   }
@@ -80,7 +80,7 @@ struct MobileError: View {
       Label(text, systemImage: "exclamationmark.circle").font(.callout).textSelection(.enabled)
       if let retry { Button("重试", action: retry).buttonStyle(.appGlassButton) }
     }.frame(maxWidth: .infinity).padding(20).background(
-      .regularMaterial, in: .rect(cornerRadius: 18))
+      .regularMaterial, in: .rect(cornerRadius: AppMetrics.panelRadius))
   }
 }
 @MainActor @Observable final class VideoListModel {
@@ -225,7 +225,11 @@ struct MobileVideoList: View {
       .modifier(BrowseNavigationTitle(title: title, enabled: showsNavigationTitle))
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
-          Button("刷新", systemImage: "arrow.clockwise") { Task { await model.load(reset: true, loader: loader) } }
+          Button { Task { await model.load(reset: true, loader: loader) } } label: {
+            Image(systemName: "arrow.clockwise")
+              .frame(width: AppMetrics.controlHeight, height: AppMetrics.controlHeight)
+              .contentShape(.rect)
+          }.buttonStyle(.plain)
             .disabled(model.loading).accessibilityLabel("刷新列表")
         }
       }
@@ -259,7 +263,7 @@ struct MobileVideoList: View {
     override func didMoveToWindow() { super.didMoveToWindow(); coordinator?.attach(to: self) }
     override func didMoveToSuperview() { super.didMoveToSuperview(); coordinator?.attach(to: self) }
   }
-  final class Coordinator: NSObject {
+  @MainActor final class Coordinator: NSObject {
     var refresh: @MainActor () async -> Void
     private weak var scroll: UIScrollView?
     private let control = UIRefreshControl()

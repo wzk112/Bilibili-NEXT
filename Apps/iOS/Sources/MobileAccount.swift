@@ -244,7 +244,7 @@ struct MobileLogin: View {
           Text("使用哔哩哔哩 App 扫码并确认。也可以保存二维码，在哔哩哔哩扫一扫中从相册选择。").font(.callout)
             .foregroundStyle(.secondary).multilineTextAlignment(.center)
           ZStack {
-            RoundedRectangle(cornerRadius: 20).fill(.white)
+            RoundedRectangle(cornerRadius: AppMetrics.panelRadius).fill(.white)
             if let image = store.qrImage {
               Image(decorative: image, scale: 1).interpolation(.none).resizable().scaledToFit()
                 .padding(16).opacity(store.loginExpired ? 0.15 : 1)

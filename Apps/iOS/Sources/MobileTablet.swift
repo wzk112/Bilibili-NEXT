@@ -109,13 +109,13 @@ struct MobileTabletRoot: View {
           }
           .interfaceAnimation(playing).interfaceAnimation(navigationRevision)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .clipShape(.rect(cornerRadius: 24))
+          .clipShape(.rect(cornerRadius: AppMetrics.panelRadius))
           .overlay(alignment: .bottomTrailing) {
             ZStack(alignment: .bottomTrailing) {
               if store.isPlaybackOpen && !store.showPlayer {
                 MobileMiniPlayer(store: store)
                   .padding(8).frame(maxWidth: expanded ? 420 : .infinity)
-                  .appGlassEffect(.regular, in: .rect(cornerRadius: 22))
+                  .appGlassEffect(.regular, in: .rect(cornerRadius: AppMetrics.panelRadius))
                   .padding(12).interfaceTransition(mini: true)
               }
             }.interfaceAnimation(store.isPlaybackOpen && !store.showPlayer)
@@ -175,7 +175,7 @@ struct MobileTabletRoot: View {
         Text("Bilibili NEXT").font(.headline)
         Spacer(minLength: 0)
       }.padding(.horizontal, 18).frame(height: 68)
-        .appGlassEffect(.regular, in: .rect(cornerRadius: 24)).padding(.horizontal, 8)
+        .appGlassEffect(.regular, in: .rect(cornerRadius: AppMetrics.panelRadius)).padding(.horizontal, 8)
       // Glass backgrounds remain outside every scroll viewport, so their
       // shadows are never flattened/cropped into a rectangular tint.
       ViewThatFits(in: .vertical) {
@@ -201,7 +201,7 @@ struct MobileTabletRoot: View {
             .font(.subheadline).lineLimit(1)
           Spacer(minLength: 0)
         }.padding(.horizontal, 14).frame(minHeight: 58)
-      }.buttonStyle(.plain).appGlassEffect(.regular.interactive(), in: .rect(cornerRadius: 20))
+      }.buttonStyle(.plain).appGlassEffect(.regular.interactive(), in: .rect(cornerRadius: AppMetrics.panelRadius))
         .padding(.horizontal, 8)
         .disabled(store.restoring && store.account == nil)
         .accessibilityIdentifier("tablet-account")
@@ -230,7 +230,7 @@ struct MobileTabletRoot: View {
         }.scrollIndicators(.hidden).scrollEdgeEffectHidden()
           .accessibilityIdentifier("tablet-navigation-scroll-" + key)
       } else { navigationRows(items) }
-    }.padding(12).appGlassEffect(.regular, in: .rect(cornerRadius: 24))
+    }.padding(12).appGlassEffect(.regular, in: .rect(cornerRadius: AppMetrics.panelRadius))
   }
 
   private func navigationRows(_ items: [TabletDestination]) -> some View {
@@ -281,7 +281,7 @@ struct MobileTabletRoot: View {
         Image(systemName: "gearshape").frame(width: 44, height: 44)
       }.accessibilityLabel("设置").accessibilityIdentifier("tablet-settings")
     }.padding(.horizontal, 12).frame(minHeight: 68)
-      .appGlassEffect(.regular, in: .rect(cornerRadius: 24))
+      .appGlassEffect(.regular, in: .rect(cornerRadius: AppMetrics.panelRadius))
   }
 
   @ViewBuilder private var destination: some View {

@@ -3,7 +3,18 @@ import SwiftUI
 enum AppMetrics {
   static let pageInset: CGFloat = 16
   static let sectionSpacing: CGFloat = 16
-  static let cardRadius: CGFloat = 16
+  static let panelRadius: CGFloat = 20
+  static let cardRadius: CGFloat = panelRadius
+  static let mediaRadius: CGFloat = 12
+  static let itemRadius: CGFloat = 12
+  static let controlRadius: CGFloat = 8
+  static var pageTitle: Font {
+    #if os(iOS)
+    .title2.weight(.bold)
+    #else
+    .system(size: 26, weight: .bold)
+    #endif
+  }
   #if os(iOS)
   static let controlHeight: CGFloat = 44
   #else
@@ -82,7 +93,8 @@ struct AppMaterialButtonStyle: PrimitiveButtonStyle {
   }
   private func button(_ configuration: Configuration) -> some View {
     Button(role: configuration.role, action: configuration.trigger) {
-      configuration.label.frame(minHeight: AppMetrics.controlHeight - 14)
+      configuration.label.frame(minWidth: AppMetrics.controlHeight - 14,
+        minHeight: AppMetrics.controlHeight - 14).contentShape(.rect)
     }.controlSize(.regular).interactivePointer()
   }
 }

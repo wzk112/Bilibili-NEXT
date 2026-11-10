@@ -195,7 +195,7 @@ struct CatalogPage: View {
   var body: some View {
     VStack(spacing: 14) {
       HStack {
-        Label(kind.rawValue, systemImage: kind.symbol).font(.title2.bold())
+        Label(kind.rawValue, systemImage: kind.symbol).font(AppMetrics.pageTitle)
         Spacer()
         Button { Task { await load(reset: true) } } label: { Image(systemName: "arrow.clockwise") }
           .disabled(model.loading).accessibilityLabel("刷新" + kind.rawValue)
@@ -223,7 +223,7 @@ struct CatalogPage: View {
               } label: {
                 VStack(alignment: .leading, spacing: 8) {
                   Thumbnail(url: item.cover, mode: .fill).aspectRatio(kind == .live ? 16 / 9 : 3 / 4, contentMode: .fit)
-                    .clipShape(.rect(cornerRadius: 12))
+                    .clipShape(.rect(cornerRadius: AppMetrics.mediaRadius))
                   Text(item.title).font(.subheadline.weight(.semibold)).lineLimit(2).frame(maxWidth: .infinity, minHeight: 38, alignment: .topLeading)
                   Text([item.subtitle, item.badge].filter { !$0.isEmpty }.joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1).frame(height: 18)

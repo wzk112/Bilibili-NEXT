@@ -507,7 +507,7 @@ struct CatalogLivePlayer: View {
     }
   }
   @ViewBuilder private var inlineVideo: some View {
-    video.aspectRatio(16 / 9, contentMode: .fit).clipShape(.rect(cornerRadius: AppMetrics.cardRadius))
+    video.aspectRatio(16 / 9, contentMode: .fit).clipShape(.rect(cornerRadius: AppMetrics.mediaRadius))
   }
   private var video: some View {
     Group {

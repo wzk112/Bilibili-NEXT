@@ -28,7 +28,7 @@ struct MobileDynamics: View {
         }
         ForEach(items) { entry in
           MobileDynamicCard(store: store, entry: entry).padding(16).background(
-            .regularMaterial, in: .rect(cornerRadius: 20))
+            .regularMaterial, in: .rect(cornerRadius: AppMetrics.panelRadius))
         }
         if busy { ProgressView() }
         if let error {
@@ -159,7 +159,7 @@ struct MobileDynamicCard: View {
           }
           if let url = attachment.url { Link("查看" + attachment.kind, destination: url) }
         }.padding(12).frame(maxWidth: .infinity, alignment: .leading).background(
-          .quaternary, in: .rect(cornerRadius: 14))
+          .quaternary, in: .rect(cornerRadius: AppMetrics.itemRadius))
       }
       if entry.text.isEmpty && entry.original.isEmpty && entry.pictures.isEmpty
         && entry.video == nil && entry.attachment == nil
@@ -249,7 +249,7 @@ struct MobileDynamicComposer: View {
           TextEditor(text: $draft.text).scrollContentBackground(.hidden).padding(10).frame(
             minHeight: 150
           )
-          .appGlassEffect(.regular, in: .rect(cornerRadius: 20))
+          .appGlassEffect(.regular, in: .rect(cornerRadius: AppMetrics.panelRadius))
           HStack {
             EmojiPicker(api: store.api) {
               draft.emotes[$0.token] = $0
@@ -405,7 +405,7 @@ struct MobileConversation: View {
                   set: { inbox.drafts[conversation.id] = $0 }), axis: .vertical
               ).lineLimit(1...5).textFieldStyle(.plain)
                 .padding(.horizontal, 14).padding(.vertical, 10).frame(minHeight: 44)
-                .appGlassEffect(.regular, in: .rect(cornerRadius: 22))
+                .appGlassEffect(.regular, in: .rect(cornerRadius: AppMetrics.panelRadius))
                 .accessibilityIdentifier("message-input")
               Button {
                 guard let account = store.account else { return }

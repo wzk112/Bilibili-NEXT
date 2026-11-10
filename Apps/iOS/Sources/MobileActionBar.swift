@@ -89,10 +89,10 @@ struct MobileActionBar: View {
         .symbolEffect(.bounce, value: animateTriple && model.notice == "已三连")
         .symbolEffectsRemoved(reduceMotion)
       Text(count > 0 ? compactCount(count) : title).font(.caption).monospacedDigit().lineLimit(1)
-    }.frame(maxWidth: .infinity, minHeight: 54).contentShape(.rect(cornerRadius: 14))
+    }.frame(maxWidth: .infinity, minHeight: 54).contentShape(.rect(cornerRadius: AppMetrics.itemRadius))
       .overlay {
         if animateTriple && tripleProgress > 0 {
-          RoundedRectangle(cornerRadius: 14).trim(from: 0, to: tripleProgress)
+          RoundedRectangle(cornerRadius: AppMetrics.itemRadius).trim(from: 0, to: tripleProgress)
             .stroke(biliPink, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).allowsHitTesting(false)
         }
       }.accessibilityElement(children: .ignore).accessibilityLabel(title + "，" + String(count))

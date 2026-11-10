@@ -10,10 +10,12 @@ struct MacSidebar: View {
 
   var body: some View {
     let footerHeight: CGFloat = compact ? 100 : 60
-    let navigationHeight = CGFloat(preferences.sidebarPages.count) * 49 + 16
-    VStack(spacing: 14) {
+    let count = preferences.sidebarPages.count
+    let navigationHeight = CGFloat(count) * 44 + CGFloat(max(0, count - 1)) * 4 + 16
+    VStack(spacing: 0) {
+      Spacer(minLength: 0)
       ScrollView {
-        VStack(spacing: 5) {
+        VStack(spacing: 4) {
           ForEach(preferences.sidebarPages) { page in
             if let destination = Destination(rawValue: page.title) {
               Button { store.navigate(destination) } label: {
@@ -40,7 +42,7 @@ struct MacSidebar: View {
       .frame(height: min(navigationHeight, max(0, availableHeight - footerHeight - 14)))
       .scrollIndicators(.hidden).compositingGroup().clipped()
       Spacer(minLength: 0)
-      MacAccountFooter(store: store, compact: compact)
+      MacAccountFooter(store: store, compact: compact).padding(.top, 14)
     }.frame(maxHeight: .infinity).interfaceAnimation(compact)
   }
 }

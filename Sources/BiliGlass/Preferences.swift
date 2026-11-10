@@ -94,7 +94,7 @@ struct PreferencesView: View {
       }.padding(24)
     }.frame(minWidth: 940, idealWidth: 980, minHeight: 700, idealHeight: 740)
       .background { SettingsWindowChrome().frame(width: 0, height: 0) }
-      .appWindowBackground().appAppearance().tint(biliPink)
+      .appWindowBackground().appAppearance().buttonStyle(.appGlassButton).tint(biliPink)
   }
   private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content)
     -> some View

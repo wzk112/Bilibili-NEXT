@@ -4,17 +4,17 @@ import UniformTypeIdentifiers
 import CoreImage
 
 enum AppLayout {
-  static let sidebarWidth: CGFloat = 212
+  static let sidebarWidth: CGFloat = 192
   static let toolbarHeight: CGFloat = 56
   static let mainToolbarHeight: CGFloat = 32
   static let mainToolbarTopInset: CGFloat = 8
   static var mainHeaderHeight: CGFloat { mainToolbarHeight + mainToolbarTopInset }
-  static let panelRadius: CGFloat = 20
-  static let mediaRadius: CGFloat = 12
-  static let itemRadius: CGFloat = 12
-  static let controlRadius: CGFloat = 8
+  static let panelRadius = AppMetrics.panelRadius
+  static let mediaRadius = AppMetrics.mediaRadius
+  static let itemRadius = AppMetrics.itemRadius
+  static let controlRadius = AppMetrics.controlRadius
   static let pageInset: CGFloat = 8
-  static let pageTitle: Font = .system(size: 26, weight: .bold)
+  static let pageTitle = AppMetrics.pageTitle
 }
 
 /// Neutral press feedback without inheriting the window's accent tint.
@@ -75,7 +75,8 @@ private struct ThemedToolbarButtons: ViewModifier {
 }
 private struct NeutralToolbarButtonStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
-    configuration.label.frame(minWidth: 22, minHeight: 24).padding(.horizontal, 6)
+    configuration.label.padding(.horizontal, 6)
+      .frame(minWidth: AppMetrics.controlHeight, minHeight: AppMetrics.controlHeight)
       .background(.primary.opacity(configuration.isPressed ? 0.12 : 0.045), in: .rect(cornerRadius: AppLayout.controlRadius))
       .contentShape(.rect(cornerRadius: AppLayout.controlRadius))
       .interactivePointer()

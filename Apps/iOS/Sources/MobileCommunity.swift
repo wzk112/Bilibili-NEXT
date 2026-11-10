@@ -101,7 +101,7 @@ struct MobileCommentComposer: View {
       }
       TextField(store.account == nil ? "登录后评论" : "发表评论", text: $model.draft, axis: .vertical)
         .lineLimit(2...6).textFieldStyle(.plain).padding(12)
-        .appGlassEffect(.regular, in: .rect(cornerRadius: 18)).disabled(model.sending)
+        .appGlassEffect(.regular, in: .rect(cornerRadius: AppMetrics.panelRadius)).disabled(model.sending)
         .accessibilityIdentifier("comment-draft")
       let composeLayout =
         textSize.isAccessibilitySize

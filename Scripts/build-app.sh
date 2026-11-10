@@ -21,8 +21,8 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <key>CFBundleDisplayName</key><string>Bilibili NEXT</string>
 <key>CFBundleIconFile</key><string>AppIcon-Flat</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.1.7</string>
-<key>CFBundleVersion</key><string>19</string>
+<key>CFBundleShortVersionString</key><string>1.1.8</string>
+<key>CFBundleVersion</key><string>20</string>
 <key>SUFeedURL</key><string>https://github.com/wzk112/Bilibili-NEXT/releases/latest/download/appcast.xml</string>
 <key>SUPublicEDKey</key><string>96JKf6JdwWDEGZKlN9VaJk59A9Z+sVOGSolKB0DTekQ=</string>
 <key>SUEnableAutomaticChecks</key><false/>
