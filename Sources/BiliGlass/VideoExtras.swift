@@ -207,7 +207,7 @@ struct SubtitleOverlay: View {
     VStack { Spacer(); if !text.isEmpty {
       Text(text).font(.system(size: fullscreen ? 25 : 20, weight: .medium)).multilineTextAlignment(.center)
         .foregroundStyle(.white).padding(.horizontal, 12).padding(.vertical, 5)
-        .background(.black.opacity(0.65), in: .rect(cornerRadius: 6)).padding(.horizontal, 35)
+        .background(.black.opacity(0.65), in: .rect(cornerRadius: AppLayout.controlRadius)).padding(.horizontal, 35)
         .padding(.bottom, fullscreen ? 100 : bottomInset)
     } }.allowsHitTesting(false)
   }
@@ -260,7 +260,7 @@ struct PlaybackFeatureControls: View {
       }.disabled(!pictureInPicture.isPossible && !pictureInPicture.isPresented)
         .help(pictureInPicture.isPresented ? "退出画中画" : "画中画")
       if let error = store.extras.subtitleError { Text(error).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
-    }.buttonStyle(.appGlassButton)
+    }.buttonStyle(.pointerGlass)
   }
 }
 struct VideoDiscovery: View {
@@ -268,7 +268,7 @@ struct VideoDiscovery: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       if !store.extras.tags.isEmpty {
-        ScrollView(.horizontal) { HStack { ForEach(store.extras.tags) { tag in Button(tag.title) { store.query = tag.title; store.search() }.buttonStyle(.appGlassButton) } } }
+        ScrollView(.horizontal) { HStack { ForEach(store.extras.tags) { tag in Button(tag.title) { store.query = tag.title; store.search() }.buttonStyle(.pointerGlass) } } }
       }
       let parts = PlaybackSequence.parts(store.playback.detail)
       if !parts.isEmpty { sequence("分 P · \(parts.count) P", items: parts, parts: true) }
@@ -284,7 +284,7 @@ struct VideoDiscovery: View {
       }
       ScrollView(.horizontal) {
         LazyHStack(alignment: .top, spacing: 12) { ForEach(store.extras.related) { video in
-          Button { store.open(video.bvid) } label: { VideoCard(video: video).frame(width: 240) }.buttonStyle(.plain).contextMenu { VideoContextActions(store: store, video: video) }
+          Button { store.open(video.bvid) } label: { VideoCard(video: video).frame(width: 240) }.buttonStyle(.pointerPlain).contextMenu { VideoContextActions(store: store, video: video) }
         } }
       }.frame(height: store.extras.related.isEmpty ? 0 : 250)
     }
@@ -305,17 +305,16 @@ struct VideoDiscovery: View {
                 Text(item.title).font(.callout.weight(current ? .semibold : .regular))
                   .lineLimit(2).frame(width: 180, height: 40, alignment: .leading)
                   .padding(.horizontal, 12).padding(.vertical, 8).foregroundStyle(.primary)
-                  .contentShape(.rect(cornerRadius: 12))
+                  .contentShape(.rect(cornerRadius: AppLayout.itemRadius))
               }.buttonStyle(InterfacePressStyle())
-                .appGlassEffect(.regular.tint(current ? biliPink.opacity(0.22) : .clear).interactive(),
-                  in: .rect(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(current ? biliPink.opacity(0.7) : .clear, lineWidth: 1))
+                .appGlass(AppLayout.itemRadius, tint: current ? biliPink.opacity(0.22) : .clear, interactive: true, regular: true)
+                .overlay(RoundedRectangle(cornerRadius: AppLayout.itemRadius).strokeBorder(current ? biliPink.opacity(0.7) : .clear, lineWidth: 1))
                 .accessibilityAddTraits(current ? .isSelected : [])
             }
           }.padding(4)
         }
       }.scrollIndicators(.hidden).frame(height: 66).compositingGroup().clipped()
-    }.padding(14).floatingGlass(16).clipShape(.rect(cornerRadius: 16))
+    }.padding(14).floatingGlass(AppLayout.panelRadius).clipShape(.rect(cornerRadius: AppLayout.panelRadius))
   }
 
 }

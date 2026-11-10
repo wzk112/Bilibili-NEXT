@@ -75,7 +75,7 @@ struct VideoActionBar: View {
             PlaybackOptionsControls(store: store, onShowDanmakuList: { danmakuManager = true })
               .transition(.opacity)
           }
-        }.buttonStyle(.appGlassButton)
+        }.buttonStyle(.pointerGlass)
           .interfaceAnimation(showsPlaybackOptions)
       }
       if let error = model.error {
@@ -84,7 +84,7 @@ struct VideoActionBar: View {
           if model.needsVerification {
             Button("重新登录") { store.login() }
           }
-        }.buttonStyle(.appGlassButton)
+        }.buttonStyle(.pointerGlass)
       }
     }.task(id: identity) { await refresh() }
       .onChange(of: identity) { sheet = nil; tripleProgress = 0 }
@@ -118,12 +118,12 @@ struct VideoActionBar: View {
           Text(count >= 10000 ? String(format: "%.1f万", Double(count) / 10000) : String(count)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
         }
         Spacer(minLength: 0)
-      }.padding(.horizontal, 8).padding(.vertical, 5).frame(maxWidth: .infinity, minHeight: 40).contentShape(.rect(cornerRadius: 18))
+      }.padding(.horizontal, 8).padding(.vertical, 5).frame(maxWidth: .infinity, minHeight: 40).contentShape(.rect(cornerRadius: AppLayout.itemRadius))
     }.foregroundStyle(.primary).tint(.primary)
-      .appGlassEffect(.regular.tint(active ? biliPink.opacity(0.22) : .clear).interactive(), in: .rect(cornerRadius: 18))
+      .appGlass(AppLayout.itemRadius, tint: active ? biliPink.opacity(0.22) : .clear, interactive: true, regular: true)
       .overlay {
         if icon != "square.and.arrow.up" && tripleProgress > 0 {
-          RoundedRectangle(cornerRadius: 18).trim(from: 0, to: tripleProgress)
+          RoundedRectangle(cornerRadius: AppLayout.itemRadius).trim(from: 0, to: tripleProgress)
             .stroke(biliPink, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).allowsHitTesting(false)
         }
       }
@@ -231,10 +231,10 @@ struct CoinSheet: View {
             Button { amount = value } label: {
               VStack(spacing: 8) { Image(systemName: "c.circle").font(.largeTitle); Text("\(value) 枚").font(.headline) }
                 .frame(maxWidth: .infinity).padding(.vertical, 14)
-                .contentShape(.rect(cornerRadius: 18))
-            }.buttonStyle(.plain).foregroundStyle(.primary)
-              .appGlassEffect(.regular.tint(amount == value ? biliPink.opacity(0.24) : .clear).interactive(), in: .rect(cornerRadius: 18))
-              .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(amount == value ? biliPink.opacity(0.8) : .clear, lineWidth: 1.5).allowsHitTesting(false) }
+                .contentShape(.rect(cornerRadius: AppLayout.itemRadius))
+            }.buttonStyle(.pointerPlain).foregroundStyle(.primary)
+              .appGlass(AppLayout.itemRadius, tint: amount == value ? biliPink.opacity(0.24) : .clear, interactive: true, regular: true)
+              .overlay { RoundedRectangle(cornerRadius: AppLayout.itemRadius).strokeBorder(amount == value ? biliPink.opacity(0.8) : .clear, lineWidth: 1.5).allowsHitTesting(false) }
               .accessibilityAddTraits(amount == value ? .isSelected : [])
               .opacity(value > available ? 0.45 : 1)
               .help(busy ? "正在读取或提交投币状态" : choice.reason(for: value) ?? "选择 \(value) 枚硬币")
@@ -249,7 +249,7 @@ struct CoinSheet: View {
         if model.relation?.liked != true {
           Toggle("同时点赞", isOn: $alsoLike).toggleStyle(.switch).disabled(busy)
         }
-      }.padding(20).floatingGlass(22)
+      }.padding(20).floatingGlass(AppLayout.panelRadius)
       if preparing { ProgressView("正在读取投币状态") }
       else if available == 0, model.relation != nil, balance != nil {
         Text((model.relation?.coins ?? 0) >= limit ? "本视频已投满" : "硬币余额不足").foregroundStyle(.secondary)
@@ -271,9 +271,9 @@ struct CoinSheet: View {
           Task {
             if await model.sendCoins(amount: amount, limit: limit, balance: balance ?? 0, alsoLike: alsoLike, api: store.api) { dismiss() }
           }
-        }.buttonStyle(.appGlassProminent).disabled(busy || model.relation == nil || amount > available || balance == nil)
+        }.buttonStyle(.pointerGlassProminent).disabled(busy || model.relation == nil || amount > available || balance == nil)
       }
-    }.buttonStyle(.appGlassButton).padding(24).frame(width: 440).background { GlassBackdrop() }.tint(biliPink)
+    }.buttonStyle(.pointerGlass).padding(24).frame(width: 440).background { GlassBackdrop() }.tint(biliPink)
       .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: amount)
       .interactiveDismissDisabled(model.operation != nil)
       .task { await prepare() }
@@ -309,7 +309,7 @@ struct TripleSheet: View {
         Label("点赞", systemImage: "hand.thumbsup")
         Label(detail.copyright == 2 ? "投币，最多 1 枚" : "投币，最多 2 枚", systemImage: "c.circle")
         Label("收藏到默认收藏夹", systemImage: "star")
-      }.frame(maxWidth: .infinity, alignment: .leading).padding(20).floatingGlass(22)
+      }.frame(maxWidth: .infinity, alignment: .leading).padding(20).floatingGlass(AppLayout.panelRadius)
       Text("已完成的操作由服务器判断。投币后无法撤回。").font(.caption).foregroundStyle(.secondary)
       if let error = model.error { Text(error).font(.callout).foregroundStyle(.secondary) }
       HStack {
@@ -322,9 +322,9 @@ struct TripleSheet: View {
         Spacer()
         Button(model.operation == "triple" ? "提交中…" : "确认三连") {
           Task { if await model.sendTriple(api: store.api) { dismiss() } }
-        }.buttonStyle(.appGlassProminent).disabled(busy || model.relation == nil)
+        }.buttonStyle(.pointerGlassProminent).disabled(busy || model.relation == nil)
       }
-    }.buttonStyle(.appGlassButton).padding(24).frame(width: 440).background { GlassBackdrop() }.tint(biliPink)
+    }.buttonStyle(.pointerGlass).padding(24).frame(width: 440).background { GlassBackdrop() }.tint(biliPink)
       .interactiveDismissDisabled(busy)
       .task { await refresh() }
   }
@@ -366,7 +366,7 @@ struct FavoriteSheet: View {
                   Spacer()
                   Text("\(folder.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 }.padding(14).frame(maxWidth: .infinity).contentShape(.rect(cornerRadius: 16))
-              }.buttonStyle(.plain).floatingGlass(16).disabled(editor.saving || !editor.loaded)
+              }.buttonStyle(.pointerPlain).floatingGlass(AppLayout.panelRadius).disabled(editor.saving || !editor.loaded)
                 .accessibilityAddTraits(editor.selected.contains(folder.id) ? .isSelected : [])
             }
           }.padding(4)
@@ -382,7 +382,7 @@ struct FavoriteSheet: View {
             Button("创建") { Task { if await editor.create(title: name, isPrivate: isPrivate, api: store.api) { creating = false; name = "" } } }
               .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name.count > 20 || editor.saving || !editor.loaded)
           }
-        }.padding(16).floatingGlass(18)
+        }.padding(16).floatingGlass(AppLayout.panelRadius)
       }
       if let error = editor.error { Text(error).font(.callout).foregroundStyle(.secondary) }
       HStack {
@@ -398,9 +398,9 @@ struct FavoriteSheet: View {
               dismiss()
             }
           }
-        }.buttonStyle(.appGlassProminent).disabled(editor.loading || editor.saving || !editor.loaded)
+        }.buttonStyle(.pointerGlassProminent).disabled(editor.loading || editor.saving || !editor.loaded)
       }
-    }.buttonStyle(.appGlassButton).padding(24).frame(width: 500).background { GlassBackdrop() }.tint(biliPink)
+    }.buttonStyle(.pointerGlass).padding(24).frame(width: 500).background { GlassBackdrop() }.tint(biliPink)
       .interactiveDismissDisabled(editor.saving)
       .task { await editor.load(api: store.api) }
       .sheet(isPresented: $verify, onDismiss: { Task { await editor.load(api: store.api) } }) { InteractionVerification(store: store, detail: detail) }
@@ -431,7 +431,7 @@ struct VideoShareSheet: View {
           Toggle("从 \(timestamp) 开始", isOn: $includeTime).toggleStyle(.switch)
           Button("使用当前播放位置") { captureTime() }.font(.callout)
         }.frame(maxWidth: .infinity, alignment: .leading)
-      }.padding(18).floatingGlass(22)
+      }.padding(18).floatingGlass(AppLayout.panelRadius)
       Text(url.absoluteString).font(.callout).textSelection(.enabled).padding(14).frame(maxWidth: .infinity, alignment: .leading).appGlass(14)
       HStack {
         Button("复制 BV 号") { copy(detail.video.bvid, notice: "BV 号已复制") }
@@ -440,7 +440,7 @@ struct VideoShareSheet: View {
         ShareLink(item: url, subject: Text(detail.video.title), message: Text(detail.video.title)) { Label("系统分享", systemImage: "square.and.arrow.up") }
       }
       if let copied { Text(copied).font(.caption).foregroundStyle(.secondary) }
-    }.buttonStyle(.appGlassButton).padding(24).frame(width: 560).background { GlassBackdrop() }.tint(biliPink)
+    }.buttonStyle(.pointerGlass).padding(24).frame(width: 560).background { GlassBackdrop() }.tint(biliPink)
       .onAppear { captureTime() }.onChange(of: url) { copied = nil }
   }
   private var timestamp: String { let value = Int(max(0,seconds)); return String(format: "%d:%02d",value/60,value%60) }

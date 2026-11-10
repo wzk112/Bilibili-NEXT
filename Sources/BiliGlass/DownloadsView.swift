@@ -46,14 +46,14 @@ struct DownloadPage: View {
             } label: {
               Image(systemName: "xmark")
             }.buttonStyle(.plain)
-          }.padding(16).floatingGlass(18)
+          }.padding(16).floatingGlass(AppLayout.panelRadius)
         }
         ForEach(
           visibleJobs, id: \.pendingRowID
         ) { job in
           HStack(spacing: 16) {
             Thumbnail(url: job.video.cover, mode: .fill).frame(width: 116, height: 72).clipShape(
-              RoundedRectangle(cornerRadius: 8))
+              RoundedRectangle(cornerRadius: AppLayout.mediaRadius))
             VStack(alignment: .leading, spacing: 7) {
               Text(job.video.title).lineLimit(1)
               ProgressView(value: job.progress)
@@ -77,14 +77,14 @@ struct DownloadPage: View {
             } label: {
               Image(systemName: "ellipsis")
             }.menuStyle(.borderlessButton).frame(width: 22)
-          }.padding(16).floatingGlass(22)
+          }.padding(16).floatingGlass(AppLayout.panelRadius)
         }
         ForEach(
           visibleSaved, id: \.completedRowID
         ) { entry in
           HStack(spacing: 16) {
             Thumbnail(url: entry.video.cover, mode: .fill).frame(width: 116, height: 72).clipShape(
-              RoundedRectangle(cornerRadius: 8))
+              RoundedRectangle(cornerRadius: AppLayout.mediaRadius))
             VStack(alignment: .leading, spacing: 7) {
               Text(entry.video.title).lineLimit(2)
               Text(
@@ -111,7 +111,7 @@ struct DownloadPage: View {
             } label: {
               Image(systemName: "ellipsis")
             }.menuStyle(.borderlessButton).frame(width: 22)
-          }.padding(16).floatingGlass(22)
+          }.padding(16).floatingGlass(AppLayout.panelRadius)
         }
         if visibleJobs.isEmpty && visibleSaved.isEmpty {
           ContentUnavailableView(

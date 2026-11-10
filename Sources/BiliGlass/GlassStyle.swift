@@ -10,6 +10,9 @@ enum AppLayout {
   static let mainToolbarTopInset: CGFloat = 8
   static var mainHeaderHeight: CGFloat { mainToolbarHeight + mainToolbarTopInset }
   static let panelRadius: CGFloat = 20
+  static let mediaRadius: CGFloat = 12
+  static let itemRadius: CGFloat = 12
+  static let controlRadius: CGFloat = 8
   static let pageInset: CGFloat = 8
   static let pageTitle: Font = .system(size: 26, weight: .bold)
 }
@@ -22,23 +25,60 @@ struct NavigationButtonStyle: ButtonStyle {
 }
 
 extension View {
-  func floatingGlass(_ radius: CGFloat = 22) -> some View { appGlass(radius, tint: .primary.opacity(0.035)) }
-  func appGlass(_ radius: CGFloat = 14, tint: Color = .clear, interactive: Bool = false) -> some View {
-    modifier(GlassSurface(radius: radius, tint: tint, interactive: interactive))
+  func floatingGlass(_ radius: CGFloat = AppLayout.panelRadius) -> some View { modifier(FloatingPanel(radius: radius)) }
+  func appGlass(_ radius: CGFloat = 14, tint: Color = .clear, interactive: Bool = false, regular: Bool = false) -> some View {
+    modifier(GlassSurface(radius: radius, tint: tint, interactive: interactive, regular: regular))
   }
   func appAppearance() -> some View { modifier(AppAppearance()) }
   func appWindowBackground() -> some View { modifier(AppWindowBackground()) }
+  func toolbarButtons() -> some View { modifier(ThemedToolbarButtons()) }
   func cardHover() -> some View { modifier(CardHover()) }
+}
+private struct FloatingPanel: ViewModifier {
+  let radius: CGFloat
+  @AppStorage("appTheme") private var theme = AppTheme.original
+  func body(content: Content) -> some View {
+    content.appGlass(radius, tint: theme == .original ? .primary.opacity(0.035) : .clear)
+  }
 }
 private struct GlassSurface: ViewModifier {
   let radius: CGFloat
   let tint: Color
   let interactive: Bool
+  let regular: Bool
   @AppStorage("glassStyle") private var style = "clear"
+  @AppStorage("appTheme") private var theme = AppTheme.original
+  @Environment(\.colorScheme) private var scheme
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   func body(content: Content) -> some View {
-    content.appGlassEffect((style == "clear" && !reduceTransparency ? AppGlass.clear : AppGlass.regular)
-      .tint(tint).interactive(interactive), in: .rect(cornerRadius: radius))
+    if theme == .original {
+      content.appGlassEffect((!regular && style == "clear" && !reduceTransparency ? AppGlass.clear : AppGlass.regular)
+        .tint(tint).interactive(interactive), in: .rect(cornerRadius: radius))
+    } else {
+      content.background {
+        RoundedRectangle(cornerRadius: radius).fill(AppTheme.surface(scheme))
+          .overlay(RoundedRectangle(cornerRadius: radius).fill(tint))
+      }
+        .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(.primary.opacity(0.07), lineWidth: 1)
+          .allowsHitTesting(false))
+    }
+  }
+}
+private struct ThemedToolbarButtons: ViewModifier {
+  @AppStorage("appTheme") private var theme = AppTheme.original
+  func body(content: Content) -> some View {
+    if theme == .original {
+      content.buttonStyle(.pointerGlass).buttonBorderShape(.roundedRectangle(radius: AppLayout.controlRadius)).tint(.primary)
+    }
+    else { content.buttonStyle(NeutralToolbarButtonStyle()).foregroundStyle(.primary) }
+  }
+}
+private struct NeutralToolbarButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label.frame(minWidth: 22, minHeight: 24).padding(.horizontal, 6)
+      .background(.primary.opacity(configuration.isPressed ? 0.12 : 0.045), in: .rect(cornerRadius: AppLayout.controlRadius))
+      .contentShape(.rect(cornerRadius: AppLayout.controlRadius))
+      .interactivePointer()
   }
 }
 private struct AppAppearance: ViewModifier {
@@ -46,7 +86,8 @@ private struct AppAppearance: ViewModifier {
   @AppStorage("appTheme") private var theme = AppTheme.original
   @State private var systemAppearance = SystemAppearance.shared
   func body(content: Content) -> some View {
-    content.preferredColorScheme(theme.preferredScheme(originalAppearance: appearance) ?? systemAppearance.scheme)
+    let scheme = theme.preferredScheme(originalAppearance: appearance) ?? systemAppearance.scheme
+    content.preferredColorScheme(scheme)
   }
 }
 private struct AppWindowBackground: ViewModifier {
@@ -62,13 +103,14 @@ private struct CardHover: ViewModifier {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   func body(content: Content) -> some View {
     content.scaleEffect(hovering && animations && !reduceMotion ? 1.012 : 1)
+      .interactivePointer()
       .animation(animations && !reduceMotion ? .smooth(duration: 0.18) : nil, value: hovering)
       .onHover { hovering = $0 }
   }
 }
 struct GlassBackdrop: View {
-  @AppStorage("appTheme") private var theme = AppTheme.original
   @Environment(\.colorScheme) private var scheme
+  @AppStorage("appTheme") private var theme = AppTheme.original
   @AppStorage("backgroundImage") private var path = ""
   @AppStorage("backgroundBlur") private var blur = false
   @AppStorage("backgroundOpacity") private var opacity = 0.7

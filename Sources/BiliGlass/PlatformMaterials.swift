@@ -83,7 +83,7 @@ struct AppMaterialButtonStyle: PrimitiveButtonStyle {
   private func button(_ configuration: Configuration) -> some View {
     Button(role: configuration.role, action: configuration.trigger) {
       configuration.label.frame(minHeight: AppMetrics.controlHeight - 14)
-    }.controlSize(.regular)
+    }.controlSize(.regular).interactivePointer()
   }
 }
 

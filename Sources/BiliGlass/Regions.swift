@@ -56,7 +56,7 @@ struct RegionSelector: View {
         }
       }
 
-    }.padding(16).floatingGlass(20)
+    }.padding(16).floatingGlass(AppLayout.panelRadius)
   }
 }
 

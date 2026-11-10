@@ -129,7 +129,7 @@ struct RootView: View {
             store.interactionMessage = nil
           } label: {
             Image(systemName: "xmark")
-          }.buttonStyle(.plain)
+          }.buttonStyle(.pointerPlain)
         }.padding(14).appGlassEffect(.regular, in: .capsule).padding(20)
       }
     }
@@ -237,7 +237,7 @@ struct RootView: View {
             store.clearSearch()
           } label: {
             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-          }.buttonStyle(.plain).help("清除搜索")
+          }.buttonStyle(.pointerPlain).help("清除搜索")
         }
       }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: 28)
         .background(.primary.opacity(0.06), in: .rect(cornerRadius: 8))
@@ -250,12 +250,12 @@ struct RootView: View {
         Image(systemName: "arrow.clockwise")
       }.help("刷新")
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { headerRefreshFrame = $0 }
-    }.buttonStyle(.appGlassButton).tint(.primary).buttonBorderShape(.roundedRectangle(radius: 8)).padding(.horizontal, 12).frame(height: AppLayout.mainToolbarHeight)
+    }.toolbarButtons().padding(.horizontal, 12).frame(height: AppLayout.mainToolbarHeight)
       .interfaceAnimation(sidebarVisible)
   }
   @ViewBuilder private var content: some View {
     ZStack {
-      browsingContent.id(store.destination).clipShape(.rect(cornerRadius: 24))
+      browsingContent.id(store.destination).clipShape(.rect(cornerRadius: AppLayout.panelRadius))
         .interfaceTransition().opacity(store.showPlayer ? 0 : 1)
         .allowsHitTesting(!store.showPlayer).accessibilityHidden(store.showPlayer)
       if store.showPlayer { PlayerPage(store: store).transition(.opacity) }
@@ -354,7 +354,7 @@ struct VideoCard: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Thumbnail(url: video.cover, mode: .fill).aspectRatio(16 / 9, contentMode: .fit).clipShape(
-        RoundedRectangle(cornerRadius: 12)
+        RoundedRectangle(cornerRadius: AppLayout.mediaRadius)
       ).overlay(alignment: .bottom) {
         HStack(spacing: 8) {
           if showsViews {
@@ -372,7 +372,7 @@ struct VideoCard: View {
         if let preview, preview.activeID == video.bvid {
           CoverPreviewOverlay(preview: preview, token: preview.identity).id(preview.identity)
         }
-      }.clipShape(.rect(cornerRadius: 12))
+      }.clipShape(.rect(cornerRadius: AppLayout.mediaRadius))
         .onHover { inside in
           if inside && !reduceMotion { preview?.hover(video) }
           else { preview?.stop(videoID: video.bvid) }
@@ -380,7 +380,7 @@ struct VideoCard: View {
         .onDisappear { preview?.stop(videoID: video.bvid) }
       Text(video.title).font(.system(size: 14, weight: .medium)).lineLimit(2)
         .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 38, alignment: .topLeading).foregroundStyle(.primary)
+        .frame(height: 38, alignment: .topLeading).foregroundStyle(.primary).help(video.title)
       HStack(spacing: 8) {
         Text(video.author).lineLimit(1).truncationMode(.tail)
         Spacer(minLength: 2)
@@ -389,8 +389,8 @@ struct VideoCard: View {
             .fixedSize().help("发布时间 · " + date.formatted(AppDateFormat.timestamp))
         }
       }.font(.caption).foregroundStyle(.secondary)
-    }.padding(8).background(.primary.opacity(0.035), in: .rect(cornerRadius: 18))
-      .contentShape(.rect(cornerRadius: 18)).cardHover()
+    }.padding(AppLayout.pageInset).background(.primary.opacity(0.035), in: .rect(cornerRadius: AppLayout.panelRadius))
+      .contentShape(.rect(cornerRadius: AppLayout.panelRadius)).cardHover()
   }
   private func duration(_ t: Int) -> String {
     t >= 3600
@@ -437,7 +437,7 @@ struct ErrorBanner: View {
       Text(text).textSelection(.enabled)
       Spacer()
       Button("重试", action: retry)
-    }.padding(16).floatingGlass(18)
+    }.padding(16).floatingGlass(AppLayout.panelRadius)
   }
 }
 struct ScrollingVideoTitle: View {
@@ -461,7 +461,7 @@ struct ScrollingVideoTitle: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { textWidth = $0 }
     }
     .scrollIndicators(.hidden).scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-    .scrollPosition($position).frame(height: 28)
+    .scrollPosition($position).frame(height: 28).help(title)
     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
     .onHover { hovering = $0 }
     .accessibilityHint(overflow > 1 ? "可横向滚动查看完整标题" : "")
@@ -663,7 +663,7 @@ struct PlayerPage: View {
   private func author(_ detail: Detail) -> some View {
     Button { store.showProfile(detail.ownerID) } label: {
       Text(detail.video.author).lineLimit(1).truncationMode(.middle).help(detail.video.author)
-    }.buttonStyle(.plain).disabled(detail.ownerID <= 0)
+    }.buttonStyle(.pointerPlain).disabled(detail.ownerID <= 0)
   }
   private func metadata(_ video: Video) -> some View {
     HStack(spacing: 12) {
@@ -723,7 +723,7 @@ struct LoginSheet: View {
           store.showLogin = false
         } label: {
           Image(systemName: "xmark")
-        }.buttonStyle(.appGlassButton).help("关闭")
+        }.buttonStyle(.pointerGlass).help("关闭")
       }
       ZStack {
         RoundedRectangle(cornerRadius: 16).fill(.white)
@@ -732,7 +732,7 @@ struct LoginSheet: View {
             store.loginExpired ? 0.15 : 1)
         }
         if store.qrImage == nil && !store.loginExpired { ProgressView() }
-        if store.loginExpired { Button("刷新二维码") { store.refreshQR() }.buttonStyle(.appGlassProminent) }
+        if store.loginExpired { Button("刷新二维码") { store.refreshQR() }.buttonStyle(.pointerGlassProminent) }
       }.frame(width: 230, height: 230)
       Text(store.loginStatus).font(.callout).foregroundStyle(.secondary)
       Text("一次扫码即可使用浏览、收藏与投币。登录不会自动投币。")

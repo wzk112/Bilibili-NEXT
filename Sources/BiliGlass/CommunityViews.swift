@@ -40,14 +40,14 @@ struct CommentsView: View {
           if reply.count > children.count && comments.childHasMore[reply.id] != false {
             Button(comments.childLoading.contains(reply.id) ? "加载回复中…" : comments.expanded[reply.id] == nil ? "展开回复（\(reply.count)）" : "加载更多回复") {
               Task { await comments.children(reply, aid: aid, api: store.api) }
-            }.buttonStyle(.plain).foregroundStyle(.primary).fontWeight(.medium).padding(.leading, 44).disabled(
+            }.buttonStyle(.pointerPlain).foregroundStyle(.primary).fontWeight(.medium).padding(.leading, 44).disabled(
               comments.childLoading.contains(reply.id))
           }
           if let error = comments.childErrors[reply.id] {
             Text(error).font(.caption).foregroundStyle(.secondary).padding(.leading, 44)
           }
           if comments.expanded[reply.id] != nil {
-            Button("收起回复") { comments.collapse(reply) }.buttonStyle(.plain).foregroundStyle(.secondary).padding(.leading, 44)
+            Button("收起回复") { comments.collapse(reply) }.buttonStyle(.pointerPlain).foregroundStyle(.secondary).padding(.leading, 44)
           }
           Divider()
         }.id(reply.id)
@@ -86,7 +86,7 @@ struct MacCommentComposer: View {
       HStack(alignment: .bottom) {
         TextField(store.account == nil ? "登录后发表评论" : "发表评论", text: $comments.draft, axis: .vertical)
           .accessibilityIdentifier("comment-draft").focused($inputFocused)
-          .lineLimit(2...5).textFieldStyle(.plain).padding(10).appGlass(12).disabled(
+          .lineLimit(2...5).textFieldStyle(.plain).padding(10).appGlass(AppLayout.itemRadius).disabled(
             store.account == nil || comments.sending)
         Button(comments.sending ? "发送中" : "发送") {
           if store.account == nil {
@@ -94,7 +94,7 @@ struct MacCommentComposer: View {
           } else {
             Task { await comments.send(aid: aid, api: store.api) }
           }
-        }.buttonStyle(.appGlassProminent).disabled(
+        }.buttonStyle(.pointerGlassProminent).disabled(
           comments.sending || comments.draft.count > 1000
             || (store.account != nil
               && comments.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && comments.attachments.isEmpty)
@@ -103,7 +103,7 @@ struct MacCommentComposer: View {
       if comments.draft.count > 1000 { Text("评论最多 1000 字").foregroundStyle(.red).font(.caption) }
       HStack {
         EmojiPicker(api: store.api) { comments.draft += $0.token }
-        Button { comments.attachments += ImageAttachment.choose(multiple: true).prefix(max(0, 9 - comments.attachments.count)) } label: { Label("添加图片", systemImage: "photo.badge.plus") }.buttonStyle(.appGlassButton).disabled(comments.attachments.count >= 9)
+        Button { comments.attachments += ImageAttachment.choose(multiple: true).prefix(max(0, 9 - comments.attachments.count)) } label: { Label("添加图片", systemImage: "photo.badge.plus") }.buttonStyle(.pointerGlass).disabled(comments.attachments.count >= 9)
         Spacer()
       }.disabled(store.account == nil || comments.sending)
       if !comments.attachments.isEmpty { AttachedImages(urls: $comments.attachments).disabled(comments.sending) }
@@ -145,8 +145,8 @@ struct CommentSubmissionReceipt: View {
           Spacer(minLength: 0)
           Button { comments.submittedText = nil; comments.submissionStatus = nil } label: {
             Image(systemName: "xmark")
-          }.buttonStyle(.plain).help("收起提交记录")
-        }.padding(14).appGlass(14)
+          }.buttonStyle(.pointerPlain).help("收起提交记录")
+        }.padding(14).appGlass(AppLayout.itemRadius)
       }
   }
 }
@@ -205,7 +205,7 @@ struct ReplyRow: View {
         Thumbnail(url: reply.face, mode: .fill, placeholder: "person.crop.circle.fill").frame(
           width: 34, height: 34
         ).clipShape(Circle())
-      }.buttonStyle(.plain)
+      }.buttonStyle(.pointerPlain)
       VStack(alignment: .leading, spacing: 8) {
         Button(reply.name) { store.showProfile(reply.mid) }.buttonStyle(
           .plain
@@ -228,12 +228,12 @@ struct ReplyRow: View {
                   store.imageGallery = ImageGalleryTarget(urls: reply.pictures, selected: index)
                 } label: {
                   Thumbnail(url: image, mode: .fill).frame(width: 140, height: 105)
-                    .clipShape(.rect(cornerRadius: 10))
+                    .clipShape(.rect(cornerRadius: AppLayout.mediaRadius))
                     .overlay(alignment: .bottomTrailing) {
                       Image(systemName: "arrow.up.left.and.arrow.down.right").font(.caption)
                         .padding(6).appGlassEffect(.clear, in: .circle).padding(6)
                     }
-                }.buttonStyle(.plain).help("查看图片").accessibilityLabel("查看评论图片 \(index+1)")
+                }.buttonStyle(.pointerPlain).help("查看图片").accessibilityLabel("查看评论图片 \(index+1)")
               }
             }
           }
@@ -247,8 +247,8 @@ struct ReplyRow: View {
             Label(
               reply.likes > 0 ? "\(reply.likes)" : "赞",
               systemImage: reply.liked ? "hand.thumbsup.fill" : "hand.thumbsup")
-          }.buttonStyle(.plain)
-          Button("回复") { comments.replyingTo = reply }.buttonStyle(.plain)
+          }.buttonStyle(.pointerPlain)
+          Button("回复") { comments.replyingTo = reply }.buttonStyle(.pointerPlain)
           if reply.mid == store.account?.mid {
             Menu {
               Button("删除评论", role: .destructive) {
@@ -323,12 +323,12 @@ struct ProfilePage: View {
           } label: {
             Image(systemName: "arrow.clockwise")
           }.disabled(loading).help("刷新个人主页")
-        }.buttonStyle(.appGlassButton).padding(16).floatingGlass()
+        }.buttonStyle(.pointerGlass).padding(16).floatingGlass()
         if let error {
           ErrorBanner(text: error) { Task { await load(reset: true) } }
           Button("打开官方主页") {
             NSWorkspace.shared.open(URL(string: "https://space.bilibili.com/\(mid)")!)
-          }.buttonStyle(.appGlassButton)
+          }.buttonStyle(.pointerGlass)
         }
         LazyVGrid(
           columns: [GridItem(.adaptive(minimum: 235, maximum: 390), spacing: 18)], spacing: 20
@@ -339,7 +339,7 @@ struct ProfilePage: View {
               store.open(v.bvid)
             } label: {
               VideoCard(video: v)
-            }.buttonStyle(.plain)
+            }.buttonStyle(.pointerPlain)
           }
         }
         if !videos.isEmpty {
@@ -354,7 +354,7 @@ struct ProfilePage: View {
       VStack(spacing: 12) {
         HStack {
           Spacer()
-          Button("完成") { spaceSheet = nil }.buttonStyle(.appGlassButton)
+          Button("完成") { spaceSheet = nil }.buttonStyle(.pointerGlass)
         }.padding(12)
         Group {
           switch target.kind {
@@ -386,9 +386,9 @@ struct ProfilePage: View {
         }
         Spacer(minLength: 0)
         if ownProfile {
-          Button("账户信息") { spaceSheet = SpaceSheet(mid: mid, kind: .account) }.buttonStyle(.appGlassButton)
+          Button("账户信息") { spaceSheet = SpaceSheet(mid: mid, kind: .account) }.buttonStyle(.pointerGlass)
         } else {
-          Button(p.isFollowed ? "已关注" : "关注") { Task { await toggleFollow() } }.buttonStyle(.appGlassButton)
+          Button(p.isFollowed ? "已关注" : "关注") { Task { await toggleFollow() } }.buttonStyle(.pointerGlass)
             .disabled(changingFollow)
           Button {
             store.inbox.select(
@@ -398,7 +398,7 @@ struct ProfilePage: View {
             store.navigate(.messages)
           } label: {
             Image(systemName: "envelope")
-          }.buttonStyle(.appGlassButton).help("发私信")
+          }.buttonStyle(.pointerGlass).help("发私信")
         }
       }
       HStack(spacing: 30) {
@@ -414,8 +414,8 @@ struct ProfilePage: View {
         }
         stat(p.videos, label: "投稿")
         Spacer()
-      }.buttonStyle(.plain)
-    }.padding(24).floatingGlass(26)
+      }.buttonStyle(.pointerPlain)
+    }.padding(24).floatingGlass(AppLayout.panelRadius)
   }
   private func stat(_ value: Int, label: String) -> some View {
     HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -503,10 +503,10 @@ struct DanmakuComposer: View {
             Text("紫色").tag(0xCC66FF)
           }
         } label: { Text("弹幕样式") }
-          .buttonStyle(.appGlassButton).fixedSize().help("设置发送弹幕的位置、字号和颜色")
+          .buttonStyle(.pointerGlass).fixedSize().help("设置发送弹幕的位置、字号和颜色")
         TextField(store.account == nil ? "登录后发送弹幕" : "发一条弹幕", text: $dm.message).textFieldStyle(
           .plain
-        ).padding(10).appGlass(12).disabled(
+        ).padding(10).appGlass(AppLayout.itemRadius).disabled(
           store.account == nil || dm.sending)
         Button(dm.sending ? "发送中" : "发送") {
           if store.account == nil {
@@ -514,7 +514,7 @@ struct DanmakuComposer: View {
           } else {
             Task { await dm.send(aid: aid, api: store.api, player: store.playback.player) }
           }
-        }.buttonStyle(.appGlassButton).disabled(
+        }.buttonStyle(.pointerGlass).disabled(
           dm.sending || (store.account != nil && dm.message.isEmpty) || dm.message.count > 100)
       }
       if dm.items.contains(where: { $0.mode == 9 || $0.mode == 7 }) {
@@ -530,7 +530,7 @@ struct DanmakuComposer: View {
         }.foregroundStyle(.secondary)
       }
       if dm.specialError != nil && !dm.specialLoading {
-        Button("重试高级弹幕") { dm.retrySpecial(aid: aid, api: store.api) }.buttonStyle(.appGlassButton)
+        Button("重试高级弹幕") { dm.retrySpecial(aid: aid, api: store.api) }.buttonStyle(.pointerGlass)
       }
       if let error = dm.sendError ?? dm.error ?? dm.specialError {
         Text(error).font(.caption).foregroundStyle(.secondary)

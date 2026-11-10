@@ -18,7 +18,7 @@ struct NativeInboxPage: View {
           Text(categoryTitle("收到的赞", kind: 3)).tag(3)
           Text("系统通知").tag(4)
         }.labelsHidden().pickerStyle(.segmented).frame(maxWidth: 600)
-      }.padding(18).floatingGlass(22)
+      }.padding(18).floatingGlass(AppLayout.panelRadius)
       if let error = store.messageUnread.error {
         HStack { Text(error).font(.caption).foregroundStyle(.secondary); Button("重试") { Task { await store.messageUnread.refresh(api: store.api) } } }
       }
@@ -56,7 +56,7 @@ struct NativeInboxPage: View {
         } label: {
           Image(systemName: "arrow.clockwise")
         }.buttonStyle(.plain).help("刷新消息")
-      }.padding(13).appGlass(14).padding(.horizontal, 12)
+      }.padding(13).appGlass(AppLayout.itemRadius).padding(.horizontal, 12)
         .padding(.top, 12)
       if let error = inbox.error {
         Text(error).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14)
@@ -93,7 +93,7 @@ struct NativeInboxPage: View {
                 .contentShape(Rectangle())
                 .background(
                   inbox.selected?.id == row.id ? biliPink.opacity(0.16) : .clear,
-                  in: .rect(cornerRadius: 14))
+                  in: .rect(cornerRadius: AppLayout.itemRadius))
             }.buttonStyle(.plain)
           }
           if inbox.loading {
@@ -105,7 +105,7 @@ struct NativeInboxPage: View {
           }
         }.padding(.horizontal, 8).padding(.bottom, 12)
       }
-    }.floatingGlass(22).clipShape(RoundedRectangle(cornerRadius: 22))
+    }.floatingGlass(AppLayout.panelRadius).clipShape(RoundedRectangle(cornerRadius: AppLayout.panelRadius))
   }
   @ViewBuilder private var conversation: some View {
     let inbox = store.inbox
@@ -161,7 +161,7 @@ struct NativeInboxPage: View {
               get: { inbox.drafts[selected.id] ?? "" }, set: { inbox.drafts[selected.id] = $0 }),
             axis: .vertical
           )
-          .lineLimit(2...6).textFieldStyle(.plain).padding(12).appGlass(16)
+          .lineLimit(2...6).textFieldStyle(.plain).padding(12).appGlass(AppLayout.itemRadius)
           Button(inbox.sending ? "发送中" : "发送") {
             if let account = store.account {
               Task { await inbox.send(api: store.api, account: account) }
@@ -173,7 +173,7 @@ struct NativeInboxPage: View {
                 .isEmpty
           )
         }.padding(14)
-      }.floatingGlass(22).clipShape(RoundedRectangle(cornerRadius: 22)).task(id: selected.id) {
+      }.floatingGlass(AppLayout.panelRadius).clipShape(RoundedRectangle(cornerRadius: AppLayout.panelRadius)).task(id: selected.id) {
         await inbox.loadMessages(api: store.api)
         while !Task.isCancelled {
           do { try await Task.sleep(for: .seconds(15)) } catch { return }
@@ -183,7 +183,7 @@ struct NativeInboxPage: View {
     } else {
       ContentUnavailableView("选择一个会话", systemImage: "bubble.left.and.bubble.right").frame(
         maxWidth: .infinity, maxHeight: .infinity
-      ).floatingGlass(22)
+      ).floatingGlass(AppLayout.panelRadius)
     }
   }
   @ViewBuilder private func messageBubble(_ message: PrivateMessage, own: Bool) -> some View {
@@ -197,7 +197,7 @@ struct NativeInboxPage: View {
         if let image = message.image {
           Button { store.imageGallery = ImageGalleryTarget(urls: [image], selected: 0) } label: {
             Thumbnail(url: image, mode: .fit).frame(width: 220, height: 180).clipShape(
-              RoundedRectangle(cornerRadius: 10))
+              RoundedRectangle(cornerRadius: AppLayout.mediaRadius))
           }.buttonStyle(.plain).help("查看图片")
         }
         if let share = message.share {
@@ -214,7 +214,7 @@ struct NativeInboxPage: View {
         }
         Text(message.date.formatted(AppDateFormat.timestamp)).font(.caption2)
           .foregroundStyle(.secondary)
-      }.padding(14).appGlass(18, tint: own ? biliPink.opacity(0.12) : .clear)
+      }.padding(14).appGlass(AppLayout.itemRadius, tint: own ? biliPink.opacity(0.12) : .clear)
         .contextMenu {
           Button("复制消息") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(message.text, forType: .string) }
           if let account = store.account, inboxCanRecall(message, accountID: account.mid) {
@@ -281,7 +281,7 @@ struct NativeNotificationsPage: View {
                   NSPasteboard.general.setString([notice.headline, notice.text, notice.quote].filter { !$0.isEmpty }.joined(separator: "\n"), forType: .string)
                 }
               }
-          }.frame(maxWidth: .infinity, alignment: .leading).floatingGlass(22)
+          }.frame(maxWidth: .infinity, alignment: .leading).floatingGlass(AppLayout.panelRadius)
         }
         if loading {
           ProgressView().frame(maxWidth: .infinity).padding(20)
