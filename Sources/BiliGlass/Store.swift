@@ -56,6 +56,7 @@ private struct FeedSnapshot: Codable {
   var loginUpgradeDismissed = false
   var preferencesTab = 0
   let api: API
+  @ObservationIgnored lazy var coverPreview = CoverPreview(api: api)
   let playback = Playback()
   let fullscreen = FullscreenPlayerController()
   let downloads = Downloads()
