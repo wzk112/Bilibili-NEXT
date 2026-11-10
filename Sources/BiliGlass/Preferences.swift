@@ -18,6 +18,7 @@ enum AppPaths {
 struct PreferencesView: View {
   @Bindable var store: Store
   @AppStorage("appearance") private var appearance = "dark"
+  @AppStorage("appTheme") private var theme = AppTheme.original
   @AppStorage("glassStyle") private var glassStyle = "clear"
   @AppStorage("backgroundImage") private var backgroundImage = ""
   @AppStorage("backgroundBlur") private var backgroundBlur = false
@@ -157,30 +158,37 @@ struct PreferencesView: View {
     VStack(spacing: 18) {
       section("首页与导航") { BrowsePreferenceFields() }
       section("外观") {
-        Picker("颜色模式", selection: $appearance) {
-          Text("跟随系统").tag("system"); Text("浅色").tag("light"); Text("深色").tag("dark")
-        }.pickerStyle(.segmented)
-        Picker("玻璃材质", selection: $glassStyle) {
-          Text("通透").tag("clear"); Text("柔和").tag("regular")
-        }.pickerStyle(.segmented)
+        ThemePicker(selection: $theme)
+        Text("白色、暗色和跟随系统使用简洁底色，强调色保持粉色；默认主题保留渐变、玻璃与自定义背景。")
+          .font(.caption).foregroundStyle(.secondary)
+        if theme == .original {
+          Picker("颜色模式", selection: $appearance) {
+            Text("跟随系统").tag("system"); Text("浅色").tag("light"); Text("深色").tag("dark")
+          }.pickerStyle(.segmented)
+          Picker("玻璃材质", selection: $glassStyle) {
+            Text("通透").tag("clear"); Text("柔和").tag("regular")
+          }.pickerStyle(.segmented)
+        }
         toggleRow("界面动画", value: $animations)
-        Text("通透突出背景，柔和便于阅读。").font(.caption).foregroundStyle(.secondary)
+        if theme == .original { Text("通透突出背景，柔和便于阅读。").font(.caption).foregroundStyle(.secondary) }
       }
-      section("背景") {
-        HStack(spacing: 14) {
-          Image(systemName: backgroundImage.isEmpty ? "circle.lefthalf.filled" : "photo").font(.title2).foregroundStyle(biliPink)
-          VStack(alignment: .leading, spacing: 4) {
-            Text(backgroundImage.isEmpty ? "默认渐变" : "自定义图片").font(.headline)
-            Text("图片保存在应用中，原图保持不变。").font(.caption).foregroundStyle(.secondary)
-          }
-          Spacer()
-          Button(importing ? "正在处理…" : "选择图片…", action: chooseBackground).disabled(importing)
-          if !backgroundImage.isEmpty { Button("恢复默认") { backgroundImage = "" } }
-        }.buttonStyle(.appGlassButton).tint(.primary)
-        toggleRow("模糊背景图片", value: $backgroundBlur).disabled(backgroundImage.isEmpty)
-        sliderRow("背景可见度", value: $backgroundOpacity, range: 0.2...1, step: 0.05, display: "\(Int(backgroundOpacity * 100))%")
-          .disabled(backgroundImage.isEmpty)
-        if let backgroundError { Text(backgroundError).font(.caption).foregroundStyle(.red) }
+      if theme == .original {
+        section("背景") {
+          HStack(spacing: 14) {
+            Image(systemName: backgroundImage.isEmpty ? "circle.lefthalf.filled" : "photo").font(.title2).foregroundStyle(biliPink)
+            VStack(alignment: .leading, spacing: 4) {
+              Text(backgroundImage.isEmpty ? "默认渐变" : "自定义图片").font(.headline)
+              Text("图片保存在应用中，原图保持不变。").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button(importing ? "正在处理…" : "选择图片…", action: chooseBackground).disabled(importing)
+            if !backgroundImage.isEmpty { Button("恢复默认") { backgroundImage = "" } }
+          }.buttonStyle(.appGlassButton).tint(.primary)
+          toggleRow("模糊背景图片", value: $backgroundBlur).disabled(backgroundImage.isEmpty)
+          sliderRow("背景可见度", value: $backgroundOpacity, range: 0.2...1, step: 0.05, display: "\(Int(backgroundOpacity * 100))%")
+            .disabled(backgroundImage.isEmpty)
+          if let backgroundError { Text(backgroundError).font(.caption).foregroundStyle(.red) }
+        }
       }
       section("浏览") {
         toggleRow("向下滚动自动加载", value: $autoLoadMore)

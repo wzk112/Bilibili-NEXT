@@ -24,6 +24,7 @@ extension View {
     modifier(GlassSurface(radius: radius, tint: tint, interactive: interactive))
   }
   func appAppearance() -> some View { modifier(AppAppearance()) }
+  func appWindowBackground() -> some View { modifier(AppWindowBackground()) }
   func cardHover() -> some View { modifier(CardHover()) }
 }
 private struct GlassSurface: ViewModifier {
@@ -39,8 +40,17 @@ private struct GlassSurface: ViewModifier {
 }
 private struct AppAppearance: ViewModifier {
   @AppStorage("appearance") private var appearance = "dark"
+  @AppStorage("appTheme") private var theme = AppTheme.original
+  @State private var systemAppearance = SystemAppearance.shared
   func body(content: Content) -> some View {
-    content.preferredColorScheme(appearance == "system" ? nil : appearance == "light" ? .light : .dark)
+    content.preferredColorScheme(theme.preferredScheme(originalAppearance: appearance) ?? systemAppearance.scheme)
+  }
+}
+private struct AppWindowBackground: ViewModifier {
+  @AppStorage("appTheme") private var theme = AppTheme.original
+  @Environment(\.colorScheme) private var scheme
+  func body(content: Content) -> some View {
+    content.containerBackground(theme == .original ? .black : AppTheme.background(scheme), for: .window)
   }
 }
 private struct CardHover: ViewModifier {
@@ -54,6 +64,7 @@ private struct CardHover: ViewModifier {
   }
 }
 struct GlassBackdrop: View {
+  @AppStorage("appTheme") private var theme = AppTheme.original
   @Environment(\.colorScheme) private var scheme
   @AppStorage("backgroundImage") private var path = ""
   @AppStorage("backgroundBlur") private var blur = false
@@ -62,22 +73,24 @@ struct GlassBackdrop: View {
   var body: some View {
     GeometryReader { geometry in
       ZStack {
-        LinearGradient(colors: scheme == .dark ? [Color(red: 0.025, green: 0.05, blue: 0.09), Color(red: 0.13, green: 0.20, blue: 0.28)] :
-          [Color(red: 0.94, green: 0.96, blue: 0.99), Color(red: 0.79, green: 0.85, blue: 0.92)],
-          startPoint: .topLeading, endPoint: .bottomTrailing)
-        RadialGradient(colors: [.cyan.opacity(scheme == .dark ? 0.12 : 0.13), .clear],
-                       center: .bottomLeading, startRadius: 30, endRadius: 850)
-        RadialGradient(colors: [biliPink.opacity(0.12), .clear], center: .topTrailing, startRadius: 0, endRadius: 650)
-        if let image, !path.isEmpty {
-          Image(nsImage: image).resizable().scaledToFill()
-            .frame(width: geometry.size.width, height: geometry.size.height).clipped()
-            .opacity(opacity)
-          (scheme == .dark ? Color.black : Color.white).opacity(scheme == .dark ? 0.18 : 0.25)
-        }
+        if theme == .original {
+          LinearGradient(colors: scheme == .dark ? [Color(red: 0.025, green: 0.05, blue: 0.09), Color(red: 0.13, green: 0.20, blue: 0.28)] :
+            [Color(red: 0.94, green: 0.96, blue: 0.99), Color(red: 0.79, green: 0.85, blue: 0.92)],
+            startPoint: .topLeading, endPoint: .bottomTrailing)
+          RadialGradient(colors: [.cyan.opacity(scheme == .dark ? 0.12 : 0.13), .clear],
+                         center: .bottomLeading, startRadius: 30, endRadius: 850)
+          RadialGradient(colors: [biliPink.opacity(0.12), .clear], center: .topTrailing, startRadius: 0, endRadius: 650)
+          if let image, !path.isEmpty {
+            Image(nsImage: image).resizable().scaledToFill()
+              .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+              .opacity(opacity)
+            (scheme == .dark ? Color.black : Color.white).opacity(scheme == .dark ? 0.18 : 0.25)
+          }
+        } else { AppTheme.background(scheme) }
       }.frame(width: geometry.size.width, height: geometry.size.height).clipped()
-      .task(id: BackgroundRequest(path: path, blur: blur, size: geometry.size)) {
-        let request = BackgroundRequest(path: path, blur: blur, size: geometry.size)
-        guard !path.isEmpty else { image = nil; return }
+      .task(id: BackgroundRequest(path: theme == .original ? path : "", blur: blur, size: geometry.size)) {
+        let request = BackgroundRequest(path: theme == .original ? path : "", blur: blur, size: geometry.size)
+        guard !request.path.isEmpty else { image = nil; return }
         let decoded = try? await BackgroundImages.shared.render(request)
         guard !Task.isCancelled else { return }
         guard let decoded else { image = nil; return }
