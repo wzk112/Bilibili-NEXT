@@ -770,15 +770,15 @@ import UIKit
     let sidebarToggle = app.buttons["tablet-sidebar-toggle"]
     XCTAssertTrue(sidebarToggle.waitForExistence(timeout: 5))
     // Restore the real saved sidebar preference through UI, without fixing it via launch arguments.
-    if app.frame.width >= 900 && sidebarToggle.label == "显示侧栏" { sidebarToggle.tap() }
     let title = app.staticTexts["player-title"]
     XCTAssertTrue(title.waitForExistence(timeout: 15))
     let surface = app.otherElements["player-viewport"].firstMatch
     XCTAssertTrue(surface.waitForExistence(timeout: 5))
     XCTAssertTrue(app.buttons["全屏"].isHittable)
-    XCTAssertTrue(app.buttons["tablet-nav-recommend"].isHittable)
+    XCTAssertTrue(app.buttons["显示侧栏"].isHittable)
     XCTAssertFalse(app.buttons["退出全屏"].exists)
-    XCTAssertGreaterThan(title.frame.minY, surface.frame.maxY)
+    XCTAssertLessThan(title.frame.maxY, surface.frame.minY)
+    XCTAssertEqual(surface.frame.width / surface.frame.height, 16.0 / 9, accuracy: 0.02)
     attach("ipad-desktop-player", app: app)
     let info = app.scrollViews["player-information"]
     let comments = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "评论 ")).firstMatch
@@ -793,6 +793,7 @@ import UIKit
     XCUIDevice.shared.orientation = .portrait
     XCTAssertTrue(input.waitForExistence(timeout: 5))
     XCTAssertEqual(input.value as? String, "iPad retained draft")
+    XCTAssertEqual(surface.frame.width / surface.frame.height, 16.0 / 9, accuracy: 0.02)
     attach("ipad-portrait-comments", app: app)
     XCUIDevice.shared.orientation = .landscapeLeft
     revealIPadElement(input, scroll: info)
@@ -1101,12 +1102,12 @@ import UIKit
     }
   }
 
-  private func feedbackApp(refresh: Bool = false, sequences: Bool = false, columns: Int = 0) -> XCUIApplication {
+  private func feedbackApp(refresh: Bool = false, sequences: Bool = false, columns: Int = 0, extra: [String] = []) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchArguments = ["--qa-ui", "--qa-ui-pages", "--qa-feed-retention", "-startPage", "recommend",
       "-hiddenNavigationItems", "", "-navigationItemOrder", "", "-showRecommended", "YES", "-showPopular", "YES", "-refreshHomeOnReturn", refresh ? "YES" : "NO",
       "-mobileHomeColumns", String(columns), "-continuePlaybackOnReturn", "YES"]
-      + (sequences ? ["--qa-sequences"] : [])
+      + (sequences ? ["--qa-sequences"] : []) + extra
     app.launch()
     if UIDevice.current.userInterfaceIdiom == .pad { maximizeIPadWindow() }
     XCTAssertTrue(app.buttons["video-card-BV1xx411c7mD"].waitForExistence(timeout: 15))
@@ -1119,6 +1120,29 @@ import UIKit
       XCTAssertTrue(app.buttons["tablet-nav-recommend"].waitForExistence(timeout: 5))
     }
     return app
+  }
+
+  func testPullRefreshShowsNewTopItemsAndMatchesRefreshButton() {
+    XCUIDevice.shared.orientation = .portrait
+    for short in [false, true] {
+      let app = feedbackApp(extra: ["-autoLoadMore", "NO"] + (short ? ["--qa-short-feed"] : []))
+      let first = app.buttons["video-card-BV1xx411c7mD"]
+      XCTAssertTrue(first.label.contains("刷新 1"))
+      let scroll = app.scrollViews["browse-list"]
+      scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.15)).press(forDuration: 0.1,
+        thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.85)))
+      let pulled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+        first.label.contains("刷新 2") && first.isHittable
+      }, object: first)
+      XCTAssertEqual(XCTWaiter.wait(for: [pulled], timeout: 12), .completed)
+      app.buttons["刷新列表"].tap()
+      let refreshed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+        first.label.contains("刷新 3") && first.isHittable
+      }, object: first)
+      XCTAssertEqual(XCTWaiter.wait(for: [refreshed], timeout: 12), .completed)
+      attach(short ? "pull-refresh-short-list" : "pull-refresh-long-list", app: app)
+      app.terminate()
+    }
   }
 
   func testFeedbackReturnPreservesEachBrowsePosition() {
@@ -1226,7 +1250,7 @@ import UIKit
     let app = XCUIApplication()
     app.launchArguments = ["--qa-ui", "--qa-ui-pages", "-startPage", "downloads",
       "-showRecommended", "YES", "-showPopular", "YES",
-      "-hiddenNavigationItems", "recommend,popular,regions,dynamic,history,favorites,later,profile",
+      "-hiddenNavigationItems", "recommend,popular,regions,live,bangumi,cinema,dynamic,history,favorites,later,profile",
       "-navigationItemOrder", "downloads,messages"]
     app.launch()
     if UIDevice.current.userInterfaceIdiom == .pad { maximizeIPadWindow() }

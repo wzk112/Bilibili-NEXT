@@ -216,14 +216,13 @@ struct MobileVideoList: View {
           Button("加载更多") { Task { await model.load(loader: loader) } }.buttonStyle(.appGlassButton).padding()
             .onAppear { if autoLoadMore { Task { await model.load(loader: loader) } } }
         }
-      }.padding(16)
-    }.modifier(RememberedScroll(memory: model.scroll, tracking: !store.showPlayer && !model.loading))
+      }.padding(16).background {
+        MobileRefreshControl { await model.load(reset: true, loader: loader) }
+      }
+    }.scrollBounceBehavior(.always, axes: .vertical)
+      .modifier(RememberedScroll(memory: model.scroll, tracking: !store.showPlayer && !model.loading))
       .accessibilityIdentifier("browse-list")
       .modifier(BrowseNavigationTitle(title: title, enabled: showsNavigationTitle))
-      .refreshable {
-        if title == "推荐", !model.items.isEmpty, model.hasMore { await model.load(loader: loader) }
-        else { await model.load(reset: true, loader: loader) }
-      }
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           Button("刷新", systemImage: "arrow.clockwise") { Task { await model.load(reset: true, loader: loader) } }
@@ -237,6 +236,79 @@ struct MobileVideoList: View {
         model.returnRevision = store.homeReturnRevision
         if model.loadedAt == nil || refresh { await model.load(reset: true, loader: loader) }
       }
+  }
+}
+/// Keep the native refresh control attached to the actual scroll view, including
+/// the tablet layout where the navigation bar is hidden.
+@MainActor private struct MobileRefreshControl: UIViewRepresentable {
+  var refresh: @MainActor () async -> Void
+  func makeCoordinator() -> Coordinator { Coordinator(refresh: refresh) }
+  func makeUIView(context: Context) -> Probe {
+    let view = Probe()
+    view.isUserInteractionEnabled = false
+    view.coordinator = context.coordinator
+    return view
+  }
+  func updateUIView(_ view: Probe, context: Context) {
+    context.coordinator.refresh = refresh
+    context.coordinator.attach(to: view)
+  }
+  static func dismantleUIView(_ view: Probe, coordinator: Coordinator) { coordinator.detach() }
+  final class Probe: UIView {
+    weak var coordinator: Coordinator?
+    override func didMoveToWindow() { super.didMoveToWindow(); coordinator?.attach(to: self) }
+    override func didMoveToSuperview() { super.didMoveToSuperview(); coordinator?.attach(to: self) }
+  }
+  final class Coordinator: NSObject {
+    var refresh: @MainActor () async -> Void
+    private weak var scroll: UIScrollView?
+    private let control = UIRefreshControl()
+    private var task: Task<Void, Never>?
+    init(refresh: @escaping @MainActor () async -> Void) {
+      self.refresh = refresh
+      super.init()
+      control.addTarget(self, action: #selector(pulled), for: .valueChanged)
+    }
+    func attach(to view: UIView) {
+      var ancestor = view.superview
+      while let current = ancestor {
+        if let target = current as? UIScrollView {
+          if scroll !== target {
+            detach()
+            scroll = target
+            target.alwaysBounceVertical = true
+            target.refreshControl = control
+            target.panGestureRecognizer.addTarget(self, action: #selector(dragged(_:)))
+          }
+          return
+        }
+        ancestor = current.superview
+      }
+    }
+    func detach() {
+      task?.cancel(); task = nil
+      control.endRefreshing()
+      scroll?.panGestureRecognizer.removeTarget(self, action: #selector(dragged(_:)))
+      if scroll?.refreshControl === control { scroll?.refreshControl = nil }
+      scroll = nil
+    }
+    // Hidden-navigation layouts can bounce without sending valueChanged on
+    // current iPadOS. Observe the existing pan without replacing its delegate.
+    @objc private func dragged(_ gesture: UIPanGestureRecognizer) {
+      guard gesture.state == .ended, let scroll,
+        -(scroll.contentOffset.y + scroll.adjustedContentInset.top) >= 90 else { return }
+      if !control.isRefreshing { control.beginRefreshing() }
+      pulled()
+    }
+    @objc private func pulled() {
+      guard task == nil else { return }
+      task = Task { [weak self] in
+        guard let self else { return }
+        await refresh()
+        control.endRefreshing()
+        task = nil
+      }
+    }
   }
 }
 private struct BrowseNavigationTitle: ViewModifier {
@@ -413,12 +485,20 @@ struct MobileHome: View {
     let tab = destination ?? tab
     let region = store.homeRegion
     let title = tab == 0 ? "推荐" : tab == 1 ? "热门" : "分区"
+    let feed = store.homeFeeds.model(for: "\(tab):\(tab == 2 ? region : 0):\(store.account?.mid ?? 0)")
     VStack(spacing: 0) {
       if destination != nil {
-        Text(title).font(.largeTitle.bold())
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal, 20).padding(.vertical, 16)
-          .accessibilityAddTraits(.isHeader).accessibilityIdentifier("tablet-page-heading")
+        HStack {
+          Text(title).font(.largeTitle.bold())
+            .accessibilityAddTraits(.isHeader).accessibilityIdentifier("tablet-page-heading")
+          Spacer()
+          Button {
+            Task { await feed.load(reset: true) { try await homeVideos(page: $0, tab: tab, region: region) } }
+          } label: {
+            Image(systemName: "arrow.clockwise").frame(width: 20, height: 30).contentShape(.rect)
+          }.buttonStyle(.appGlassButton).disabled(feed.loading)
+            .accessibilityLabel("刷新列表").accessibilityIdentifier("tablet-refresh-list")
+        }.padding(.horizontal, 20).padding(.vertical, 16)
       }
       if destination == nil {
         Picker("浏览", selection: $tab) {
@@ -435,12 +515,10 @@ struct MobileHome: View {
       ZStack {
         MobileVideoList(
           title: tab == 0 ? "推荐" : tab == 1 ? "热门" : "分区", store: store,
-          model: store.homeFeeds.model(for: "\(tab):\(tab == 2 ? region : 0):\(store.account?.mid ?? 0)"),
+          model: feed,
           refreshOnReturn: tab == 0, showsNavigationTitle: false
         ) { page in
-          if tab == 0 { return try await store.api.recommendations(page: page) }
-          if tab == 1 { return try await store.api.popular(page: page) }
-          return try await store.api.regionVideos(region, page: page)
+          try await homeVideos(page: page, tab: tab, region: region)
         }.id("\(tab):\(region):\(store.account?.mid ?? 0)").interfaceTransition()
       }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
         .interfaceAnimation(tab).interfaceAnimation(region)
@@ -484,6 +562,11 @@ struct MobileHome: View {
     if !navigation.preferences.allows(page), let first = navigation.preferences.visible.first(where: \.isHome) {
       tab = first == .recommend ? 0 : first == .popular ? 1 : 2
     }
+  }
+  private func homeVideos(page: Int, tab: Int, region: Int) async throws -> [Video] {
+    if tab == 0 { return try await store.api.recommendations(page: page) }
+    if tab == 1 { return try await store.api.popular(page: page) }
+    return try await store.api.regionVideos(region, page: page)
   }
 }
 private struct MobileSearchField: ViewModifier {

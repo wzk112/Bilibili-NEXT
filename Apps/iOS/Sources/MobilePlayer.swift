@@ -364,6 +364,7 @@ struct MobileMiniPlayer: View {
 }
 struct MobilePlayerContent: View {
   @Environment(\.columnNavigation) private var columns
+  @Environment(\.dynamicTypeSize) private var textSize
   @Bindable var store: Store
   @Bindable var visit: MobileVideoVisit
   @State private var interaction: String?
@@ -373,6 +374,7 @@ struct MobilePlayerContent: View {
   @State private var danmakuSettings = false
   @State private var queueList: MobileQueueKind?
   @State private var dmText = ""
+  @State private var openedTabletComments = false
   @AppStorage("danmakuEnabled") private var dmEnabled = true
   @AppStorage("autoPlayNext") private var autoNext = false
   @AppStorage("autoPlayParts") private var autoParts = true
@@ -487,14 +489,13 @@ struct MobilePlayerContent: View {
   }
   private var playerLayout: some View {
     GeometryReader { geometry in
-      VStack(spacing: 0) {
-        video.frame(height: min(min(1280, geometry.size.width) * 9 / 16,
-          max(150, geometry.size.height * 0.48)))
-        ScrollView {
-          information.padding(columns ? 20 : 16).frame(maxWidth: 1280)
-            .frame(maxWidth: .infinity)
-        }.scrollDismissesKeyboard(.interactively).scrollPosition($visit.scroll)
-          .accessibilityIdentifier("player-information")
+      if UIDevice.current.userInterfaceIdiom == .pad {
+        tabletPlayer(size: geometry.size)
+      } else {
+        VStack(spacing: 0) {
+          video.frame(height: min(geometry.size.width * 9 / 16, max(150, geometry.size.height * 0.48)))
+          informationScroll(includingHeader: true)
+        }
       }
     }
     .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { value in
@@ -504,6 +505,50 @@ struct MobilePlayerContent: View {
       else { store.playerNavigation.path.removeLast() }
     })
   }
+  private func tabletPlayer(size: CGSize) -> some View {
+    let wide = size.width >= 1000 && size.height >= 480 && !textSize.isAccessibilitySize
+    let gap: CGFloat = wide ? 20 : 12
+    let panelWidth: CGFloat = wide ? size.width * 0.42 : 0
+    let available = max(1, size.width - 32 - (wide ? panelWidth + gap : 0))
+    let aspect = tabletVideoAspect
+    let maxHeight = max(120, size.height * (wide ? 0.64 : textSize.isAccessibilitySize ? 0.35 : 0.52))
+    let videoWidth = min(available, maxHeight * aspect)
+    let layout = wide ? AnyLayout(HStackLayout(alignment: .top, spacing: gap))
+      : AnyLayout(VStackLayout(spacing: gap))
+    return layout {
+      VStack(alignment: .leading, spacing: 12) {
+        if !textSize.isAccessibilitySize, let detail = displayedDetail { metadata(detail) }
+        video.frame(width: videoWidth, height: videoWidth / aspect)
+          .frame(maxWidth: .infinity)
+        if wide, let detail = displayedDetail {
+          ScrollView { playbackInformation(detail) }
+            .scrollDismissesKeyboard(.interactively)
+            .accessibilityIdentifier("tablet-player-actions")
+        }
+      }.frame(maxWidth: .infinity, alignment: .topLeading)
+      informationScroll(includingHeader: textSize.isAccessibilitySize, includingActions: !wide)
+        .frame(width: wide ? panelWidth : nil)
+    }.padding(16)
+      .background(.background)
+      .onChange(of: wide, initial: true) { _, expanded in
+        if expanded && !openedTabletComments { visit.section = 1; openedTabletComments = true }
+      }
+  }
+  private var tabletVideoAspect: CGFloat {
+    // actualSize changes when AVPlayer learns the presentation dimensions.
+    _ = store.playback.actualSize
+    let size = store.playback.player.currentItem?.presentationSize ?? .zero
+    guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0 else { return 16 / 9 }
+    return size.width / size.height
+  }
+  private func informationScroll(includingHeader: Bool, includingActions: Bool = true) -> some View {
+    ScrollView {
+      information(includingHeader: includingHeader, includingActions: includingActions)
+        .padding(UIDevice.current.userInterfaceIdiom == .pad ? 0 : 16)
+        .frame(maxWidth: 1280).frame(maxWidth: .infinity)
+    }.scrollDismissesKeyboard(.interactively).scrollPosition($visit.scroll)
+      .accessibilityIdentifier("player-information")
+  }
   private var video: some View {
     Group {
       if active { MobileVideoPlayer(store: store) } else { Color.black }
@@ -511,7 +556,7 @@ struct MobilePlayerContent: View {
       .accessibilityElement(children: .contain)
       .accessibilityIdentifier("player-viewport")
   }
-  private var information: some View {
+  private func information(includingHeader: Bool, includingActions: Bool) -> some View {
     VStack(alignment: .leading, spacing: 18) {
       if store.playback.buffering && !store.playback.loading {
         Label("正在缓冲…", systemImage: "arrow.trianglehead.2.clockwise")
@@ -521,7 +566,38 @@ struct MobilePlayerContent: View {
         MobileError(text: error) { store.playback.retry(api: store.api) }
       }
       if let detail = displayedDetail {
-        Text(detail.video.title).font(.title3.bold()).textSelection(.enabled)
+        if includingHeader { metadata(detail) }
+        if includingActions { playbackInformation(detail) }
+        Picker("内容", selection: $visit.section) {
+          Text("简介").tag(0)
+          Text(commentTitle(detail)).tag(1)
+        }.pickerStyle(.segmented)
+        if visit.section == 1 && detail.aid > 0 {
+          MobileComments(store: store, aid: detail.aid, model: visit.comments)
+        } else {
+          description(detail)
+        }
+      }
+    }.frame(maxWidth: .infinity, alignment: .leading)
+  }
+  private func playbackInformation(_ detail: Detail) -> some View {
+    VStack(alignment: .leading, spacing: 14) {
+        if detail.aid > 0 {
+          actionBar(detail)
+          danmakuInput(detail)
+        }
+        playbackOptions
+        if let error = store.extras.subtitleError {
+          Text("字幕：" + error).font(.caption).foregroundStyle(.secondary)
+        }
+        if let error = store.danmaku.error ?? store.danmaku.specialError {
+          Text("弹幕：" + error).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+  }
+  private func metadata(_ detail: Detail) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text(detail.video.title).font(columns ? .title2.bold() : .title3.bold()).textSelection(.enabled)
           .accessibilityIdentifier("player-title")
         ViewThatFits(in: .horizontal) {
           HStack {
@@ -544,28 +620,7 @@ struct MobilePlayerContent: View {
           Text(date.formatted(AppDateFormat.timestamp)).font(.caption).foregroundStyle(
             .secondary)
         }
-        if detail.aid > 0 {
-          actionBar(detail)
-          danmakuInput(detail)
-        }
-        playbackOptions
-        if let error = store.extras.subtitleError {
-          Text("字幕：" + error).font(.caption).foregroundStyle(.secondary)
-        }
-        if let error = store.danmaku.error ?? store.danmaku.specialError {
-          Text("弹幕：" + error).font(.caption).foregroundStyle(.secondary)
-        }
-        Picker("内容", selection: $visit.section) {
-          Text("简介").tag(0)
-          Text(commentTitle(detail)).tag(1)
-        }.pickerStyle(.segmented)
-        if visit.section == 1 && detail.aid > 0 {
-          MobileComments(store: store, aid: detail.aid, model: visit.comments)
-        } else {
-          description(detail)
-        }
-      }
-    }.frame(maxWidth: .infinity, alignment: .leading)
+    }
   }
   private func commentTitle(_ detail: Detail) -> String {
     let count = visit.comments.hasLoadedCount ? visit.comments.count : detail.counts.replies

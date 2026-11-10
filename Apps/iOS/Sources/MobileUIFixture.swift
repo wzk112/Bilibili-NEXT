@@ -151,7 +151,7 @@
       let feedKey = path + (query.first { $0.name == "from_region" }?.value ?? "")
       if retention && page == 1 { Self.feedLoads[feedKey, default: 0] += 1 }
       let generation = Self.feedLoads[feedKey, default: 1]
-      let count = retention ? 24 : 6
+      let count = retention ? (ProcessInfo.processInfo.arguments.contains("--qa-short-feed") ? 2 : 24) : 6
       let videos: [[String: Any]] = (1...count).map { rawIndex in
         let index = rawIndex + (retention ? (page - 1) * count : 0)
         return [

@@ -1,3 +1,20 @@
+# Bilibili NEXT 1.1.6 · iPad 播放布局与刷新
+
+2026-11-11。macOS 1.1.6（build 18）；iOS / iPadOS 0.1.6（build 11）。
+
+- iPad 横屏左侧播放、右侧评论，标题、作者和日期放在视频上方；互动按钮和弹幕输入放在视频下方。
+- 播放时默认收起侧栏，顶部按钮可再次展开；退出播放恢复原来的侧栏设置。
+- 视频按实际比例显示，横屏、竖屏、窄窗口、大字体分别适配，评论独立滚动。
+- iPhone/iPad 下拉刷新直接更新顶部内容，与刷新按钮保持一致，短列表也能下拉。
+- iPad 推荐、热门、分区增加常驻刷新按钮。
+- 保留 1.1.5 的原生直播、追番、影视、手机和平板直播全屏、Mac 快捷键和应用内更新。
+
+安装：Mac 下载 arm64 DMG/ZIP，需要 Apple silicon 与 macOS 15+；iPhone/iPad 下载 0.1.6 self-sign IPA 后自行签名，需要系统 26+。覆盖安装沿用原应用标识和签名身份。
+
+验证：iPad 横竖屏、全屏返回、评论草稿保留、窄窗口和大字体回归通过；下拉刷新长短列表回归通过。macOS 15 原报告设备和个别 HDR 样片仍等待复测，状态记录在 QA.md 和对应 Issue。
+
+---
+
 # Bilibili NEXT 1.1.4 · 播放交互、界面与下载管理
 
 2026-11-03。macOS 1.1.4（build 15，Apple silicon，macOS 26+）；iOS / iPadOS 0.1.4 开发预览（build 8，arm64，系统 26+）。公开安装文件及状态以 [v1.1.4 发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.4) 为准。

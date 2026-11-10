@@ -93,7 +93,7 @@ struct MobileTabletRoot: View {
   var body: some View {
     GeometryReader { geometry in
       let expanded = geometry.size.width >= 900 && !textSize.isAccessibilitySize
-      let sidebarVisible = expanded && !sidebarCollapsed
+      let sidebarVisible = expanded && !sidebarCollapsed && !playing
       HStack(alignment: .top, spacing: sidebarVisible ? 20 : 0) {
         if sidebarVisible { sidebar.frame(width: 224) }
         VStack(spacing: 16) {
@@ -259,12 +259,12 @@ struct MobileTabletRoot: View {
     HStack(spacing: 12) {
       Button {
         searchFocused = false
-        if expanded { sidebarCollapsed.toggle() }
+        if expanded && !playing { sidebarCollapsed.toggle() }
         else { showingSidebar = true }
       } label: {
         Image(systemName: "sidebar.left").frame(width: 44, height: 44)
       }
-      .accessibilityLabel(expanded && !sidebarCollapsed ? "收起侧栏" : "显示侧栏")
+      .accessibilityLabel(expanded && !sidebarCollapsed && !playing ? "收起侧栏" : "显示侧栏")
       .accessibilityIdentifier("tablet-sidebar-toggle")
       HStack(spacing: 8) {
         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
