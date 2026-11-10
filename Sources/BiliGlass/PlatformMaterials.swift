@@ -28,6 +28,13 @@ struct AppGlass {
 
 extension View {
   @ViewBuilder func appGlassEffect<S: Shape>(_ glass: AppGlass = .regular, in shape: S) -> some View {
+    #if os(macOS)
+    modifier(ThemedMaterialSurface(glass: glass, shape: shape))
+    #else
+    platformGlassEffect(glass, in: shape)
+    #endif
+  }
+  @ViewBuilder func platformGlassEffect<S: Shape>(_ glass: AppGlass, in shape: S) -> some View {
     if #available(macOS 26, iOS 26, *) {
       glassEffect((glass.clearStyle ? Glass.clear : Glass.regular).tint(glass.color).interactive(glass.isInteractive), in: shape)
     } else {
@@ -54,10 +61,20 @@ struct AppGlassContainer<Content: View>: View {
 
 struct AppMaterialButtonStyle: PrimitiveButtonStyle {
   var prominent = false
+  #if os(macOS)
+  @AppStorage("appTheme") private var theme = AppTheme.original
+  #endif
   func makeBody(configuration: Configuration) -> some View {
     if #available(macOS 26, iOS 26, *) {
       if prominent { button(configuration).buttonStyle(.glassProminent) }
-      else { button(configuration).buttonStyle(.glass).tint(.primary) }
+      else {
+        #if os(macOS)
+        if theme == .original { button(configuration).buttonStyle(.glass).tint(.primary) }
+        else { button(configuration).buttonStyle(.bordered).tint(.primary) }
+        #else
+        button(configuration).buttonStyle(.glass).tint(.primary)
+        #endif
+      }
     } else {
       if prominent { button(configuration).buttonStyle(.borderedProminent) }
       else { button(configuration).buttonStyle(.bordered).tint(.primary) }
