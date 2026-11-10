@@ -7,6 +7,9 @@ struct RootView: View {
   @Environment(\.scenePhase) private var phase
   @FocusState private var searchFocused: Bool
   @AppStorage("macSidebarVisible") private var sidebarVisible = true
+  @AppStorage("macSidebarCollapseMode") private var sidebarMode = MacSidebarCollapseMode.icons
+  private var compactSidebar: Bool { !sidebarVisible && sidebarMode == .icons }
+  private var showsSidebar: Bool { sidebarVisible || sidebarMode == .icons }
   private var navigation = NavigationCustomization()
   @State private var diagnosticChallenge: InteractionChallenge?
   var body: some View {
@@ -14,8 +17,10 @@ struct RootView: View {
       if !store.fullscreen.isPresented { GlassBackdrop() }
       GeometryReader { viewport in
       HStack(alignment: .top, spacing: 14) {
-        if sidebarVisible {
-          sidebar.frame(width: AppLayout.sidebarWidth).sidebarTransition()
+        if showsSidebar {
+          MacSidebar(store: store, preferences: navigation.preferences, compact: compactSidebar,
+            availableHeight: max(0, viewport.size.height - 32))
+            .frame(width: compactSidebar ? 52 : AppLayout.sidebarWidth).sidebarTransition()
         }
         VStack(spacing: 12) {
           AppGlassContainer { topbar }
@@ -31,7 +36,7 @@ struct RootView: View {
           if searchFocused && !store.showPlayer { SearchAssistance(store: store) }
           content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-      }.interfaceAnimation(sidebarVisible)
+      }.interfaceAnimation(sidebarVisible).interfaceAnimation(sidebarMode)
         .padding(.horizontal, 16).padding(.bottom, 16).padding(.top, 16)
         .opacity(store.fullscreen.isPresented ? 0 : 1)
         .allowsHitTesting(!store.fullscreen.isPresented)
@@ -176,92 +181,15 @@ struct RootView: View {
       if !store.showPlayer { searchFocused = false; NSApp.keyWindow?.makeFirstResponder(nil) }
     }
   }
-  private var sidebar: some View {
-    VStack(spacing: 14) {
-      HStack(spacing: 10) {
-        Image(systemName: "play.rectangle.fill").font(.title2).foregroundStyle(biliPink)
-        Text("Bilibili NEXT").font(.title3.weight(.semibold))
-        Spacer(minLength: 0)
-        SettingsLink { Image(systemName: "slider.horizontal.3") }.buttonStyle(.plain).help("设置")
-      }.padding(.horizontal, 18).frame(height: AppLayout.toolbarHeight).floatingGlass(AppLayout.panelRadius)
-        .fixedSize(horizontal: false, vertical: true)
-      ScrollView {
-        // Glass sampling must stay inside the scrolling viewport. Sharing a
-        // container with the fixed account footer lets the scrolled glass/text
-        // render through that footer on short windows.
-        AppGlassContainer(spacing: 16) {
-          VStack(spacing: 14) {
-            let pages = navigation.preferences.visible
-            let browse = pages.filter(\.isBrowse).compactMap { Destination(rawValue: $0.title) }
-            let library = pages.filter { !$0.isBrowse }.compactMap { Destination(rawValue: $0.title) }
-            if !browse.isEmpty { navigationGroup("浏览", items: browse) }
-            if !library.isEmpty { navigationGroup("资料库", items: library) }
-          }.padding(2)
-        }
-      }.frame(minHeight: 0, maxHeight: .infinity)
-        .scrollIndicators(.hidden).compositingGroup().clipped()
-      accountButton.fixedSize(horizontal: false, vertical: true)
-    }.frame(maxHeight: .infinity)
-  }
-  private func navigationGroup(_ title: String, items: [Destination]) -> some View {
-    VStack(alignment: .leading, spacing: 5) {
-      Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.leading, 12)
-        .padding(.bottom, 8)
-      ForEach(items) { d in
-        Button {
-          store.navigate(d)
-        } label: {
-          HStack(spacing: 12) {
-            Image(systemName: d.icon).frame(width: 20)
-            Text(d.rawValue)
-            Spacer(minLength: 0)
-            if d == .messages { MessageUnreadBadge(count: store.messageUnread.counts.total) }
-            if d == .downloads && store.downloads.activeCount > 0 {
-              Text("\(store.downloads.activeCount)").font(.caption.monospacedDigit())
-            }
-          }.font(
-            .system(
-              size: 14, weight: store.destination == d && !store.showPlayer ? .semibold : .regular)
-          )
-          .padding(.horizontal, 12).padding(.vertical, 11).contentShape(
-            RoundedRectangle(cornerRadius: 12)
-          )
-          .background(
-            store.destination == d && !store.showPlayer ? biliPink.opacity(0.19) : .clear,
-            in: .rect(cornerRadius: 12)
-          )
-          .foregroundStyle(.primary)
-        }.buttonStyle(NavigationButtonStyle()).tint(.primary)
-      }
-    }.padding(10).floatingGlass(20)
-  }
   private var topbar: some View {
     HStack(spacing: 10) {
       Button { sidebarVisible.toggle() } label: {
         Image(systemName: "sidebar.left")
-      }.help(sidebarVisible ? "隐藏侧栏" : "显示侧栏")
-        .accessibilityLabel(sidebarVisible ? "隐藏侧栏" : "显示侧栏")
+      }.help(sidebarVisible ? "收起侧栏" : "展开侧栏")
+        .accessibilityLabel(sidebarVisible ? "收起侧栏" : "展开侧栏")
         .accessibilityIdentifier("toggle-sidebar")
-      if !sidebarVisible {
-        Menu {
-          ForEach(navigation.preferences.visible) { page in
-            if let destination = Destination(rawValue: page.title) {
-              Button { store.navigate(destination) } label: {
-                Label(page.title, systemImage: page.symbol)
-              }
-            }
-          }
-          Divider()
-          if store.account == nil {
-            Button("登录") { store.login() }.disabled(store.restoring)
-          } else {
-            Button("我的主页") { store.navigate(.profile) }
-            Button("重新登录") { store.login() }
-            Button("退出登录", role: .destructive) { store.logout() }
-          }
-        } label: {
-          Image(systemName: "list.bullet")
-        }.help("导航与账户").accessibilityLabel("导航与账户")
+      if !showsSidebar {
+        MacNavigationMenu(store: store, preferences: navigation.preferences)
       }
       if store.showPlayer {
         Button {
@@ -285,7 +213,6 @@ struct RootView: View {
       }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: 36)
         .background(.primary.opacity(0.06), in: .capsule)
       Spacer(minLength: 0)
-      SettingsLink { Image(systemName: "gearshape") }.help("设置")
       Button {
         if store.showPlayer { store.playback.retry(api: store.api) } else { store.reload() }
       } label: {
@@ -306,6 +233,7 @@ struct RootView: View {
     .onChange(of: navigation.preferences) { normalizeDestination() }
   }
   private func normalizeDestination() {
+    if [.messages, .history, .favorites, .later, .downloads, .profile, .web].contains(store.destination) { return }
     if let page = StartPage.allCases.first(where: { $0.title == store.destination.rawValue }),
        !navigation.preferences.allows(page) {
       store.navigate(Destination(rawValue: navigation.preferences.resolvedStart.title) ?? .profile)
@@ -315,68 +243,16 @@ struct RootView: View {
       switch store.destination {
       case .recommend, .popular, .regions, .favorites, .later: browse
       case .dynamic: NativeDynamicsPage(store: store)
-      case .profile:
-        if let account = store.account {
-          ProfilePage(store: store, mid: account.mid)
-        } else {
-          ContentUnavailableView {
-            Label("登录后查看主页", systemImage: "person.crop.circle")
-          } actions: {
-            Button("登录") { store.login() }
-          }
-        }
+      case .profile, .web:
+        if let account = store.account { ProfilePage(store: store, mid: account.mid) }
+        else { GuestAccountPage(store: store) }
       case .history: HistoryPage(store: store)
       case .downloads: DownloadPage(store: store)
       case .messages: NativeInboxPage(store: store)
-      case .web: WebFunctionsPage(store: store)
       case .live: CatalogPage(store: store, kind: .live)
       case .bangumi: CatalogPage(store: store, kind: .bangumi)
       case .cinema: CatalogPage(store: store, kind: .cinema)
       }
-  }
-  private var accountButton: some View {
-    Group {
-      if let account = store.account {
-        HStack(spacing: 10) {
-          Button {
-            store.navigate(.profile)
-          } label: {
-            HStack(spacing: 10) {
-              Thumbnail(url: account.face, mode: .fill, placeholder: "person.crop.circle.fill")
-                .frame(width: 32, height: 32).clipShape(
-                  Circle())
-              Text(account.name).lineLimit(1)
-              Spacer(minLength: 0)
-            }.contentShape(Rectangle())
-          }.buttonStyle(.plain)
-          Menu {
-            Button("我的主页") { store.navigate(.profile) }
-            SettingsLink { Text("设置") }
-            Button("重新登录") { store.login() }
-            Button("退出登录", role: .destructive) { store.logout() }
-          } label: {
-            Image(systemName: "ellipsis")
-          }
-          .menuStyle(.borderlessButton).frame(width: 20)
-        }.padding(12).frame(height: 58)
-      } else if store.restoring {
-        HStack {
-          ProgressView().controlSize(.small)
-          Text("恢复登录中").font(.callout)
-        }.padding(10)
-      } else {
-        Button {
-          store.login()
-        } label: {
-          HStack {
-            Image(systemName: "person.crop.circle").font(.title2)
-            Text("登录")
-            Spacer()
-            Image(systemName: "qrcode").foregroundStyle(.secondary)
-          }.padding(10).frame(maxWidth: .infinity).contentShape(.rect(cornerRadius: 20))
-        }.buttonStyle(.plain)
-      }
-    }.frame(maxWidth: .infinity).frame(height: 58).floatingGlass(20)
   }
   private var browse: some View {
     ScrollView {
