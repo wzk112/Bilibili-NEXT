@@ -96,6 +96,8 @@ struct InlinePlaybackSurface: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
   @State private var keyboardControlsVisible = false
+  @State private var keyboardRecentlyUsed = false
+  @State private var lastKeyboardUse = ContinuousClock.now
   @State private var pointerInVideo = false
   @State private var pointerInControls = false
   @State private var recentlyMoved = false
@@ -107,7 +109,7 @@ struct InlinePlaybackSurface: View {
 
   private var controlsVisible: Bool {
     isInlineVisible && !store.fullscreen.isPresented
-      && (voiceOverEnabled || keyboardControlsVisible || adjustingPlayback || danmakuManager
+      && (voiceOverEnabled || keyboardControlsVisible || keyboardRecentlyUsed || adjustingPlayback || danmakuManager
         || danmakuSettings || (pointerInVideo && (recentlyMoved || pointerInControls)))
   }
 
@@ -119,7 +121,7 @@ struct InlinePlaybackSurface: View {
       NativePlayer(playback: playback, items: dm.items, enabled: dm.enabled,
         isInlineVisible: isInlineVisible, controlsScrollMiniPlayer: controlsScrollMiniPlayer,
         toggleFullscreen: toggleFullscreen, toggleDanmaku: { dm.enabled.toggle() },
-        keyboardInteraction: { keyboardControlsVisible = true })
+        keyboardInteraction: { lastKeyboardUse = .now; keyboardRecentlyUsed = true })
       if isInlineVisible {
         VideoSurfaceClickTarget(playback: playback, toggleFullscreen: toggleFullscreen)
           .focusable(interactions: .activate)
@@ -130,6 +132,9 @@ struct InlinePlaybackSurface: View {
           }
       }
       PlaybackStatusOverlay(playback: playback)
+      if isInlineVisible && !store.fullscreen.isPresented {
+        PlaybackFeedbackOverlay(feedback: playback.feedback)
+      }
       SubtitleOverlay(extras: store.extras, playback: playback,
         bottomInset: controlsVisible ? controlsHeight + 8 : 18)
       if playback.isBoosting {
@@ -189,6 +194,15 @@ struct InlinePlaybackSurface: View {
       } catch {}
     }
     .sheet(isPresented: $danmakuManager) { DanmakuManagement(store: store) }
+    .task(id: keyboardRecentlyUsed) {
+      guard keyboardRecentlyUsed else { return }
+      do {
+        while ContinuousClock.now < lastKeyboardUse.advanced(by: .seconds(3)) {
+          try await Task.sleep(until: lastKeyboardUse.advanced(by: .seconds(3)), clock: .continuous)
+        }
+        keyboardRecentlyUsed = false
+      } catch { }
+    }
     .onChange(of: usesCompactControls) { _, compact in
       if compact { danmakuSettings = false }
     }
@@ -246,7 +260,7 @@ struct PlayerControls<AdditionalControls: View>: View {
         }
         Text(clock(dragging ? position : current)).font(.caption.monospacedDigit()).frame(
           minWidth: 42)
-        Slider(
+        BufferedSeekSlider(
           value: Binding(
             get: { dragging ? position : min(current, duration) },
             set: { value in
@@ -254,7 +268,8 @@ struct PlayerControls<AdditionalControls: View>: View {
               // Keyboard and accessibility changes do not always emit a drag
               // phase. Commit them immediately instead of snapping back.
               if !dragging { playback.seek(to: value) }
-            }), in: 0...max(1, duration)
+            }), duration: duration, buffered: playback.bufferedRanges,
+          enabled: duration > 0 && !playback.loading
         ) { editing in
           dragging = editing
           onEditingChanged?(editing)
@@ -264,7 +279,7 @@ struct PlayerControls<AdditionalControls: View>: View {
               to: CMTime(seconds: min(duration, max(0, position)), preferredTimescale: 600),
               toleranceBefore: .zero, toleranceAfter: CMTime(seconds: 0.1, preferredTimescale: 600))
           }
-        }.labelsHidden().accessibilityLabel("播放进度").disabled(duration == 0 || playback.loading)
+        }.frame(minWidth: 80, maxWidth: .infinity)
           .onGeometryChange(for: Double.self) { $0.size.width } action: { sliderWidth = max(1, $0) }
           .onContinuousHover { phase in
             if case .active(let point) = phase { hoverTime = SeekPreviewGeometry.time(pointer: point.x, duration: duration, width: sliderWidth) } else { hoverTime = nil }

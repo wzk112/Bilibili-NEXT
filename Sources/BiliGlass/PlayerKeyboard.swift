@@ -35,6 +35,7 @@ import AVKit
           event.window === view.window, view.window?.isKeyWindow == true,
           playback.player.currentItem != nil else { return event }
     if event.type == .keyUp, event.keyCode == 124, rightDown {
+      view.keyboardInteraction?()
       let wasBoosted = boosted
       cancelHeldKey()
       if !wasBoosted && !editingText { playback.seekBy(5) }
@@ -50,16 +51,18 @@ import AVKit
     case "[", "<":
       view.keyboardInteraction?()
       playback.setSpeed(Self.speedChoices.last(where: { $0 < playback.speed - 0.001 }) ?? Self.speedChoices[0])
+      speedFeedback(playback)
       return nil
     case "]", ">":
       view.keyboardInteraction?()
       playback.setSpeed(Self.speedChoices.first(where: { $0 > playback.speed + 0.001 }) ?? Self.speedChoices.last!)
+      speedFeedback(playback)
       return nil
     case "\\":
-      view.keyboardInteraction?(); playback.setSpeed(1)
+      view.keyboardInteraction?(); playback.setSpeed(1); speedFeedback(playback)
       return nil
     case "m":
-      if !event.isARepeat { view.keyboardInteraction?(); playback.toggleMute() }
+      if !event.isARepeat { view.keyboardInteraction?(); playback.toggleMute(); soundFeedback(playback) }
       return nil
     case "d" where view.toggleDanmaku != nil:
       if !event.isARepeat { view.keyboardInteraction?(); view.toggleDanmaku?() }
@@ -87,9 +90,17 @@ import AVKit
     case 125, 126:
       view.keyboardInteraction?()
       playback.setVolume(playback.player.volume + (event.keyCode == 126 ? 0.05 : -0.05))
+      soundFeedback(playback)
       return nil
     default: return event
     }
+  }
+  private func speedFeedback(_ playback: Playback) {
+    playback.feedback.show("\(Double(playback.speed).formatted())×", symbol: "speedometer")
+  }
+  private func soundFeedback(_ playback: Playback) {
+    playback.feedback.show(playback.muted ? "已静音" : "音量 \(Int((playback.volume * 100).rounded()))%",
+      symbol: playback.muted || playback.volume == 0 ? "speaker.slash" : "speaker.wave.2")
   }
   func cancelHeldKey() {
     let ownedBoost = boosted
