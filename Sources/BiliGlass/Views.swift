@@ -18,7 +18,7 @@ struct RootView: View {
   @State private var searchPanelFrame = CGRect.zero
   var body: some View {
     ZStack {
-      if !store.fullscreen.isPresented { GlassBackdrop() }
+      if !store.isAnyFullscreen { GlassBackdrop() }
       GeometryReader { viewport in
       VStack(spacing: 12) {
         AppGlassContainer { topbar }.padding(.leading, 80).padding(.top, AppLayout.mainToolbarTopInset)
@@ -43,13 +43,19 @@ struct RootView: View {
         }
       }.interfaceAnimation(sidebarVisible).interfaceAnimation(sidebarMode)
         .padding(.horizontal, 16).padding(.bottom, 16)
-        .opacity(store.fullscreen.isPresented ? 0 : 1)
-        .allowsHitTesting(!store.fullscreen.isPresented)
-        .accessibilityHidden(store.fullscreen.isPresented)
+        .opacity(store.isAnyFullscreen ? 0 : 1)
+        .allowsHitTesting(!store.isAnyFullscreen)
+        .accessibilityHidden(store.isAnyFullscreen)
       }
       if store.fullscreen.isPresented {
         FullscreenPlayerContent(store: store, close: { store.fullscreen.close() }).ignoresSafeArea()
       }
+      #if os(macOS)
+      if let model = store.liveFullscreen.model {
+        LiveFullscreenContent(model: model, canSend: store.account != nil) { store.liveFullscreen.close() }
+          .ignoresSafeArea()
+      }
+      #endif
     }
     .overlay(alignment: .bottomTrailing) {
       ZStack(alignment: .bottomTrailing) {
@@ -59,7 +65,7 @@ struct RootView: View {
       }.interfaceAnimation(store.showsMiniPlayer)
     }
     .overlay(alignment: .topLeading) {
-      if !store.fullscreen.isPresented && searchFocused && searchFieldFrame.width > 0 {
+      if !store.isAnyFullscreen && searchFocused && searchFieldFrame.width > 0 {
         SearchAssistance(store: store) { term in
           store.query = term
           dismissSearch()
@@ -498,7 +504,7 @@ struct PlayerPage: View {
   }
 
   private var showsScrollMiniPlayer: Bool {
-    store.isPlaybackOpen && usesScrollMiniPlayer && !dismissedScrollMiniPlayer && !store.fullscreen.isPresented
+    store.isPlaybackOpen && usesScrollMiniPlayer && !dismissedScrollMiniPlayer && !store.isAnyFullscreen
   }
 
   var body: some View {
