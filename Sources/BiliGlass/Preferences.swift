@@ -28,6 +28,8 @@ struct PreferencesView: View {
   @AppStorage("rememberPosition") private var rememberPosition = true
   @AppStorage("syncWatchHistory") private var syncWatchHistory = true
   @AppStorage("autoPlay") private var autoPlay = true
+  @AppStorage("showNavigationMiniPlayer") private var navigationMiniPlayer = true
+  @AppStorage("showScrollMiniPlayer") private var scrollMiniPlayer = true
   @AppStorage("autoPlayParts") private var autoParts = true
   @AppStorage("autoPlayNext") private var autoNext = false
   @AppStorage("videoCodecPreference") private var codec = "auto"
@@ -115,6 +117,10 @@ struct PreferencesView: View {
         Text(VideoCodecPreference.hardwareDecodeSummary + "具体解码方式由系统播放器选择。")
           .font(.caption).foregroundStyle(.secondary)
         toggleRow("打开视频后自动播放", value: $autoPlay)
+        toggleRow("切换页面时显示小窗", value: $navigationMiniPlayer)
+        toggleRow("向下浏览播放页时显示小窗", value: $scrollMiniPlayer)
+        Text("关闭小窗只隐藏画面，音频继续播放；可从“正在播放”返回播放器或暂停。")
+          .font(.caption).foregroundStyle(.secondary)
         toggleRow("分 P 自动连播", value: $autoParts)
         toggleRow("合集与播放列表自动连播", value: $autoNext)
         toggleRow("记住观看位置", value: $rememberPosition)

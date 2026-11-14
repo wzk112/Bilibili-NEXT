@@ -20,6 +20,7 @@ private final class UnavailableQualityProtocol: URLProtocol, @unchecked Sendable
       .deletingLastPathComponent().deletingLastPathComponent()
       .appendingPathComponent("Vendor/BiliKitCore/Tests/BiliPlaybackTests/Fixtures/video-avc.mp4")
     let playback = Playback()
+    playback.persistQualityPreference = false
     defer { playback.stop(); api.session.invalidateAndCancel() }
     playback.detail = Detail(video: Video(bvid: "BV16v411e7CW", title: "fixture", cover: "", author: "",
       duration: 2, views: 0), description: "", pages: [Page(id: 55, title: "", number: 1)])
@@ -58,5 +59,33 @@ private final class UnavailableQualityProtocol: URLProtocol, @unchecked Sendable
     #expect(playback.generation == stopped)
     #expect(playback.pendingResume == nil && playback.requestedQuality == nil)
     #expect(!playback.loading && playback.error == nil)
+  }
+
+  @Test func lowerQualityVideoAndForcedRetryDoNotReplaceExplicitPreference() throws {
+    let name = "quality-preference-" + UUID().uuidString
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    defaults.set(116, forKey: "quality")
+    let playback = Playback(qualityDefaults: defaults)
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [UnavailableQualityProtocol.self]
+    let api = API(loadCredentials: false, transport: URLSession(configuration: config))
+    defer { playback.stop(); api.session.invalidateAndCancel() }
+    #expect(playback.preferredQuality(available: [116, 80, 64]) == 116)
+    playback.selectedQuality = playback.preferredQuality(available: [64, 32])
+    #expect(playback.selectedQuality == 64)
+    #expect(defaults.integer(forKey: "quality") == 116)
+    playback.detail = Detail(video: Video(bvid: "BV16v411e7CW", title: "fixture", cover: "", author: "",
+      duration: 2, views: 0), description: "", pages: [Page(id: 55, title: "", number: 1)])
+    playback.selectedCID = 55
+    playback.selectQuality(64, api: api, force: true)
+    #expect(defaults.integer(forKey: "quality") == 116)
+    #expect(playback.preferredQuality(available: [116, 80, 64]) == 116)
+    playback.selectQuality(80, api: api)
+    #expect(defaults.integer(forKey: "quality") == 80)
+    #expect(playback.preferredQuality(available: [116, 80, 64]) == 80)
+    playback.persistQualityPreference = false
+    playback.selectQuality(32, api: api)
+    #expect(defaults.integer(forKey: "quality") == 80)
   }
 }

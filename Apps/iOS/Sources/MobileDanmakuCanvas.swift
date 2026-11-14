@@ -23,10 +23,13 @@ import UIKit
   private var revision = UUID()
   private var fullscreen = false
   var onPerformance: ((Double, Double) -> Void)?
+  var onRenderStatus: ((Int, Int) -> Void)?
+  private var reportedRenderStatus = [-1, -1]
   private var sampleStart = CACurrentMediaTime()
   private var sampleFrames = 0
   private var sampleCost = 0.0
   private var plannedRect = CGRect.zero
+  private var planningRect: CGRect?
   private var lastTime = -Double.infinity
   private var wakeTask: Task<Void, Never>?
   private var defaultsObserver: NSObjectProtocol?
@@ -100,6 +103,7 @@ import UIKit
     revision = UUID()
     planTask?.cancel()
     planTask = nil
+    planningRect = nil
   }
   private func requestPlan(time: Double, rect: CGRect) {
     guard planTask == nil else { return }
@@ -112,6 +116,7 @@ import UIKit
     let previous: [DanmakuPlacement]? = continuous ? plan : nil
     let clear = !continuous
     invalidated = false
+    planningRect = rect
     planTask = Task { [weak self] in
       let worker = Task.detached(priority: .userInitiated) {
         DanmakuLayout.prepare(items: source, size: rect.size, scale: textScale, area: area,
@@ -121,6 +126,7 @@ import UIKit
       let result = await withTaskCancellationHandler { await worker.value } onCancel: { worker.cancel() }
       guard let self, !Task.isCancelled, token == self.revision else { return }
       self.planTask = nil
+      self.planningRect = nil
       guard rect == self.videoRect else { self.invalidated = true; return }
       self.plan = result
       self.preserveRunning = true
@@ -197,7 +203,9 @@ import UIKit
   }
   override func layoutSubviews() {
     super.layoutSubviews()
-    if videoRect != plannedRect {
+    // UIKit can lay out repeatedly while the detached planner is still running.
+    // Do not cancel work for the same rectangle on every layout pass.
+    if videoRect != plannedRect && videoRect != planningRect {
       invalidatePlan()
       tick()
     }
@@ -278,6 +286,11 @@ import UIKit
       textLayers.removeValue(forKey: id)?.removeFromSuperlayer()
     }
     CATransaction.commit()
+    let status = [plan.count, textLayers.count]
+    if status != reportedRenderStatus {
+      reportedRenderStatus = status
+      onRenderStatus?(status[0], status[1])
+    }
     let activeSpecial = special.compilation.scripts.contains {
       $0.item.time <= time && time < $0.item.time + $0.duration
     }
@@ -300,6 +313,7 @@ import UIKit
     link?.invalidate()
     link = nil
     planTask?.cancel(); planTask = nil
+    planningRect = nil
     invalidated = true
     wakeTask?.cancel()
     wakeTask = nil

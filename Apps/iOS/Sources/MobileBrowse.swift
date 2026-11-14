@@ -129,6 +129,7 @@ struct MobileError: View {
 struct MobileVideoGrid: View {
   let videos: [Video]
   @Bindable var store: Store
+  var onRecommendationFeedback: ((Video, Int) -> Void)? = nil
   @Environment(\.dynamicTypeSize) private var textSize
   @Environment(\.horizontalSizeClass) private var sizeClass
   @AppStorage("mobileHomeColumns") private var homeColumns = 0
@@ -150,6 +151,10 @@ struct MobileVideoGrid: View {
         }.buttonStyle(InterfacePressStyle())
           .accessibilityIdentifier("video-card-" + video.bvid)
           .contextMenu {
+            if let onRecommendationFeedback {
+              Button("不感兴趣", systemImage: "hand.thumbsdown") { onRecommendationFeedback(video, 1) }
+              Button("不想看此 UP 主", systemImage: "person.slash") { onRecommendationFeedback(video, 4) }
+            }
             Button("播放", systemImage: "play") { store.open(video.bvid) }
             Button("复制链接", systemImage: "link") {
               UIPasteboard.general.string = "https://www.bilibili.com/video/" + video.bvid
@@ -202,7 +207,10 @@ struct MobileVideoList: View {
   var body: some View {
     ScrollView {
       LazyVStack(spacing: 20) {
-        MobileVideoGrid(videos: model.items, store: store)
+        MobileVideoGrid(videos: model.items, store: store,
+          onRecommendationFeedback: refreshOnReturn ? { video, reason in
+            Task { await recommendationFeedback(video, reason: reason) }
+          } : nil)
         if model.loading { ProgressView("正在加载").padding() }
         if let error = model.error {
           MobileError(text: error) {
@@ -240,6 +248,28 @@ struct MobileVideoList: View {
         model.returnRevision = store.homeReturnRevision
         if model.loadedAt == nil || refresh { await model.load(reset: true, loader: loader) }
       }
+  }
+  private func recommendationFeedback(_ video: Video, reason: Int) async {
+    guard store.account != nil else { store.login(); return }
+    let auth = store.api.authenticationGeneration
+    do {
+      let aid: Int
+      if let known = video.aid, known > 0 { aid = known }
+      else { aid = try await store.api.detail(video.bvid).aid }
+      var owner = video.ownerID ?? 0
+      if reason == 4 && owner <= 0 { owner = try await store.api.detail(video.bvid).ownerID }
+      try await store.api.prepareVideoInteraction()
+      _ = try await store.api.post("/x/web-interface/feedback/dislike", [
+        "app_id": "100", "platform": "5", "from_spmid": "", "spmid": "333.1007.0.0",
+        "goto": "av", "id": String(aid), "mid": String(owner),
+        "track_id": video.recommendationTrackID ?? "", "feedback_page": "1", "reason_id": String(reason),
+      ])
+      guard auth == store.api.authenticationGeneration, !Task.isCancelled else { return }
+      model.items.removeAll { $0.bvid == video.bvid || (reason == 4 && owner > 0 && $0.ownerID == owner) }
+      store.message = "已提交推荐反馈"
+    } catch {
+      if auth == store.api.authenticationGeneration && !Task.isCancelled { store.message = error.localizedDescription }
+    }
   }
 }
 /// Keep the native refresh control attached to the actual scroll view, including
@@ -543,7 +573,7 @@ struct MobileHome: View {
     }
     .toolbar {
       if destination == nil {
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItemGroup(placement: .topBarTrailing) {
           if CatalogKind.allCases.contains(where: { navigation.preferences.allows($0.page) }) {
             Menu {
               ForEach(CatalogKind.allCases.filter { navigation.preferences.allows($0.page) }) { kind in
@@ -555,7 +585,7 @@ struct MobileHome: View {
             MobileSearch(store: store)
           } label: {
             Image(systemName: "magnifyingglass")
-          }.accessibilityLabel("搜索")
+          }.accessibilityLabel("搜索").accessibilityIdentifier("home-search")
         }
       }
     }

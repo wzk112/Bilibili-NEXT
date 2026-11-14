@@ -4,6 +4,84 @@ import UIKit
 @MainActor final class MobileSmokeTests: XCTestCase {
   override func setUpWithError() throws { continueAfterFailure = false }
 
+  func testFeedbackExpandedPhoneUsesPlayerColumnsWithPhoneNavigation() throws {
+    guard UIDevice.current.userInterfaceIdiom == .phone else { throw XCTSkip("Expanded phone") }
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-ui", "--qa-navigation", "-continuePlaybackOnReturn", "YES"]
+    app.launch()
+    let viewport = app.descendants(matching: .any)["player-viewport"].firstMatch
+    XCTAssertTrue(viewport.waitForExistence(timeout: 15))
+    guard app.frame.width >= 700 && app.frame.width > app.frame.height else {
+      throw XCTSkip("Requires expanded landscape phone screen")
+    }
+    let information = app.scrollViews["player-information"]
+    XCTAssertTrue(information.exists)
+    XCTAssertGreaterThanOrEqual(information.frame.minX, viewport.frame.maxX)
+    XCTAssertEqual(viewport.frame.width / viewport.frame.height, 16.0 / 9, accuracy: 0.02)
+    XCTAssertFalse(app.buttons["tablet-sidebar-toggle"].exists)
+    attach("feedback-duo-player-columns", app: app)
+    app.buttons["return-from-player"].tap()
+    XCTAssertTrue(app.buttons["首页"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["mini-player-open"].exists)
+    attach("feedback-duo-phone-navigation", app: app)
+  }
+
+  func testFeedbackHomeSearchAndDynamicVideoFilter() throws {
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-ui", "--qa-ui-pages", "-startPage", "recommend"]
+    app.launch()
+    let search = app.buttons["home-search"]
+    if UIDevice.current.userInterfaceIdiom == .pad {
+      XCTAssertTrue(app.textFields["tablet-search"].waitForExistence(timeout: 10))
+      app.buttons["tablet-nav-dynamic"].tap()
+    } else {
+      XCTAssertTrue(search.waitForExistence(timeout: 10))
+      XCTAssertTrue(search.isHittable)
+      search.tap()
+      XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 5))
+      app.searchFields.firstMatch.tap()
+      app.searchFields.firstMatch.typeText("测试")
+      attach("feedback-search-field", app: app)
+      if app.buttons["Close"].exists { app.buttons["Close"].tap() }
+      app.buttons["动态"].tap()
+    }
+    let filter = app.segmentedControls["dynamic-type-filter"]
+    XCTAssertTrue(filter.waitForExistence(timeout: 10))
+    filter.buttons["视频"].tap()
+    XCTAssertTrue(filter.buttons["视频"].isSelected)
+    filter.buttons["全部"].tap()
+    XCTAssertTrue(filter.buttons["全部"].isSelected)
+    attach("feedback-dynamic-filter", app: app)
+  }
+
+  func testFeedbackControlsAutoHideNormalDanmakuAndPiPPreference() throws {
+    let app = XCUIApplication()
+    app.launchArguments = ["--qa-fixture", "gesture.mp4", "--qa-special", "-autoPlay", "YES",
+      "-danmakuEnabled", "YES", "-automaticPictureInPicture", "NO"]
+    app.launch()
+    XCTAssertTrue(app.buttons["播放详情"].waitForExistence(timeout: 20))
+    app.buttons["播放详情"].tap()
+    XCTAssertTrue(waitForValue("rendered-frame-status", "是", app: app))
+    XCTAssertTrue(waitForValue("automatic-pip-status", "关闭", app: app))
+    let layers = app.descendants(matching: .any)["normal-danmaku-layer-count"].firstMatch
+    XCTAssertTrue(layers.waitForExistence(timeout: 8))
+    let drawing = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != '0'"), object: layers)
+    XCTAssertEqual(XCTWaiter.wait(for: [drawing], timeout: 10), .completed)
+    app.buttons["完成"].tap()
+    let controls = app.buttons["player-play-pause"]
+    XCTAssertTrue(controls.waitForExistence(timeout: 5))
+    let hidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == false"), object: controls)
+    XCTAssertEqual(XCTWaiter.wait(for: [hidden], timeout: 7), .completed)
+    attach("feedback-playing-danmaku-controls-hidden", app: app)
+    app.descendants(matching: .any)["player-viewport"].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    XCTAssertTrue(controls.waitForExistence(timeout: 3))
+    controls.tap()
+    XCTAssertEqual(controls.value as? String, "已暂停")
+    let stillVisible = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == false"), object: controls)
+    XCTAssertEqual(XCTWaiter.wait(for: [stillVisible], timeout: 4), .timedOut)
+    attach("feedback-paused-controls-visible", app: app)
+  }
+
   private func openSessionAccount(_ app: XCUIApplication) {
     let tablet = app.buttons["tablet-nav-profile"]
     if tablet.waitForExistence(timeout: 3) { tablet.tap() }

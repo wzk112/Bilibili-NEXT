@@ -4,6 +4,7 @@ import SwiftUI
 /// description starts below this viewport instead of competing with playback.
 struct PlaybackViewportLayout: Layout {
   let viewportHeight: CGFloat
+  var fillsWidth = false
   private let spacing: CGFloat = 14
 
   private func frames(width: CGFloat, subviews: Subviews) -> [CGRect] {
@@ -12,7 +13,7 @@ struct PlaybackViewportLayout: Layout {
     let title = subviews[0].sizeThatFits(proposal)
     let controls = subviews[2].sizeThatFits(proposal)
     let available = max(180, viewportHeight - title.height - controls.height - spacing * 2)
-    let videoHeight = min(width * 9 / 16, available)
+    let videoHeight = fillsWidth ? width * 9 / 16 : min(width * 9 / 16, available)
     let videoWidth = videoHeight * 16 / 9
     return [
       CGRect(x: 0, y: 0, width: width, height: title.height),

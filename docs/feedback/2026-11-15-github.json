@@ -1,0 +1,389 @@
+{
+  "checked_on": "2026-11-15",
+  "timezone": "Asia/Shanghai",
+  "issues": [
+    {
+      "number": 24,
+      "title": "首页排版建议",
+      "state": "closed",
+      "updated_at": "2026-11-14T12:49:32Z",
+      "closed_at": "2026-11-14T12:49:32Z",
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/24",
+      "body": "<img width=\"1913\" height=\"972\" alt=\"截屏2026-11-12 19 51 28\" src=\"https://github.com/user-attachments/assets/00f402cc-fb9d-443d-a82a-7ac3f4935c73\" />\n目前的首页，标题栏那里有点浪费，完全可以把分区，推荐都放到这里，也节省了左边的空间，下面是我大致重新的排版\n\n<img width=\"1913\" height=\"972\" alt=\"frontpage\" src=\"https://github.com/user-attachments/assets/f94651d9-af9c-4148-a73c-b9aa90385a85\" />"
+    },
+    {
+      "number": 7,
+      "title": "安装不了，应用程序“Bilibili NEXT.app”的这个版本不能与此版本的macOS配合使用。",
+      "state": "closed",
+      "updated_at": "2026-11-11T08:22:24Z",
+      "closed_at": "2026-11-11T08:22:24Z",
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/7",
+      "body": "我的mac信息：\n芯片：M4\n系统：Sequoia 版本15.7.5 (24G624)\n\n安装的文件：\nBilibili-NEXT-1.1.4-macOS-arm64.dmg \nsha256:ccafde67af88c81850abc96b63900e40983ccc925c19b83210818a94388002e1\n"
+    },
+    {
+      "number": 8,
+      "title": "希望更新的功能",
+      "state": "closed",
+      "updated_at": "2026-11-10T14:56:18Z",
+      "closed_at": "2026-11-10T14:56:18Z",
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/8",
+      "body": "1. iOS视频界面无法侧滑返回\n2. 全屏视频无法调节音量和亮度\n3. 全屏视频无法双击暂停播放\n4. 全屏视频能多加一个左上角退出箭头就更好了\n5. 播放视频和看评论区不能同时实现\n6. 评论区排版有点问题，显示信息有点少\n7. 希望主页下拉的时候可以直接加载更多视频\n其他的做的真挺不错的"
+    },
+    {
+      "number": 2,
+      "title": "从正在播放返回推荐、热门、分区，都会跳转到顶层",
+      "state": "closed",
+      "updated_at": "2026-11-10T14:48:53Z",
+      "closed_at": "2026-11-10T14:48:53Z",
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/2",
+      "body": "从正在播放返回推荐、热门、分区，都会跳转到顶层，这样刷视频很难受，有断层"
+    },
+    {
+      "number": 5,
+      "title": "弹幕设置页面浅色模式下字体可读性低",
+      "state": "closed",
+      "updated_at": "2026-11-10T10:44:10Z",
+      "closed_at": "2026-11-10T10:44:10Z",
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/5",
+      "body": "<img width=\"386\" height=\"618\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/6f0e3469-df35-4586-8439-c400c5f3833b\" />"
+    },
+    {
+      "number": 3,
+      "title": "希望增加直播、追番、影视三个模块",
+      "state": "closed",
+      "updated_at": "2026-11-10T10:44:09Z",
+      "closed_at": "2026-11-10T10:44:09Z",
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/3",
+      "body": "如题，不然的话智能看视频了"
+    },
+    {
+      "number": 13,
+      "title": "能否加一个在软件内设置-关于处检查更新和自动更新的功能？",
+      "state": "closed",
+      "updated_at": "2026-11-10T10:19:57Z",
+      "closed_at": "2026-11-10T10:19:57Z",
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/13",
+      "body": null
+    },
+    {
+      "number": 11,
+      "title": "全屏播放自动隐藏指针，另外禁用屏幕保护程序",
+      "state": "closed",
+      "updated_at": "2026-11-10T10:19:56Z",
+      "closed_at": "2026-11-10T10:19:56Z",
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/11",
+      "body": null
+    },
+    {
+      "number": 9,
+      "title": "切换收藏夹不能自动刷新，需要手动刷新",
+      "state": "closed",
+      "updated_at": "2026-11-10T10:19:54Z",
+      "closed_at": "2026-11-10T10:19:54Z",
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/9",
+      "body": null
+    },
+    {
+      "number": 1,
+      "title": "[Bug] 直接报媒体地址无效，无法播放",
+      "state": "closed",
+      "updated_at": "2026-11-10T10:19:53Z",
+      "closed_at": "2026-11-10T10:19:53Z",
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/1",
+      "body": "首页任意视频点开直接报媒体地址无效，无法播放\n\n<img width=\"3886\" height=\"2300\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/f232e9dc-9168-481f-926c-4b3c2d2f1636\" />"
+    },
+    {
+      "number": 10,
+      "title": "相较官方版快捷键缺失和缺乏杜比视界和 HDR 视频格式支持；播放视频时不会自动隐藏光标指针。",
+      "state": "open",
+      "updated_at": "2026-11-10T10:19:37Z",
+      "closed_at": null,
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/10",
+      "body": "改变视频播放速度等原版有的快捷键希望加上；目前播放 HDR 视频和杜比视界视频会存在过曝，无法正确映射；播放视频时不会自动隐藏光标。"
+    },
+    {
+      "number": 4,
+      "title": "想反馈几个问题或建议",
+      "state": "open",
+      "updated_at": "2026-11-02T23:44:42Z",
+      "closed_at": null,
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/4",
+      "body": "一个是弹幕从右到左滑动怎么感觉不丝滑？比如说“你好啊兄弟”，它直接从你好啊这里出来，消失又是从你好啊这里消失，感觉很卡的样子。\n还一个是希望再视频封面增加播放量，封面下面显示视频的投稿日期。"
+    },
+    {
+      "number": 6,
+      "title": "Mac,每次退出后下次再打开视频播放不了",
+      "state": "open",
+      "updated_at": "2026-11-02T23:35:58Z",
+      "closed_at": null,
+      "url": "https://github.com/wzk112/Bilibili-NEXT/issues/6",
+      "body": "[“BiliSail”的取样.txt](https://github.com/user-attachments/files/34212736/BiliSail.txt)"
+    }
+  ],
+  "comments": [
+    {
+      "n": 7,
+      "comments": [
+        {
+          "user": "jzfzzzz",
+          "date": "2026-11-03T05:58:38Z",
+          "body": "<img width=\"1320\" height=\"2868\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/f78c64d0-6c12-4314-88c0-1b2d347ac4b7\" />\n\n我也是，iOS上安装不了这个",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/7#issuecomment-6596617653"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-05T21:14:10Z",
+          "body": "感谢反馈，也谢谢补充设备和系统信息。macOS 提示版本不兼容、无法安装，以及评论中提到的 iOS 安装问题都已收到，我后续会分别排查原因并推进解决。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/7#issuecomment-6669720549"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-10T10:19:33Z",
+          "body": "[v1.1.5](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.5) 已将 Mac 最低目标改为 macOS 15，并补了旧系统材质/按钮回退和新 AVKit 属性的可用性保护。公开 arm64 安装包已重新下载，主程序最低系统标记是 15.0；目前没有 macOS 15 真机验收结果，麻烦原报告的 M4 / 15.7.5 环境更新复测。\n\niOS 评论中的主包识别问题也调整了打包结构：0.1.5 使用无空格的内部目录/程序名、XML Info.plist 和精简 ZIP 属性，公开 IPA 的结构及签名完整性校验通过。手机与平板已覆盖安装启动；原签名工具的导入结果仍需复测。若失败，请补充工具名称、版本和报错阶段，先保留旧应用数据。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/7#issuecomment-6764815495"
+        },
+        {
+          "user": "xiatian12345",
+          "date": "2026-11-11T08:22:17Z",
+          "body": "v1.1.8安装问题已解决",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/7#issuecomment-6790886718"
+        }
+      ]
+    },
+    {
+      "n": 8,
+      "comments": [
+        {
+          "user": "wzk112",
+          "date": "2026-11-05T21:14:22Z",
+          "body": "感谢详细反馈和认可！iOS 侧滑返回、全屏手势和退出操作、边播放边看评论、评论区排版，以及首页加载更多这些问题和建议都已收到。我后续会逐项调查，推进相关问题的修复和功能完善。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/8#issuecomment-6669724809"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-10T10:19:34Z",
+          "body": "这七项已纳入 [iOS 0.1.5](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.5)：边缘返回、双击暂停/继续、全屏左侧亮度/右侧音量、左上角返回、固定视频区配合评论独立滚动、评论总数/UP 主/回复信息、推荐下拉加载更多。\n\n同时保留横拖快进快退和下滑退出，直播间也补了全屏按钮。iPhone/iPad 的固定视频、返回、双击和全屏状态回归通过，真机已覆盖安装；实际亮度、系统音量和方向锁体验欢迎你更新后再试，遇到具体路径不对可直接补录屏。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/8#issuecomment-6764816011"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-10T14:56:17Z",
+          "body": "补充 [iOS / iPadOS 0.1.6](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.6)：下拉现在直接刷新顶部内容，与刷新按钮一致；继续向下浏览或点“加载更多”获取后续视频。修复 iPad 下拉只回弹的问题，并在推荐、热门、分区补上刷新按钮。\n\niPad 播放页调整为横屏左侧视频、右侧评论，侧栏可收起；竖屏和窄窗口上下排布，视频使用实际比例。横竖屏、全屏返回、评论草稿、独立滚动以及手机/平板长短列表刷新回归均通过。已实现的交互按本项验收关闭；若具体设备仍出现问题，可附版本和录屏继续跟进。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/8#issuecomment-6770627615"
+        }
+      ]
+    },
+    {
+      "n": 2,
+      "comments": [
+        {
+          "user": "wzk112",
+          "date": "2026-10-27T18:02:44Z",
+          "body": "好的，我会结合您所描述的问题去寻求解决方案以获得最佳的观看体验",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/2#issuecomment-6449760758"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-02T23:35:53Z",
+          "body": "更新一下进展：返回推荐、热门、分区时保留列表和浏览位置的修复，已包含在 macOS 1.1.3／iOS 0.1.3 中。这一轮又在 iPhone 和 iPad 模拟器上回归了三个页面，进入视频再返回、切换页面再回来，都能保留原来的浏览位置。\n\n可以更新到刚发布的 [v1.1.4](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.4)（macOS 1.1.4／iOS 0.1.4）试一下；设置里的“返回首页时自动刷新”请保持关闭（默认关闭）。如果仍会跳到顶部，麻烦补充平台、应用版本和操作录屏，我继续定位。这个 issue 先保留，等你复测确认。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/2#issuecomment-6591248631"
+        }
+      ]
+    },
+    {
+      "n": 5,
+      "comments": [
+        {
+          "user": "wzk112",
+          "date": "2026-10-31T15:18:16Z",
+          "body": "感谢反馈，浅色模式下弹幕设置页面文字对比度不足的问题已收到，会在下个版本修复，并一起检查浅色、深色和跟随系统模式下的显示效果。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/5#issuecomment-6545285858"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-02T23:35:57Z",
+          "body": "这个问题已在本地修复：弹幕设置浮层现在使用与文字配套的浅／深背景，并加上稳定的背景底色，避免明亮视频透过浮层后冲淡文字。\n\n已经在 Mac 上以浅色应用进入全屏、播放纯白测试画面复查，小字可读性已改善。修复现已随 [macOS 1.1.4](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.4) 发布，安装包已可下载。这个 issue 先保持打开，欢迎更新后确认实际效果。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/5#issuecomment-6591249757"
+        }
+      ]
+    },
+    {
+      "n": 3,
+      "comments": [
+        {
+          "user": "Antony0223",
+          "date": "2026-10-28T13:50:20Z",
+          "body": "然后我觉得播放页面的排版可以优化一下，现在点进视频只能看见一半标题，发布时间在很下面\n",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/3#issuecomment-6470785522"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-10-31T15:18:28Z",
+          "body": "感谢建议，也收到你补充的播放页排版问题了。标题显示不完整、发布时间位置太靠下的问题会在下个版本修复，调整布局，让这些信息更容易看到。直播、追番和影视三个模块的需求也记下了，后续会继续评估和推进，具体支持范围会在更新说明中说明。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/3#issuecomment-6545288596"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-02T23:35:55Z",
+          "body": "更新一下进展：你补充的播放页排版问题已在本地调整。Mac 的标题和投稿日期已移到视频画面上方，手机端也把标题／作者信息提前到播放选项和弹幕输入之前；已检查 Mac 实际界面，并完成手机布局回归。\n\n这些调整现已随 [v1.1.4](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.4) 发布，macOS 1.1.4／iOS 0.1.4 安装包已可下载，iOS IPA 仍需自行签名。直播、追番和影视的原生模块仍需继续开发，不包含在本轮更新中，这个需求会继续保留。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/3#issuecomment-6591249087"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-10T10:19:32Z",
+          "body": "[v1.1.5 / iOS 0.1.5](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.5) 已加入直播、追番和影视模块：Mac/iPad 从侧栏进入，手机从首页内容菜单进入。番剧/影视可浏览目录、选集、追剧与权限内播放；直播支持搜索、房间号、主播资料、画质/音量和实时弹幕，手机/平板补上全屏和返回按钮。\n\n原生直播及弹幕连接已实测，iPad 上也已实际打开番剧播放；礼物、活动等完整官方直播服务可通过应用内网页直播间进入。欢迎更新后试一下常用的房间和剧集。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/3#issuecomment-6764815119"
+        }
+      ]
+    },
+    {
+      "n": 13,
+      "comments": [
+        {
+          "user": "wzk112",
+          "date": "2026-11-10T10:19:30Z",
+          "body": "已加入 [v1.1.5](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.5)。Mac 的「设置 → 关于」和应用菜单现在都可检查更新，也可开启自动检查、自动下载及退出时安装。ZIP 更新包使用 EdDSA 签名，appcast 已随本次 Release 发布。\n\n已在独立安装副本跑通检测、下载、签名校验、替换和重启，并重新下载公开资源核对。已有旧版需要先手动覆盖安装一次 1.1.5，之后可从应用内更新。iPhone/iPad 的自签 IPA 仍沿用自己的签名方式安装。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/13#issuecomment-6764814650"
+        }
+      ]
+    },
+    {
+      "n": 11,
+      "comments": [
+        {
+          "user": "wzk112",
+          "date": "2026-11-05T21:14:37Z",
+          "body": "感谢反馈，全屏播放时自动隐藏指针，以及播放期间避免触发屏幕保护程序的需求都已收到。我后续会检查这两部分的处理逻辑并推进完善。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/11#issuecomment-6669729853"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-10T10:19:39Z",
+          "body": "已随 [macOS 1.1.5](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.5) 加入。全屏播放时控件闲置会隐藏指针，移动鼠标、暂停或退出全屏会恢复；播放期间持有防止显示器闲置的活动，暂停、停止、失败和退出时释放。已做生命周期及实际电源断言核查，感谢建议。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/11#issuecomment-6764817485"
+        }
+      ]
+    },
+    {
+      "n": 9,
+      "comments": [
+        {
+          "user": "wzk112",
+          "date": "2026-11-05T21:14:27Z",
+          "body": "感谢反馈，切换收藏夹后不能自动刷新、需要手动刷新的问题已收到。我后续会排查切换收藏夹时的刷新逻辑并推进修复。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/9#issuecomment-6669726469"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-10T10:19:35Z",
+          "body": "已随 [macOS 1.1.5](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.5) 修复。切换收藏夹会自动重新载入对应列表，并用请求代次/取消保护，避免先前收藏夹的迟到结果覆盖新选择。实际 SwiftUI 监听与快速切换回归均通过，感谢反馈。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/9#issuecomment-6764816462"
+        }
+      ]
+    },
+    {
+      "n": 1,
+      "comments": [
+        {
+          "user": "wzk112",
+          "date": "2026-10-24T01:15:03Z",
+          "body": "好的，已经收到您的问题，正在调查",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/1#issuecomment-6378028697"
+        },
+        {
+          "user": "joe0515",
+          "date": "2026-10-24T11:42:50Z",
+          "body": "同样的问题",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/1#issuecomment-6383782567"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-10-24T15:07:23Z",
+          "body": "@EricKY26 @joe0515 新版已经发了，这次重点处理了你们反馈的“媒体地址无效、点开视频不能播放”：旧版解析播放源时，一个无效地址或分段字段就可能让整个视频失败，现在会检查其他可用流和备用地址。Mac 和 iOS 都更新了，也一起优化了切换 4K 时加载很久的问题。\n\n可以从 [v1.1.1 发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.1) 下载试试：Mac 版本是 1.1.1，手机是 0.1.1，IPA 仍需自行签名。这版还加了 Mac 首选编码、两端消息未读数和 iPad 布局改进，完整变化在发布说明里。\n\n我这边已经在 Mac 和真实 iPhone 上复测，不过还需要确认你们原来的网络环境是否恢复。方便的话更新后试一下之前播不了的视频；如果仍失败，麻烦贴一下设备/系统、BV 号、Wi-Fi 或流量，以及错误页“复制诊断”的结果（不要附登录 Cookie 或 token）。这个 issue 先保持打开，等你们复测，谢谢之前的反馈。\n",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/1#issuecomment-6385801746"
+        },
+        {
+          "user": "EricKY26",
+          "date": "2026-10-26T08:54:38Z",
+          "body": "测试了一些视频 发现以能正常播放\n---- 回复的原邮件 ----\n发件人 ***@***.***> 日期 2026年10月24日 23:07 收件人 ***@***.***> 抄送至 ***@***.***>***@***.***> 主题 Re: [wzk112/Bilibili-NEXT] [Bug] 直接报媒体地址无效，无法播放 (Issue #1) \nwzk112 left a comment (wzk112/Bilibili-NEXT#1)\n@EricKY26 @joe0515 新版已经发了，这次重点处理了你们反馈的“媒体地址无效、点开视频不能播放”：旧版解析播放源时，一个无效地址或分段字段就可能让整个视频失败，现在会检查其他可用流和备用地址。Mac 和 iOS 都更新了，也一起优化了切换 4K 时加载很久的问题。\n可以从 v1.1.1 发布页 下载试试：Mac 版本是 1.1.1，手机是 0.1.1，IPA 仍需自行签名。这版还加了 Mac 首选编码、两端消息未读数和 iPad 布局改进，完整变化在发布说明里。\n我这边已经在 Mac 和真实 iPhone 上复测，不过还需要确认你们原来的网络环境是否恢复。方便的话更新后试一下之前播不了的视频；如果仍失败，麻烦贴一下设备/系统、BV 号、Wi-Fi 或流量，以及错误页“复制诊断”的结果（不要附登录 Cookie 或 token）。这个 issue 先保持打开，等你们复测，谢谢之前的反馈。\n—\nReply to this email directly, view it on GitHub, or unsubscribe.\nTriage notifications, keep track of coding agent tasks and review pull requests on the go with GitHub Mobile for iOS and Android. Download it today! \nYou are receiving this because you were mentioned.Message ID: ***@***.***>",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/1#issuecomment-6412042091"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-02T23:35:52Z",
+          "body": "@EricKY26 感谢复测，已收到你更新后部分视频恢复正常的反馈。\n\n@joe0515 如果你那边仍有“媒体地址无效”，麻烦补充当前应用版本、设备／系统、无法播放的视频 BV 号、网络类型，以及错误页“复制诊断”的结果（请勿附登录 Cookie 或 token），我再针对具体情况排查。这个 issue 先保持打开，等受影响环境的复测确认。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/1#issuecomment-6591248296"
+        },
+        {
+          "user": "joe0515",
+          "date": "2026-11-03T00:02:39Z",
+          "body": "> @EricKY26 感谢复测，已收到你更新后部分视频恢复正常的反馈。\n> \n> @joe0515 如果你那边仍有“媒体地址无效”，麻烦补充当前应用版本、设备／系统、无法播放的视频 BV 号、网络类型，以及错误页“复制诊断”的结果（请勿附登录 Cookie 或 token），我再针对具体情况排查。这个 issue 先保持打开，等受影响环境的复测确认。\n\n更新后已没有这个问题了",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/1#issuecomment-6591675348"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-10T10:19:40Z",
+          "body": "@joe0515 谢谢回来确认，已收到你更新后恢复正常的反馈。两位报告者均已确认恢复，这一项按已解决关闭；后续若有新的视频/网络个案，可以带上版本、BV 号和诊断另开 Issue。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/1#issuecomment-6764817834"
+        }
+      ]
+    },
+    {
+      "n": 10,
+      "comments": [
+        {
+          "user": "wzk112",
+          "date": "2026-11-05T21:14:32Z",
+          "body": "感谢详细反馈！播放速度等快捷键缺失、HDR 和杜比视界视频过曝，以及播放时光标不自动隐藏的问题都已收到。我后续会逐项调查原因，推进相关修复和功能完善。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/10#issuecomment-6669728180"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-10T10:19:37Z",
+          "body": "[macOS 1.1.5](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.5) 已补充音量、静音、弹幕和倍速快捷键，并在全屏控件闲置时隐藏光标。动态范围判断也已修正：明确的 SDR/PQ/HLG 元数据优先于画质编号，双端均应用。\n\nHDR/Dolby Vision 过曝这一部分仍需要你的原样片和显示器信息，先不作为完整解决。方便时补充 BV 号、出问题的画质/编码、Mac 与显示器型号、系统版本及显示设置，我继续按原场景核对。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/10#issuecomment-6764816904"
+        }
+      ]
+    },
+    {
+      "n": 4,
+      "comments": [
+        {
+          "user": "wzk112",
+          "date": "2026-10-31T15:18:17Z",
+          "body": "感谢反馈，弹幕进出画面时文字被截断、滚动不流畅的问题已收到，会在下个版本针对这部分进行修复。视频卡片的播放量和投稿日期展示也会一起优化，让信息更方便查看。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/4#issuecomment-6545286115"
+        },
+        {
+          "user": "jzfzzzz",
+          "date": "2026-11-01T03:16:45Z",
+          "body": "> 1. 感谢反馈，弹幕进出画面时文字被截断、滚动不流畅的问题已收到，会在下个版本针对这部分进行修复。视频卡片的播放量和投稿日期展示也会一起优化，让信息更方便查看。\n\n感谢",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/4#issuecomment-6552774220"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-02T23:35:56Z",
+          "body": "更新一下进展：已在本地修正普通弹幕补载和连续播放重新排布时的一类跳动问题，保留正在显示的弹幕直到完整离屏，避免迟到条目直接从画面中途出现，并补充了回归测试。视频卡片也已将播放量放到封面上，下面补充接口提供的投稿日期。\n\n这些改动现已随 [v1.1.4](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.4) 发布，macOS 1.1.4／iOS 0.1.4 安装包已可下载，iOS IPA 仍需自行签名。你描述的整体流畅度还需要结合具体视频继续核对；更新后如果仍有截断或跳动，欢迎补充设备／系统、BV 号、出现时间点或一小段录屏，我继续排查。这个 issue 先保持打开。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/4#issuecomment-6591249479"
+        }
+      ]
+    },
+    {
+      "n": 6,
+      "comments": [
+        {
+          "user": "wzk112",
+          "date": "2026-10-31T15:18:29Z",
+          "body": "感谢反馈，退出后再次打开无法播放的问题已收到，我会针对这个场景排查，并安排在下个版本修复。\n\n另外，当前附件记录的是 BiliSail 1.2.5，并非 Bilibili NEXT，可能附错了文件。麻烦确认一下使用的应用；如果问题确实发生在 Bilibili NEXT，请补充应用版本、macOS 版本、无法播放的视频 BV 号，以及错误页“复制诊断”的结果，方便定位。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/6#issuecomment-6545288836"
+        },
+        {
+          "user": "wzk112",
+          "date": "2026-11-02T23:35:58Z",
+          "body": "补充一下目前的进展：现有附件记录的是 BiliSail，并非 Bilibili NEXT，目前还没有收到本项目的诊断信息，因此这一项暂时无法确认根因，也没有列入本轮已完成的修复。\n\n如果确实是 Bilibili NEXT 退出后再次打开无法播放，麻烦补充应用版本、macOS 版本、视频 BV 号、具体操作步骤和错误页“复制诊断”的结果（请勿附登录 Cookie 或 token）。确认并定位后才能安排对应修复；这个 issue 会继续保留。",
+          "url": "https://github.com/wzk112/Bilibili-NEXT/issues/6#issuecomment-6591250031"
+        }
+      ]
+    }
+  ]
+}

@@ -104,7 +104,8 @@ private struct FeedSnapshot: Codable {
   var showPlayer = false
   var isPlaybackOpen = false
   var showsMiniPlayer: Bool {
-    isPlaybackOpen && !showPlayer && !fullscreen.isPresented && !playback.pictureInPicture.isPresented
+    (UserDefaults.standard.object(forKey: "showNavigationMiniPlayer") as? Bool ?? true)
+      && isPlaybackOpen && !showPlayer && !fullscreen.isPresented && !playback.pictureInPicture.isPresented
   }
   var qrImage: NSImage?
   var loginStatus = ""

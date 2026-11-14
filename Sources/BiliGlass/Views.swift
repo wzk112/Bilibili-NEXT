@@ -8,6 +8,7 @@ struct RootView: View {
   @FocusState private var searchFocused: Bool
   @AppStorage("macSidebarVisible") private var sidebarVisible = true
   @AppStorage("macSidebarCollapseMode") private var sidebarMode = MacSidebarCollapseMode.icons
+  @AppStorage("showNavigationMiniPlayer") private var navigationMiniPlayer = true
   private var compactSidebar: Bool { !sidebarVisible && sidebarMode == .icons }
   private var showsSidebar: Bool { sidebarVisible || sidebarMode == .icons }
   private var navigation = NavigationCustomization()
@@ -53,7 +54,7 @@ struct RootView: View {
     }
     .overlay(alignment: .bottomTrailing) {
       ZStack(alignment: .bottomTrailing) {
-        if store.showsMiniPlayer {
+        if navigationMiniPlayer && store.showsMiniPlayer {
           MiniPlayer(store: store).padding(24).interfaceTransition(mini: true)
         }
       }.interfaceAnimation(store.showsMiniPlayer)
@@ -492,9 +493,11 @@ struct PlayerPage: View {
   @State private var compactActionsWidth: CGFloat = 0
   @State private var offlineDanmakuManager = false
   @State private var displayedVideoWidth: CGFloat = 0
+  @AppStorage("showScrollMiniPlayer") private var scrollMiniPlayer = true
+  @AppStorage("widePlaybackViewport") private var widePlaybackViewport = false
 
   private var usesScrollMiniPlayer: Bool {
-    videoAboveViewport && !store.playback.pictureInPicture.isPresented
+    scrollMiniPlayer && videoAboveViewport && !store.playback.pictureInPicture.isPresented
   }
 
   private var showsScrollMiniPlayer: Bool {
@@ -508,7 +511,7 @@ struct PlayerPage: View {
     let compactPlaybackControls = displayedVideoWidth < 900
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
-        PlaybackViewportLayout(viewportHeight: viewport.size.height - 32) {
+        PlaybackViewportLayout(viewportHeight: viewport.size.height - 32, fillsWidth: widePlaybackViewport) {
           Group {
             if let detail = p.detail { header(detail) }
             else { Color.clear.frame(height: 28) }
@@ -619,6 +622,12 @@ struct PlayerPage: View {
 
   private func secondaryPlaybackActions(showsWatchLater: Bool) -> some View {
     HStack(spacing: 12) {
+      Button {
+        widePlaybackViewport.toggle()
+      } label: {
+        Label(widePlaybackViewport ? "适应窗口" : "宽屏播放", systemImage: widePlaybackViewport ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
+      }.help(widePlaybackViewport ? "画面和操作区适应窗口" : "放大视频至内容区全宽，向下滚动查看操作区")
+        .accessibilityIdentifier("player-wide-viewport")
       if showsWatchLater, let detail = store.playback.detail, detail.aid > 0 {
         WatchLaterButton(store: store, aid: detail.aid)
       }

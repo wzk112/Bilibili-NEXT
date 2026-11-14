@@ -11,9 +11,15 @@ struct MobileDynamics: View {
   @State private var composing = false
   @State private var draft = DynamicDraft()
   @State private var generation = UUID()
+  @State private var videoOnly = false
+  @State private var loadedFeedID = ""
   var body: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 20) {
+        Picker("动态类型", selection: $videoOnly) {
+          Text("全部").tag(false)
+          Text("视频").tag(true)
+        }.pickerStyle(.segmented).accessibilityIdentifier("dynamic-type-filter")
         if store.account == nil {
           ContentUnavailableView {
             Label("登录后查看关注动态", systemImage: "person.2")
@@ -45,7 +51,7 @@ struct MobileDynamics: View {
         Image(systemName: "square.and.pencil")
       }.accessibilityLabel("发布动态")
     }
-    .task(id: store.account?.mid) { await load(reset: true) }.refreshable {
+    .task(id: "\(store.account?.mid ?? 0):\(videoOnly)") { await load(reset: true) }.refreshable {
       await load(reset: true)
     }
     .sheet(isPresented: $composing) {
@@ -57,6 +63,7 @@ struct MobileDynamics: View {
       generation = UUID()
       items = []
       offset = ""
+      loadedFeedID = ""
       busy = false
       error = nil
       return
@@ -65,6 +72,12 @@ struct MobileDynamics: View {
       generation = UUID()
       busy = false
       hasMore = true
+      let key = "\(store.account?.mid ?? 0):\(videoOnly)"
+      if loadedFeedID != key {
+        items = []
+        offset = ""
+        loadedFeedID = key
+      }
     }
     guard !busy, hasMore else { return }
     let token = generation
@@ -75,7 +88,7 @@ struct MobileDynamics: View {
       let data = try await store.api.request(
         "/x/polymer/web-dynamic/v1/feed/all",
         [
-          "type": "all", "offset": reset ? "" : offset,
+          "type": videoOnly ? "video" : "all", "offset": reset ? "" : offset,
           "timezone_offset": String(-TimeZone.current.secondsFromGMT() / 60),
           "features": "itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote",
         ])

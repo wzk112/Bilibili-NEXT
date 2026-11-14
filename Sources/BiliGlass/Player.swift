@@ -62,6 +62,7 @@ struct PlaybackResume {
   var boostLabel: String { "\(Double(temporarySpeed).formatted())× 临时倍速" + (isOffline ? "" : " · 在线播放") }
   var isOffline = false
   var persistQualityPreference = true
+  @ObservationIgnored private let qualityDefaults: UserDefaults
   var connectionOverride: Int?
   var localDanmaku: URL?
   private(set) var generation = UUID()
@@ -162,7 +163,8 @@ struct PlaybackResume {
       }
     } else { player.playImmediately(atRate: speed) }
   }
-  init() {
+  init(qualityDefaults: UserDefaults = .standard) {
+    self.qualityDefaults = qualityDefaults
     player.preventsDisplaySleepDuringVideoPlayback = true
     #if os(macOS)
     sleepTimer.onExpire = { [weak self] in
@@ -273,9 +275,16 @@ struct PlaybackResume {
       } catch { fail(error, token: token) }
     }
   }
+  func preferredQuality(available: [Int]) -> Int {
+    let preferred = qualityDefaults.integer(forKey: "quality")
+    return available.contains(preferred) ? preferred : available.first ?? 0
+  }
   func selectQuality(_ qn: Int, api: API, force: Bool = false) {
     guard let d = detail, !isOffline,
       force || qn != (requestedQuality ?? selectedQuality) || error != nil else { return }
+    // Remember the user's choice, never the temporary fallback of a video that
+    // lacks it. Retries reuse the current stream without changing this preference.
+    if !force && persistQualityPreference { qualityDefaults.set(qn, forKey: "quality") }
     // The old item is already detached during a switch. Keep its position and
     // playback intent if another quality (or retry) supersedes that request.
     let time = player.currentTime().seconds
@@ -315,9 +324,7 @@ struct PlaybackResume {
     guard token == generation else { return }
     routeDiagnostics = s.diagnostics
     startupMilliseconds["playurl"] = elapsed()
-    let preferred = UserDefaults.standard.integer(forKey: "quality")
-    let qn =
-      quality ?? (s.videos.contains { $0.id == preferred } ? preferred : s.videos.first?.id ?? 0)
+    let qn = quality ?? preferredQuality(available: s.videos.map(\.id))
     requestedQuality = qn
     guard let original = API.bestVideo(s.videos, quality: qn) else {
       throw BiliError(text: "此清晰度已不可用，请重试")
@@ -416,7 +423,6 @@ struct PlaybackResume {
         requestedQuality = nil
         loading = false
         error = nil
-        if persistQualityPreference { UserDefaults.standard.set(video.id, forKey: "quality") }
         if index > 0 { recoveryNotice = "已恢复播放" }
         monitorStalls(api: api, token: token)
         return

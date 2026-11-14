@@ -34,6 +34,7 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
   @AppStorage("danmakuOpacity") private var opacity = 0.85
   @AppStorage("danmakuScale") private var scale = 1.0
   @AppStorage("danmakuArea") private var area = 0.5
+  @AppStorage("automaticPictureInPicture") private var automaticPiP = true
   func makeCoordinator() -> Coordinator { Coordinator(store: store) }
   func makeUIViewController(context: Context) -> UIViewController {
     let controller = UIViewController()
@@ -68,7 +69,7 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
       Task { @MainActor in store?.playback.renderedFrame = rendered }
     }
     if let picture = AVPictureInPictureController(playerLayer: surface.videoLayer) {
-      picture.canStartPictureInPictureAutomaticallyFromInline = true
+      picture.canStartPictureInPictureAutomaticallyFromInline = automaticPiP
       picture.delegate = context.coordinator
       context.coordinator.picture = picture
       context.coordinator.session = pip
@@ -112,10 +113,18 @@ struct MobileNativePlayer: UIViewControllerRepresentable {
       ])
     }
     canvas.onPerformance = { [weak store] fps, cost in store?.danmakuPerformance = ["fps": fps, "meanRenderMS": cost] }
+    canvas.onRenderStatus = { [weak store] planned, visible in
+      Task { @MainActor in
+        guard let store else { return }
+        if store.plannedDanmaku != planned { store.plannedDanmaku = planned }
+        if store.visibleDanmaku != visible { store.visibleDanmaku = visible }
+      }
+    }
     canvas.player = store.playback.player
     return controller
   }
   func updateUIViewController(_ controller: UIViewController, context: Context) {
+    context.coordinator.picture?.canStartPictureInPictureAutomaticallyFromInline = automaticPiP
     context.coordinator.onSwipeDown = onSwipeDown
     context.coordinator.onSingleTap = onSingleTap
     context.coordinator.fullscreen = fullscreen
@@ -444,7 +453,7 @@ struct MobilePlayerContent: View {
             _ = await (metadata, actions)
           }
         }
-        .sheet(isPresented: $details) { MobilePlaybackDetails(store: store) }
+        .sheet(isPresented: $details, onDismiss: { store.playerControlsRevision += 1 }) { MobilePlaybackDetails(store: store) }
         .sheet(isPresented: $danmakuSettings) { MobileDanmakuSettings() }
         .sheet(item: $queueList) { MobileQueueList(store: store, kind: $0) }
         .sheet(isPresented: $danmakuList) {
@@ -489,7 +498,7 @@ struct MobilePlayerContent: View {
   }
   private var playerLayout: some View {
     GeometryReader { geometry in
-      if UIDevice.current.userInterfaceIdiom == .pad {
+      if UIDevice.current.userInterfaceIdiom == .pad || (geometry.size.width >= 700 && geometry.size.height >= 480) {
         tabletPlayer(size: geometry.size)
       } else {
         VStack(spacing: 0) {
@@ -506,7 +515,7 @@ struct MobilePlayerContent: View {
     })
   }
   private func tabletPlayer(size: CGSize) -> some View {
-    let wide = size.width >= 1000 && size.height >= 480 && !textSize.isAccessibilitySize
+    let wide = size.width >= 700 && size.width > size.height && size.height >= 480 && !textSize.isAccessibilitySize
     let gap: CGFloat = wide ? 20 : 12
     let panelWidth: CGFloat = wide ? size.width * 0.42 : 0
     let available = max(1, size.width - 32 - (wide ? panelWidth + gap : 0))
@@ -840,6 +849,15 @@ struct MobilePlaybackDetails: View {
           .accessibilityValue(store.playback.isBoosting ? "进行中" : "未启用")
           .accessibilityIdentifier("temporary-speed-status")
         LabeledContent("高级弹幕脚本", value: String(store.specialScripts))
+        LabeledContent("已加载弹幕", value: String(store.danmaku.items.count))
+        LabeledContent("已排布弹幕", value: String(store.plannedDanmaku))
+        LabeledContent("普通弹幕图层", value: String(store.visibleDanmaku))
+          .accessibilityElement(children: .ignore).accessibilityLabel("普通弹幕图层")
+          .accessibilityValue(String(store.visibleDanmaku)).accessibilityIdentifier("normal-danmaku-layer-count")
+        LabeledContent("自动画中画", value: store.mobilePiP.controller?.canStartPictureInPictureAutomaticallyFromInline == true ? "开启" : "关闭")
+          .accessibilityElement(children: .ignore).accessibilityLabel("自动画中画")
+          .accessibilityValue(store.mobilePiP.controller?.canStartPictureInPictureAutomaticallyFromInline == true ? "开启" : "关闭")
+          .accessibilityIdentifier("automatic-pip-status")
         LabeledContent("高级弹幕图层", value: String(store.specialLayers))
           .accessibilityElement(children: .ignore).accessibilityLabel("高级弹幕图层")
           .accessibilityValue(String(store.specialLayers)).accessibilityIdentifier(

@@ -70,6 +70,9 @@ struct WebTarget: Identifiable {
   var unsupportedScripts = 0
   var favoriteRevision = 0
   var danmakuPerformance: [String: Double] = [:]
+  var plannedDanmaku = 0
+  var visibleDanmaku = 0
+  var playerControlsRevision = 0
   var orientationDiagnostics: [String: String] = [:]
   var homeFeeds = MobileHomeFeeds()
   var homeReturnRevision = 0
@@ -245,6 +248,7 @@ struct WebTarget: Identifiable {
             let items = try? JSONDecoder().decode([Danmaku].self, from: data)
           {
             danmaku.items = items
+            playback.localDanmaku = file.deletingLastPathComponent().appendingPathComponent("special.json")
           }
           qa = true
         }
@@ -662,6 +666,7 @@ struct WebTarget: Identifiable {
     state["network"] = await playback.networkStats()
     state["transfers"] = await playback.transferStats()
     state["danmakuPerformance"] = danmakuPerformance
+    state["danmakuRendering"] = ["planned": plannedDanmaku, "visible": visibleDanmaku]
     state["orientation"] = orientationDiagnostics
     state["startupMS"] = playback.startupMilliseconds
     state["sources"] = playback.routeDiagnostics

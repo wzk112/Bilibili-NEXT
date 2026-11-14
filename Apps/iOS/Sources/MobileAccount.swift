@@ -628,6 +628,7 @@ struct MobileSettings: View {
   @AppStorage("autoPlayParts") private var autoParts = true
   @AppStorage("autoPlayNext") private var autoNext = false
   @AppStorage("backgroundPlayback") private var backgroundPlayback = true
+  @AppStorage("automaticPictureInPicture") private var automaticPiP = true
   @AppStorage("continuePlaybackOnReturn") private var continuePlaybackOnReturn = true
   @AppStorage("mobileHomeColumns") private var homeColumns = 0
   @AppStorage("rememberPosition") private var remember = true
@@ -679,6 +680,10 @@ struct MobileSettings: View {
           .font(.caption).foregroundStyle(.secondary)
         Toggle("后台播放", isOn: $backgroundPlayback)
           .onChange(of: backgroundPlayback) { store.updateBackgroundPlayback() }
+        Toggle("离开应用时自动画中画", isOn: $automaticPiP)
+          .accessibilityIdentifier("automatic-picture-in-picture")
+        Text("关闭后仍可在播放器菜单中手动打开画中画；后台播放开关单独控制后台音频。")
+          .font(.caption).foregroundStyle(.secondary)
         Toggle("分 P 自动连播", isOn: $autoParts)
         Toggle("合集与播放列表自动连播", isOn: $autoNext)
         Text("分 P 按当前视频顺序播放；最后一 P 结束后，仅在开启合集连播时进入下一个视频。单集循环优先于连播。")

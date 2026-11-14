@@ -116,13 +116,17 @@ struct MobileVideoPlayer: View {
   @State private var checkedInitialOrientation = false
   @State private var suppressAutomaticFullscreen = false
   @State private var orientation = MobilePlayerOrientation()
+  private var expandedPhoneWindow: Bool {
+    guard let size = orientation.window?.bounds.size else { return false }
+    return size.width >= 700 && size.height >= 480
+  }
   var body: some View {
     ZStack {
       if fullscreen { Color.black }
       else {
         MobileVideoSurface(store: store, fullscreen: false) {
           automaticFullscreen = false
-          if !columns { orientation.remember() }
+          if !columns && !expandedPhoneWindow { orientation.remember() }
           fullscreen = true
         }
       }
@@ -134,7 +138,7 @@ struct MobileVideoPlayer: View {
       if !fullscreen { orientation.restore() }
     }
     .task {
-      guard UIDevice.current.userInterfaceIdiom == .phone, !columns, !checkedInitialOrientation else { return }
+      guard UIDevice.current.userInterfaceIdiom == .phone, !columns, !expandedPhoneWindow, !checkedInitialOrientation else { return }
       checkedInitialOrientation = true
       do { try await Task.sleep(for: .milliseconds(400)) } catch { return }
       if onScreen && store.showPlayer && !fullscreen && !suppressAutomaticFullscreen
@@ -145,7 +149,7 @@ struct MobileVideoPlayer: View {
     }
     .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
       // iPad rotation and multitasking resize the inline player; fullscreen is explicit.
-      guard UIDevice.current.userInterfaceIdiom == .phone, !columns else { return }
+      guard UIDevice.current.userInterfaceIdiom == .phone, !columns, !expandedPhoneWindow else { return }
       let device = UIDevice.current.orientation
       store.orientationDiagnostics = ["device": String(device.rawValue), "onScreen": String(onScreen), "showPlayer": String(store.showPlayer)]
       if device.isPortrait {
@@ -173,7 +177,7 @@ struct MobileVideoPlayer: View {
         }.frame(width: geometry.size.width, height: geometry.size.height)
       }
       .background(Color.black.ignoresSafeArea()).statusBarHidden()
-      .background(MobilePlayerWindowReader(orientation: orientation, requestLandscape: !automaticFullscreen))
+      .background(MobilePlayerWindowReader(orientation: orientation, requestLandscape: !automaticFullscreen && !expandedPhoneWindow))
       .alert("无法调整屏幕方向", isPresented: Binding(get: { orientation.error != nil }, set: { if !$0 { orientation.error = nil } })) {
         Button("好") { orientation.error = nil }
       } message: { Text(orientation.error ?? "") }
@@ -190,8 +194,14 @@ struct MobileVideoSurface: View {
   @State private var position = 0.0
   @State private var seeking = false
   @State private var settings = false
+  @State private var interaction = UUID()
   @AppStorage("danmakuEnabled") private var danmaku = true
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+  private var idleKey: String {
+    "\(interaction):\(visible):\(store.playback.isPlaying):\(store.playback.loading):\(store.playback.buffering):\(seeking):\(settings):\(scenePhase):\(voiceOver)"
+  }
+  private func wakeControls() { visible = true; interaction = UUID() }
   private var duration: Double {
     store.playback.durationSeconds.isFinite ? max(0, store.playback.durationSeconds) : 0
   }
@@ -199,10 +209,10 @@ struct MobileVideoSurface: View {
     ZStack {
       MobileNativePlayer(store: store, pip: pip, fullscreen: fullscreen, onSwipeDown: {
         if fullscreen { toggleFullscreen() } else { store.returnFromPlayer() }
-      }, onSingleTap: { visible.toggle() })
+      }, onSingleTap: { visible.toggle(); interaction = UUID() })
         .ignoresSafeArea(edges: fullscreen ? .all : [])
 
-      if visible {
+      Group {
         VStack(spacing: 0) {
           LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom)
             .frame(height: fullscreen ? 100 : 64)
@@ -280,7 +290,9 @@ struct MobileVideoSurface: View {
           // Keep transport controls usable in narrow windows at accessibility text sizes.
           .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
           .font(.subheadline.weight(.medium)).buttonStyle(.plain).foregroundStyle(.white).tint(.white)
-      }
+      }.opacity(visible ? 1 : 0).allowsHitTesting(visible).accessibilityHidden(!visible)
+        // Leave native menu anchors mounted while their menu is open.
+        .simultaneousGesture(TapGesture().onEnded { wakeControls() })
       if store.playback.loading || store.playback.buffering {
         ProgressView(store.playback.loading ? store.playback.loadingMessage : "正在缓冲…")
           .font(.caption).tint(.white).foregroundStyle(.white).allowsHitTesting(false)
@@ -298,6 +310,16 @@ struct MobileVideoSurface: View {
       }
       .onChange(of: scenePhase) { if scenePhase != .active { store.playback.endTemporarySpeed() } }
       .onChange(of: store.playback.isPlaying) { if !store.playback.isPlaying { visible = true } }
+      .onChange(of: seeking) { wakeControls() }
+      .onChange(of: settings) { wakeControls() }
+      .onChange(of: store.playback.selectedCID) { wakeControls() }
+      .onChange(of: store.playerControlsRevision) { wakeControls() }
+      .task(id: idleKey) {
+        guard visible, store.playback.isPlaying, !store.playback.loading, !store.playback.buffering,
+          !seeking, !settings, scenePhase == .active, !voiceOver else { return }
+        do { try await Task.sleep(for: .seconds(3)) } catch { return }
+        visible = false
+      }
       .sheet(isPresented: $settings) { MobileDanmakuSettings() }
   }
 }
