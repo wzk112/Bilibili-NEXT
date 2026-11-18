@@ -16,8 +16,7 @@ struct WatchLaterButton: View {
       Task { await store.addLater(aid) }
     } label: {
       Label("稍后再看", systemImage: "text.badge.plus")
-        .font(.callout).padding(4).contentShape(.rect)
-    }.buttonStyle(InterfacePressStyle()).foregroundStyle(.secondary)
+    }.buttonStyle(.pointerGlass)
       .help("稍后再看").accessibilityLabel("稍后再看")
   }
 }
@@ -39,8 +38,7 @@ struct VideoActionBar: View {
   }
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      AppGlassContainer(spacing: 10) {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
           action(title: model.relation?.liked == true ? "已点赞" : "点赞", icon: model.relation?.liked == true ? "hand.thumbsup.fill" : "hand.thumbsup",
                  count: model.counts.likes, active: model.relation?.liked == true, busy: model.operation == "like", holdToTriple: true) {
             authenticated { Task { await model.toggleLike(api: store.api) } }
@@ -51,7 +49,6 @@ struct VideoActionBar: View {
                  count: model.counts.favorites, active: model.relation?.favorited == true) { authenticated { sheet = .favorite } }.disabled(disabled)
           action(title: "分享", icon: "square.and.arrow.up", count: model.counts.shares) { sheet = .share }
         }
-      }
       .contextMenu {
         if store.account != nil {
           Button("刷新互动状态") { Task { await refresh() } }
@@ -110,20 +107,20 @@ struct VideoActionBar: View {
   private func authenticated(_ action: () -> Void) { if store.account == nil { store.login() } else { action() } }
   private func action(title: String, icon: String, count: Int, active: Bool = false, busy: Bool = false, holdToTriple: Bool = false, perform: @escaping () -> Void) -> some View {
     let button = Button(action: perform) {
-      HStack(spacing: 10) {
-        if busy { ProgressView().controlSize(.small).frame(width: 22) }
-        else { Image(systemName: icon).font(.title3).frame(width: 22) }
+      HStack(spacing: 8) {
+        if busy { ProgressView().controlSize(.small).frame(width: 18) }
+        else { Image(systemName: icon).font(.system(size: 15, weight: .medium)).frame(width: 18) }
         VStack(alignment: .leading, spacing: 3) {
-          Text(title).font(.callout.weight(.medium))
+          Text(title).font(.callout.weight(.medium)).lineLimit(1)
           Text(count >= 10000 ? String(format: "%.1f万", Double(count) / 10000) : String(count)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
         }
         Spacer(minLength: 0)
-      }.padding(.horizontal, 8).padding(.vertical, 5).frame(maxWidth: .infinity, minHeight: 40).contentShape(.rect(cornerRadius: AppLayout.itemRadius))
+      }.padding(.horizontal, 9).padding(.vertical, 5).frame(maxWidth: .infinity, minHeight: 40).contentShape(.rect(cornerRadius: AppLayout.controlRadius))
     }.foregroundStyle(.primary).tint(.primary)
-      .appGlass(AppLayout.itemRadius, tint: active ? biliPink.opacity(0.22) : .clear, interactive: true, regular: true)
+      .background(active ? biliPink.opacity(0.17) : .primary.opacity(0.065), in: .rect(cornerRadius: AppLayout.controlRadius))
       .overlay {
         if icon != "square.and.arrow.up" && tripleProgress > 0 {
-          RoundedRectangle(cornerRadius: AppLayout.itemRadius).trim(from: 0, to: tripleProgress)
+          RoundedRectangle(cornerRadius: AppLayout.controlRadius).trim(from: 0, to: tripleProgress)
             .stroke(biliPink, style: StrokeStyle(lineWidth: 2.5, lineCap: .round)).allowsHitTesting(false)
         }
       }

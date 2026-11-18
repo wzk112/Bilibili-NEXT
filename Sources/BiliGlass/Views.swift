@@ -14,6 +14,8 @@ struct RootView: View {
   @AppStorage("recommendationBlockedKeywords") private var blockedKeywords = ""
   private var compactSidebar: Bool { !sidebarVisible && sidebarMode == .icons }
   private var showsSidebar: Bool { sidebarVisible || sidebarMode == .icons }
+  private var visibleSidebarWidth: CGFloat { showsSidebar ? (compactSidebar ? 52 : AppLayout.sidebarWidth) : 0 }
+  private var showsNavigationMiniPlayer: Bool { navigationMiniPlayer && store.showsMiniPlayer }
   private var navigation = NavigationCustomization()
   @State private var diagnosticChallenge: InteractionChallenge?
   @State private var headerLeadingFrame = CGRect.zero
@@ -25,13 +27,8 @@ struct RootView: View {
       if !store.isAnyFullscreen { GlassBackdrop() }
       GeometryReader { viewport in
       VStack(spacing: 12) {
-        AppGlassContainer { topbar }.padding(.leading, 80).padding(.top, AppLayout.mainToolbarTopInset)
-        HStack(alignment: .top, spacing: 14) {
-          if showsSidebar {
-            MacSidebar(store: store, preferences: navigation.preferences, compact: compactSidebar,
-              availableHeight: max(0, viewport.size.height - AppLayout.mainHeaderHeight - 28))
-              .frame(width: compactSidebar ? 52 : AppLayout.sidebarWidth).sidebarTransition()
-          }
+        topbar.padding(.leading, 80).padding(.top, AppLayout.mainToolbarTopInset)
+        SidePanelLayout(panelWidth: visibleSidebarWidth, spacing: 14, edge: .leading) {
           VStack(spacing: 12) {
             if let reason = store.loginUpgradeReason, !store.loginUpgradeDismissed {
               HStack(spacing: 12) {
@@ -42,10 +39,16 @@ struct RootView: View {
                 Button("稍后") { store.loginUpgradeDismissed = true }.buttonStyle(.appGlassButton)
               }.padding(14).floatingGlass(AppLayout.panelRadius)
             }
-            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+            content.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
           }
-        }
-      }.interfaceAnimation(sidebarVisible).interfaceAnimation(sidebarMode)
+          MacSidebar(store: store, preferences: navigation.preferences, compact: compactSidebar,
+            availableHeight: max(0, viewport.size.height - AppLayout.mainHeaderHeight - 28))
+            .frame(width: compactSidebar ? 52 : AppLayout.sidebarWidth)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading).clipped()
+            .opacity(showsSidebar ? 1 : 0)
+            .allowsHitTesting(showsSidebar).accessibilityHidden(!showsSidebar)
+        }.interfaceAnimation(visibleSidebarWidth, animation: .easeInOut(duration: 0.28))
+      }
         .padding(.horizontal, 16).padding(.bottom, 16)
         .opacity(store.isAnyFullscreen ? 0 : 1)
         .allowsHitTesting(!store.isAnyFullscreen)
@@ -63,10 +66,10 @@ struct RootView: View {
     }
     .overlay(alignment: .bottomTrailing) {
       ZStack(alignment: .bottomTrailing) {
-        if navigationMiniPlayer && store.showsMiniPlayer {
+        if showsNavigationMiniPlayer {
           MiniPlayer(store: store).padding(24).interfaceTransition(mini: true)
         }
-      }.interfaceAnimation(store.showsMiniPlayer)
+      }.interfaceAnimation(showsNavigationMiniPlayer)
     }
     .overlay(alignment: .topLeading) {
       if !store.isAnyFullscreen && searchFocused && searchRequested && searchFieldFrame.width > 0 {
@@ -86,7 +89,7 @@ struct RootView: View {
     .onChange(of: store.navigationRevision) { store.coverPreview.stop() }
     .onChange(of: store.api.authenticationGeneration) { store.coverPreview.stop() }
     .onChange(of: phase) { if phase != .active { searchFocused = false; store.coverPreview.stop() } }
-    .tint(biliPink).appAppearance().buttonStyle(.appGlassButton)
+    .tint(biliPink).appAppearance().buttonStyle(.appGlassButton).menuStyle(MacControlMenuStyle())
     .frame(minWidth: 1020, maxWidth: .infinity, minHeight: 720, maxHeight: .infinity)
     .background { InitialWindowFocus().frame(width: 0, height: 0) }
     .appWindowBackground()
@@ -256,7 +259,7 @@ struct RootView: View {
           }.buttonStyle(.pointerPlain).help("清除搜索")
         }
       }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: AppLayout.mainToolbarHeight)
-        .background(.primary.opacity(0.06), in: .capsule)
+        .background(.primary.opacity(0.065), in: .rect(cornerRadius: AppLayout.controlRadius))
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { searchFieldFrame = $0 }
       }.onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { headerLeadingFrame = $0 }
       Spacer(minLength: 0)
@@ -267,15 +270,16 @@ struct RootView: View {
       }.help("刷新")
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { headerRefreshFrame = $0 }
     }.toolbarButtons().padding(.horizontal, 12).frame(height: AppLayout.mainToolbarHeight)
-      .interfaceAnimation(sidebarVisible)
   }
   @ViewBuilder private var content: some View {
     ZStack {
       browsingContent.id(store.destination).clipShape(.rect(cornerRadius: AppLayout.panelRadius))
         .interfaceTransition().opacity(store.showPlayer ? 0 : 1)
         .allowsHitTesting(!store.showPlayer).accessibilityHidden(store.showPlayer)
-      if store.showPlayer { PlayerPage(store: store).transition(.opacity) }
+        .zIndex(0)
+      if store.showPlayer { PlayerPage(store: store).interfaceTransition().zIndex(1) }
     }
+    .geometryGroup()
     .interfaceAnimation(store.showPlayer)
     .interfaceAnimation(store.destination)
     .onChange(of: navigation.preferences) { normalizeDestination() }
@@ -304,7 +308,7 @@ struct RootView: View {
   }
   private var browse: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 16) {
+      LazyVStack(alignment: .leading, spacing: 16) {
         if !compactFeed || !store.activeQuery.isEmpty || ![.recommend, .popular, .regions].contains(store.destination) {
           HStack(alignment: .firstTextBaseline) {
             Text(store.activeQuery.isEmpty ? store.destination.rawValue : "搜索结果").font(AppLayout.pageTitle)
@@ -328,6 +332,7 @@ struct RootView: View {
         }
         if !store.activeQuery.isEmpty && store.searchOptions.users { SearchUserResults(store: store) } else {
           videoGrid(store.destination == .later && !store.libraryQuery.isEmpty ? store.videos.filter { $0.title.localizedCaseInsensitiveContains(store.libraryQuery) || $0.author.localizedCaseInsensitiveContains(store.libraryQuery) } : store.videos)
+            .interfaceFade(store.videos.isEmpty)
         }
         if !store.videos.isEmpty || (!store.activeQuery.isEmpty && !store.searchUsers.isEmpty) {
           LoadMoreFooter(loading: store.busy, hasMore: store.hasMore, error: store.error, count: store.videos.count + store.searchUsers.count) { store.more() }
@@ -411,8 +416,8 @@ struct VideoCard: View {
             .fixedSize().help("发布时间 · " + date.formatted(AppDateFormat.timestamp))
         }
       }.font(.caption).foregroundStyle(.secondary)
-    }.padding(AppLayout.pageInset).background(.primary.opacity(0.035), in: .rect(cornerRadius: AppLayout.panelRadius))
-      .contentShape(.rect(cornerRadius: AppLayout.panelRadius)).cardHover()
+    }.padding(10).background(.primary.opacity(0.04), in: .rect(cornerRadius: AppLayout.itemRadius))
+      .contentShape(.rect(cornerRadius: AppLayout.itemRadius)).cardHover()
   }
   private func duration(_ t: Int) -> String {
     t >= 3600
@@ -424,30 +429,29 @@ struct Thumbnail: View {
   let url: String
   let mode: ContentMode
   var placeholder = "play.rectangle"
-  @State private var image: NSImage?
+  @State private var loaded: (url: String, pixels: Int, image: NSImage)?
   @Environment(\.displayScale) private var displayScale
   var body: some View {
     GeometryReader { g in
+      let pixels = ThumbnailCache.pixelSize(Int(max(g.size.width, g.size.height) * displayScale))
       Group {
-        if let image {
-          Image(nsImage: image).resizable().aspectRatio(contentMode: mode)
+        if let loaded, loaded.url == url {
+          Image(nsImage: loaded.image).resizable().aspectRatio(contentMode: mode)
         } else {
           Rectangle().fill(.quaternary).overlay {
             Image(systemName: placeholder).font(.title).foregroundStyle(.tertiary)
           }
         }
       }.frame(width: g.size.width, height: g.size.height).clipped()
-      .task(id: "\(url)|\(ThumbnailCache.pixelSize(Int(max(g.size.width, g.size.height) * displayScale)))") {
-      image = nil
-      let value =
-        url.hasPrefix("//")
-        ? "https:" + url : url.replacingOccurrences(of: "http://", with: "https://")
-      guard let target = URL(string: value),
-        let decoded = try? await ThumbnailCache.shared.thumbnail(target, maxPixelSize: Int(max(g.size.width, g.size.height) * displayScale)), !Task.isCancelled
-      else { return }
-      image = NSImage(cgImage: decoded, size: .zero)
-    }
-    }.onDisappear { image = nil }
+      .task(id: "\(url)|\(pixels)") {
+        guard loaded?.url != url || loaded?.pixels != pixels else { return }
+        let value = url.hasPrefix("//") ? "https:" + url : url.replacingOccurrences(of: "http://", with: "https://")
+        guard let target = URL(string: value),
+          let decoded = try? await ThumbnailCache.shared.thumbnail(target, maxPixelSize: pixels), !Task.isCancelled
+        else { return }
+        loaded = (url, pixels, NSImage(cgImage: decoded, size: .zero))
+      }
+    }.onDisappear { loaded = nil }
   }
 }
 struct ErrorBanner: View {
@@ -508,13 +512,11 @@ struct PlayerPage: View {
   @State private var scrollPosition = ScrollPosition(idType: Int.self)
   @State private var videoAboveViewport = false
   @State private var dismissedScrollMiniPlayer = false
-  @State private var metadataWidth: CGFloat = 0
-  @State private var expandedActionsWidth: CGFloat = 0
-  @State private var compactActionsWidth: CGFloat = 0
   @State private var offlineDanmakuManager = false
   @State private var displayedVideoWidth: CGFloat = 0
   @AppStorage("showScrollMiniPlayer") private var scrollMiniPlayer = true
   @AppStorage("widePlaybackViewport") private var widePlaybackViewport = false
+  @AppStorage("showRelatedVideos") private var showRelatedVideos = true
 
   private var usesScrollMiniPlayer: Bool {
     scrollMiniPlayer && videoAboveViewport && !store.playback.pictureInPicture.isPresented
@@ -525,13 +527,74 @@ struct PlayerPage: View {
   }
 
   var body: some View {
-    @Bindable var p = store.playback
+    let p = store.playback
     GeometryReader { viewport in
-    let availableWidth = max(0, viewport.size.width - 32)
-    let compactPlaybackControls = displayedVideoWidth < 900
-    ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
-        PlaybackViewportLayout(viewportHeight: viewport.size.height - 32, fillsWidth: widePlaybackViewport) {
+      let availableWidth = max(0, viewport.size.width - AppMetrics.pageInset * 2)
+      let hasRecommendations = showRelatedVideos && (!p.isOffline || !store.extras.related.isEmpty)
+      let sidebar = hasRecommendations && !widePlaybackViewport && availableWidth >= 980
+      let sidebarWidth = min(304, max(246, availableWidth * 0.25))
+      ScrollView {
+        SidePanelLayout(panelWidth: sidebar ? sidebarWidth : 0, spacing: 18, edge: .trailing) {
+          playerColumn(viewportHeight: viewport.size.height - AppMetrics.pageInset * 2,
+            showsInlineRecommendations: hasRecommendations && !sidebar)
+            .frame(maxWidth: .infinity, alignment: .leading)
+          ZStack(alignment: .topLeading) {
+            if sidebar {
+              RelatedVideos(store: store, inSidebar: true).id(p.detail?.video.bvid)
+                .frame(width: sidebarWidth, alignment: .topLeading).transition(.opacity)
+            }
+          }.frame(maxWidth: .infinity, alignment: .leading).clipped()
+        }.interfaceAnimation(sidebar, animation: .easeInOut(duration: 0.28)).padding(AppMetrics.pageInset)
+      }.scrollPosition($scrollPosition, anchor: .top)
+        .clipShape(.rect(cornerRadius: AppLayout.panelRadius))
+        .background(.primary.opacity(0.035), in: .rect(cornerRadius: AppLayout.panelRadius))
+        .overlay(alignment: .bottomTrailing) {
+          ZStack(alignment: .bottomTrailing) {
+            if showsScrollMiniPlayer {
+              MiniPlayer(store: store, onReturn: {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+                  scrollPosition.scrollTo(edge: .top)
+                }
+              }, onClose: {
+                dismissedScrollMiniPlayer = true
+                p.pausePlayback()
+              }, returnLabel: "回到视频").padding(12).interfaceTransition(mini: true)
+            }
+          }.interfaceAnimation(showsScrollMiniPlayer)
+        }
+    }
+    .onChange(of: p.detail?.video.bvid) { _, bvid in
+      guard bvid != nil else { return }
+      dismissedScrollMiniPlayer = false
+      scrollPosition.scrollTo(edge: .top)
+    }
+    .sheet(isPresented: $offlineDanmakuManager) { DanmakuManagement(store: store) }
+    .task(id: p.selectedCID) {
+      #if DEBUG
+      if LocalPlaybackFixture.url != nil {
+        store.danmaku.items = LocalPlaybackFixture.danmaku
+        return
+      }
+      #endif
+      if p.isOffline {
+        store.danmaku.start(cid: p.selectedCID, api: store.api, player: p.player, localSidecar: p.localDanmaku)
+      } else if let detail = p.detail, p.selectedCID > 0 {
+        store.danmaku.start(cid: p.selectedCID, aid: detail.aid, api: store.api, player: p.player)
+        await store.extras.loadPlayback(detail: detail, cid: p.selectedCID, api: store.api)
+      }
+    }
+    .task(id: "\(p.detail?.video.bvid ?? ""):\(showRelatedVideos)") {
+      if let detail = p.detail, !p.isOffline {
+        await store.extras.loadDiscovery(detail: detail, api: store.api, includeRelated: showRelatedVideos)
+      }
+    }
+  }
+
+  private func playerColumn(viewportHeight: CGFloat, showsInlineRecommendations: Bool) -> some View {
+    let p = store.playback
+    let compactPlaybackControls = displayedVideoWidth < 670
+    return LazyVStack(alignment: .leading, spacing: AppMetrics.sectionSpacing) {
+        PlaybackViewportLayout(viewportHeight: viewportHeight, fillsWidth: widePlaybackViewport) {
           Group {
             if let detail = p.detail { header(detail) }
             else { Color.clear.frame(height: 28) }
@@ -550,7 +613,7 @@ struct PlayerPage: View {
             if let error = p.error {
               ErrorBanner(text: error) { p.retry(api: store.api) }
             }
-            informationToolbar(availableWidth: availableWidth, showsWatchLater: !compactPlaybackControls)
+            informationToolbar(showsWatchLater: !compactPlaybackControls)
             if let d = p.detail {
               if d.aid > 0 {
                 VideoActionBar(store: store, detail: d, showsPlaybackOptions: compactPlaybackControls)
@@ -562,75 +625,38 @@ struct PlayerPage: View {
               }
             }
           }
-        }
+        }.interfaceAnimation(widePlaybackViewport, animation: .easeInOut(duration: 0.28))
         if let d = p.detail {
           if !d.description.isEmpty {
             Text(d.description).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
               .lineSpacing(5).padding(.top, 4)
           }
           VideoDiscovery(store: store)
-          Divider().padding(.vertical, 8)
-          if d.aid > 0 { CommentsView(store: store, aid: d.aid).padding(.top, 8) }
+          if showsInlineRecommendations { RelatedVideos(store: store, inSidebar: false) }
+          if d.aid > 0 {
+            Divider().padding(.vertical, 4)
+            CommentsView(store: store, aid: d.aid, loadsWhenVisible: true).id(d.aid).padding(.top, 4)
+          }
         }
-      }.padding(16).frame(width: viewport.size.width)
-    }.scrollPosition($scrollPosition, anchor: .top)
-      .clipShape(.rect(cornerRadius: AppLayout.panelRadius))
-      .floatingGlass(AppLayout.panelRadius)
-      .overlay(alignment: .bottomTrailing) {
-        if showsScrollMiniPlayer {
-          MiniPlayer(store: store, onReturn: {
-            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
-              scrollPosition.scrollTo(edge: .top)
-            }
-          }, onClose: {
-            dismissedScrollMiniPlayer = true
-            p.pausePlayback()
-          }, returnLabel: "回到视频").padding(12)
-        }
-      }
-      .onChange(of: p.detail?.video.bvid) { _, bvid in
-        if bvid != nil { dismissedScrollMiniPlayer = false }
-      }
-      .sheet(isPresented: $offlineDanmakuManager) { DanmakuManagement(store: store) }
-      .task(id: p.selectedCID) {
-      #if DEBUG
-        if LocalPlaybackFixture.url != nil {
-          store.danmaku.items = LocalPlaybackFixture.danmaku
-          return
-        }
-      #endif
-      if p.isOffline {
-        store.danmaku.start(
-          cid: p.selectedCID, api: store.api, player: p.player, localSidecar: p.localDanmaku)
-      } else {
-        store.danmaku.start(
-          cid: p.selectedCID, aid: p.detail?.aid ?? 0, api: store.api, player: p.player)
-      }
-      if let detail = p.detail, !p.isOffline { await store.extras.load(detail: detail, cid: p.selectedCID, api: store.api) }
-    }
     }
   }
-  @ViewBuilder private func informationToolbar(availableWidth: CGFloat, showsWatchLater: Bool) -> some View {
-    let compact = availableWidth < metadataWidth + expandedActionsWidth + 24
+  @ViewBuilder private func informationToolbar(showsWatchLater: Bool) -> some View {
     if let detail = store.playback.detail {
-      HStack(spacing: 12) {
-        metadata(detail.video)
-          .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { metadataWidth = $0 }
-        Spacer(minLength: 8)
-        // Native menus understand the system label styles. Cross-fade them in
-        // place while the enclosing width animates between their measured sizes.
-        ZStack(alignment: .trailing) {
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 12) {
+          metadata(detail.video)
+          Spacer(minLength: 8)
           secondaryPlaybackActions(showsWatchLater: showsWatchLater).labelStyle(.titleAndIcon).fixedSize()
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { expandedActionsWidth = $0 }
-            .opacity(compact ? 0 : 1).disabled(compact).allowsHitTesting(!compact).accessibilityHidden(compact)
-          secondaryPlaybackActions(showsWatchLater: showsWatchLater).labelStyle(.iconOnly).fixedSize()
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { compactActionsWidth = $0 }
-            .opacity(compact ? 1 : 0).disabled(!compact).allowsHitTesting(compact).accessibilityHidden(!compact)
         }
-        .frame(width: (compact ? compactActionsWidth : expandedActionsWidth) > 0
-          ? (compact ? compactActionsWidth : expandedActionsWidth) : nil, alignment: .trailing)
-        .clipped()
-        .interfaceAnimation(compact)
+        HStack(spacing: 12) {
+          metadata(detail.video)
+          Spacer(minLength: 8)
+          secondaryPlaybackActions(showsWatchLater: showsWatchLater).labelStyle(.iconOnly).fixedSize()
+        }
+        VStack(alignment: .leading, spacing: 8) {
+          metadata(detail.video)
+          secondaryPlaybackActions(showsWatchLater: showsWatchLater).labelStyle(.iconOnly)
+        }
       }
     } else {
       HStack {
@@ -641,7 +667,7 @@ struct PlayerPage: View {
   }
 
   private func secondaryPlaybackActions(showsWatchLater: Bool) -> some View {
-    HStack(spacing: 12) {
+    HStack(spacing: 6) {
       Button {
         widePlaybackViewport.toggle()
       } label: {
@@ -653,7 +679,7 @@ struct PlayerPage: View {
       }
       PlaybackFeatureControls(store: store)
       downloadMenu
-    }.buttonStyle(.appGlassButton).controlSize(.regular)
+    }.toolbarButtons()
   }
 
   @ViewBuilder private var downloadMenu: some View {
@@ -731,6 +757,13 @@ struct PlayerPage: View {
     let video = Video(bvid: "LOCAL-PREVIEW", title: "本地播放与界面检查 · 长标题、发布日期及播放信息", cover: "",
       author: "本地测试素材", duration: 90, views: 123456, publishedAt: Date(timeIntervalSince1970: 1793491200))
     store.playback.openLocal(url, video: video)
+    if Bundle.main.bundleIdentifier?.hasSuffix(".FeedbackQA") == true,
+      UserDefaults.standard.bool(forKey: "qaRelatedVideos") {
+      store.extras.related = (1...12).map { index in
+        Video(bvid: "QA-\(index)", title: "推荐视频 \(index) · 横向封面与两行标题检查", cover: "",
+          author: "本地测试素材", duration: index * 71, views: index * 1148)
+      }
+    }
     store.isPlaybackOpen = true
     store.showPlayer = true
     store.playerFocus += 1

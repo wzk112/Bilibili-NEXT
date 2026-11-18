@@ -72,31 +72,27 @@ struct AppGlassContainer<Content: View>: View {
 
 struct AppMaterialButtonStyle: PrimitiveButtonStyle {
   var prominent = false
-  #if os(macOS)
-  @AppStorage("appTheme") private var theme = AppTheme.original
-  #endif
   func makeBody(configuration: Configuration) -> some View {
+    #if os(macOS)
+    Button(configuration).buttonStyle(MacControlButtonStyle(prominent: prominent))
+    #else
     if #available(macOS 26, iOS 26, *) {
       if prominent { button(configuration).buttonStyle(.glassProminent) }
-      else {
-        #if os(macOS)
-        if theme == .original { button(configuration).buttonStyle(.glass).tint(.primary) }
-        else { button(configuration).buttonStyle(.bordered).tint(.primary) }
-        #else
-        button(configuration).buttonStyle(.glass).tint(.primary)
-        #endif
-      }
+      else { button(configuration).buttonStyle(.glass).tint(.primary) }
     } else {
       if prominent { button(configuration).buttonStyle(.borderedProminent) }
       else { button(configuration).buttonStyle(.bordered).tint(.primary) }
     }
+    #endif
   }
+  #if !os(macOS)
   private func button(_ configuration: Configuration) -> some View {
     Button(role: configuration.role, action: configuration.trigger) {
       configuration.label.frame(minWidth: AppMetrics.controlHeight - 14,
         minHeight: AppMetrics.controlHeight - 14).contentShape(.rect)
     }.controlSize(.regular).interactivePointer()
   }
+  #endif
 }
 
 extension PrimitiveButtonStyle where Self == AppMaterialButtonStyle {

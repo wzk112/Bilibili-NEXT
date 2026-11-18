@@ -8,21 +8,21 @@ enum InterfaceMotion {
 
 private struct InterfaceAnimation<Value: Equatable>: ViewModifier {
   let value: Value
+  let animation: Animation
   @AppStorage("interfaceAnimations") private var enabled = true
   @Environment(\.accessibilityReduceMotion) private var reduced
   func body(content: Content) -> some View {
-    content.animation(enabled ? (reduced ? .easeOut(duration: 0.12) : InterfaceMotion.navigation) : nil, value: value)
+    content.animation(enabled ? (reduced ? .easeOut(duration: 0.12) : animation) : nil, value: value)
   }
 }
 
 private struct InterfaceTransition: ViewModifier {
   var mini: Bool
-  var sidebar = false
   @AppStorage("interfaceAnimations") private var enabled = true
   @Environment(\.accessibilityReduceMotion) private var reduced
   func body(content: Content) -> some View {
     content.transition(!enabled || reduced ? .opacity : .opacity.combined(with:
-      sidebar ? .move(edge: .leading) : mini ? .scale(scale: 0.94, anchor: .bottomTrailing) : .offset(x: 24)))
+      mini ? .scale(scale: 0.94, anchor: .bottomTrailing) : .offset(x: 24)))
   }
 }
 
@@ -46,9 +46,29 @@ extension View {
     self
     #endif
   }
-  func interfaceAnimation<V: Equatable>(_ value: V) -> some View { modifier(InterfaceAnimation(value: value)) }
+  func interfaceAnimation<V: Equatable>(_ value: V, animation: Animation = InterfaceMotion.navigation) -> some View {
+    modifier(InterfaceAnimation(value: value, animation: animation))
+  }
   func interfaceTransition(mini: Bool = false) -> some View { modifier(InterfaceTransition(mini: mini)) }
-  func sidebarTransition() -> some View { modifier(InterfaceTransition(mini: false, sidebar: true)) }
+  func interfaceFade<V: Equatable>(_ trigger: V) -> some View { modifier(InterfaceFade(trigger: trigger)) }
+}
+
+/// Animate the current view's opacity without keeping an outgoing layout alive.
+private struct InterfaceFade<Trigger: Equatable>: ViewModifier {
+  let trigger: Trigger
+  @AppStorage("interfaceAnimations") private var enabled = true
+  @Environment(\.accessibilityReduceMotion) private var reduced
+
+  @ViewBuilder func body(content: Content) -> some View {
+    if enabled && !reduced {
+      content.keyframeAnimator(initialValue: 1.0, trigger: trigger) { view, opacity in
+        view.opacity(opacity)
+      } keyframes: { _ in
+        MoveKeyframe(0.68)
+        CubicKeyframe(1, duration: 0.17)
+      }
+    } else { content }
+  }
 }
 
 #if os(macOS)

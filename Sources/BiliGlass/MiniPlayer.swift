@@ -12,7 +12,7 @@ struct MiniPlayer: View {
         Label(store.playback.isPlaying ? "正在播放" : "已暂停", systemImage: "play.rectangle").font(.caption.weight(.medium)).foregroundStyle(.primary.opacity(0.85))
         Spacer()
         Button(action: onClose ?? store.closeMiniPlayer) { Image(systemName: "xmark") }
-          .buttonStyle(.pointerPlain).help("关闭迷你播放器").accessibilityLabel("关闭迷你播放器")
+          .buttonStyle(.pointerGlass).help("关闭迷你播放器").accessibilityLabel("关闭迷你播放器")
       }
       ZStack {
         MiniPlayerVideo(playback: store.playback)

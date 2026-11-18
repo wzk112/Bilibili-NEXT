@@ -55,9 +55,9 @@ struct GuidePage: Identifiable {
 }
 
 enum GuideContent {
-  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.9"
+  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.10"
   // Increment only when guide content changes, not on every build.
-  static let revision = "2026-11-19-release-1.1.9"
+  static let revision = "2026-11-19-release-1.1.10"
   static let tutorial: [GuidePage] = [
     .init(id: "account", title: "登录与账号", location: "左下角个人中心 → 账户信息", symbol: "person.crop.circle", paragraphs: [
       "点击“登录”，用哔哩哔哩 App 扫描二维码，并在手机上确认。同一次扫码会完成浏览与互动所需的登录，凭证保存在本机钥匙串。",
@@ -113,6 +113,9 @@ enum GuideContent {
       "使用指南和更新说明会在首次安装或对应版本首次打开时展示一次。之后可从“帮助”菜单或“设置 → 关于”重新打开。"], settingsTab: 0)
   ]
   static let currentUpdates: [GuidePage] = [
+    .init(id: "update-1110-layout", title: "侧栏过渡与播放布局", location: "macOS 1.1.10", symbol: "sidebar.left", paragraphs: [
+      "展开或收起侧栏时，主内容随之平滑移动。设置分类切换保留淡入淡出，打开和退出视频、小窗继续使用过渡动画。",
+      "统一了工具栏和播放按钮的尺寸及材质。宽窗口的相关推荐放在右侧；窄窗口及宽屏播放模式放在下方。"]),
     .init(id: "update-119-playback", title: "直播全屏与播放设置", location: "macOS 1.1.9 / iOS 0.1.8", symbol: "play.rectangle", paragraphs: [
       "Mac 直播间支持全屏，普通视频可以切换宽屏。切换页面和向下滚动时的小窗可以分别关闭。",
       "手机首页常驻搜索，收起播放器后可点“返回正在播放”。控制条闲置时自动收起，自动画中画可以单独关闭。"]),

@@ -79,6 +79,7 @@ struct PlaybackResume {
   private var asset: PreparedPlaybackAsset?
   private var statusObservation: NSKeyValueObservation?
   private var sizeObservation: NSKeyValueObservation?
+  private var startupSeekPending = false
   private var timeObserver: Any?
   private var controlObservation: NSKeyValueObservation?
   private var endObserver: NSObjectProtocol?
@@ -504,7 +505,7 @@ struct PlaybackResume {
       }
       if item.status == .readyToPlay {
         let wantsPlayback = (pendingResume?.playing ?? playing) && allowsStartupPlayback
-        if !wantsPlayback && item.presentationSize.width > 0 { return }
+        if !wantsPlayback && !startupSeekPending && item.presentationSize.width > 0 { return }
         let time = player.currentTime().seconds
         if wantsPlayback, player.timeControlStatus == .waitingToPlayAtSpecifiedRate,
           began.duration(to: .now) >= .seconds(1),
@@ -536,6 +537,7 @@ struct PlaybackResume {
     watchdog?.cancel()
     statusObservation = nil
     sizeObservation = nil
+    startupSeekPending = false
     player.pause()
     player.replaceCurrentItem(with: nil)
     asset?.stop()
@@ -559,6 +561,7 @@ struct PlaybackResume {
     let preferredBuffer = UserDefaults.standard.object(forKey: "bufferSeconds") as? Double ?? 15
     item.audioTimePitchAlgorithm = .spectral
     item.preferredForwardBufferDuration = managedStartup ? min(3, preferredBuffer) : preferredBuffer
+    startupSeekPending = managedStartup && position > 0
     player.replaceCurrentItem(with: item)
     #if os(macOS)
     let updateBuffer: @Sendable () -> Void = { [weak self, weak item] in
@@ -589,6 +592,7 @@ struct PlaybackResume {
                 toleranceAfter: CMTime(seconds: 0.2, preferredTimescale: 600))
             }
             guard self.generation == token, self.player.currentItem === item else { return }
+            self.startupSeekPending = false
             self.watchdog?.cancel()
             let duration = item.duration.seconds
             if duration.isFinite, duration > 0 { self.durationSeconds = duration }

@@ -94,14 +94,14 @@ struct FullscreenPlayerContent: View {
         HStack {
           Text(store.playback.detail?.video.title ?? "播放").font(.headline).lineLimit(2)
             .padding(.horizontal, 14).padding(.vertical, 10)
-            .appGlassEffect(.regular, in: .rect(cornerRadius: 16))
+            .background(.black.opacity(0.68), in: .rect(cornerRadius: AppLayout.itemRadius))
           Spacer(minLength: 0)
         }.allowsHitTesting(false)
         Spacer().allowsHitTesting(false)
         PlayerControls(playback: store.playback, fullscreen: true, toggleFullscreen: close, extras: store.extras,
           onEditingChanged: { adjustingPlayback = $0 },
           nextAction: store.hasNextVideo ? { store.playNext() } : nil) {
-          HStack(spacing: 10) {
+          HStack(spacing: 6) {
             Toggle("弹幕", isOn: $store.danmaku.enabled).toggleStyle(.switch).fixedSize()
             DanmakuSettingsButton(onPresentationChange: { danmakuSettingsPresented = $0 })
             Menu("字幕") {
@@ -113,7 +113,7 @@ struct FullscreenPlayerContent: View {
             PlaybackQualityMenu(store: store)
             PlaybackSpeedMenu(playback: store.playback)
             PlaybackSleepMenu(playback: store.playback).labelStyle(.iconOnly)
-          }.buttonStyle(.appGlassButton)
+          }
         }
           .frame(maxWidth: 1400)
           .onHover { hoveringControls = $0; if $0 { wake() } }

@@ -31,6 +31,34 @@ import Testing
     }
   }
 
+  @Test(arguments: [HorizontalEdge.leading, HorizontalEdge.trailing])
+  func panelAndContentShareTheSameIntermediateWidth(edge: HorizontalEdge) async throws {
+    _ = NSApplication.shared
+    let size = NSSize(width: 1000, height: 640)
+    for width: CGFloat in [52, 114, 176] {
+      let frames = Frames()
+      let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+        styleMask: [.borderless], backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      var layout = SidePanelLayout(panelWidth: 176, spacing: 14, edge: edge)
+      layout.animatableData = width
+      let host = NSHostingView(rootView: layout {
+        Color.clear.onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frames.values[0] = $0 }
+        Color.clear.onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frames.values[1] = $0 }
+      }.frame(width: size.width, height: size.height))
+      window.contentView = host
+      host.layoutSubtreeIfNeeded()
+      defer { window.close() }
+      for _ in 0..<50 where frames.values.count < 2 { try await Task.sleep(for: .milliseconds(10)) }
+      let content = try #require(frames.values[0])
+      let panel = try #require(frames.values[1])
+      let gutter = edge == .leading ? content.minX - panel.maxX : panel.minX - content.maxX
+      #expect(abs(gutter - 14) < 0.5)
+      #expect(abs(panel.width - width) < 0.5)
+      #expect(abs(content.width + gutter + panel.width - size.width) < 0.5)
+    }
+  }
+
   private final class Frames { var values: [Int: CGRect] = [:] }
   private func fixture(size: NSSize, frames: Frames, fillsWidth: Bool) -> some View {
     PlaybackViewportLayout(viewportHeight: size.height, fillsWidth: fillsWidth) {

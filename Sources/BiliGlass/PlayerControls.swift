@@ -154,7 +154,7 @@ struct InlinePlaybackSurface: View {
             onShowDanmakuList: { danmakuManager = true })
         }
       }
-        .interfaceAnimation(usesCompactControls)
+        .interfaceFade(usesCompactControls)
         .padding(10)
         .background {
           LinearGradient(colors: [.clear, .black.opacity(0.74)], startPoint: .top, endPoint: .bottom)
@@ -240,7 +240,6 @@ struct PlayerControls<AdditionalControls: View>: View {
   @State private var position = 0.0
   @State private var hoverTime: Double?
   @State private var sliderWidth = 1.0
-  @State private var controlsWidth = CGFloat.infinity
   @State private var showingVolume = false
   var body: some View {
     Group {
@@ -249,17 +248,7 @@ struct PlayerControls<AdditionalControls: View>: View {
       let duration = rawDuration.isFinite ? max(0, rawDuration) : 0
       let rawTime = playback.positionSeconds
       let current = rawTime.isFinite ? max(0, rawTime) : 0
-      HStack(spacing: fullscreen ? 14 : 8) {
-        Button { playback.focusPlayer(); playback.togglePlayback() } label: {
-          Image(systemName: !playback.isPlaying ? "play.fill" : "pause.fill").frame(width: 20)
-        }.buttonStyle(.appGlassButton).help(!playback.isPlaying ? "播放" : "暂停")
-          .accessibilityLabel(!playback.isPlaying ? "播放" : "暂停")
-        if let nextAction {
-          Button(action: nextAction) { Image(systemName: "forward.end") }
-            .buttonStyle(.appGlassButton).help("下一集").accessibilityLabel("下一集")
-        }
-        Text(clock(dragging ? position : current)).font(.caption.monospacedDigit()).frame(
-          minWidth: 42)
+      VStack(spacing: 4) {
         BufferedSeekSlider(
           value: Binding(
             get: { dragging ? position : min(current, duration) },
@@ -289,37 +278,38 @@ struct PlayerControls<AdditionalControls: View>: View {
               VideoPreview(shots: shots, time: time).offset(x: SeekPreviewGeometry.origin(time: time, duration: duration, width: sliderWidth), y: -28)
             }
           }
-        Text(clock(duration)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-        additionalControls()
-        Button { showingVolume.toggle() } label: {
-          Image(systemName: playback.muted || playback.volume == 0 ? "speaker.slash" : "speaker.wave.2")
-        }
-          .buttonStyle(.pointerGlass).help("音量").accessibilityLabel("音量")
-          .popover(isPresented: $showingVolume) {
-            Slider(value: Binding(get: { Double(playback.volume) }, set: { playback.setVolume(Float($0)) }), in: 0...1)
-              .labelsHidden().accessibilityLabel("音量").frame(width: 150).padding(16)
+        HStack(spacing: 6) {
+          Button { playback.focusPlayer(); playback.togglePlayback() } label: {
+            Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill").frame(width: 14)
+          }.help(playback.isPlaying ? "暂停" : "播放")
+            .accessibilityLabel(playback.isPlaying ? "暂停" : "播放")
+          if let nextAction {
+            Button(action: nextAction) { Image(systemName: "forward.end").frame(width: 14) }
+              .help("下一集").accessibilityLabel("下一集")
           }
-        Slider(
-            value: Binding(get: { Double(playback.volume) }, set: { playback.setVolume(Float($0)) }),
-            in: 0...1
-          ) { onEditingChanged?($0) }.labelsHidden().accessibilityLabel("音量")
-          .frame(width: fullscreen ? 90 : (controlsWidth < 860 ? 0 : 70))
-          .opacity(!fullscreen && controlsWidth < 860 ? 0 : 1)
-          .clipped().allowsHitTesting(fullscreen || controlsWidth >= 860)
-          .accessibilityHidden(!fullscreen && controlsWidth < 860)
-        if let toggleFullscreen {
-          Button(action: toggleFullscreen) {
-            Image(systemName: fullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-          }.buttonStyle(.pointerGlass).help(fullscreen ? "退出全屏" : "全屏播放")
-            .accessibilityLabel(fullscreen ? "退出全屏" : "全屏播放")
-        }
-      }.padding(12).appGlassEffect(.regular, in: .rect(cornerRadius: AppLayout.panelRadius))
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { controlsWidth = $0 }
-        .interfaceAnimation(!fullscreen && controlsWidth < 860)
+          Text("\(clock(dragging ? position : current)) / \(clock(duration))")
+            .font(.caption.monospacedDigit()).foregroundStyle(.secondary).fixedSize()
+            .padding(.leading, 3)
+          Spacer(minLength: 6)
+          additionalControls()
+          Button { showingVolume.toggle() } label: {
+            Image(systemName: playback.muted || playback.volume == 0 ? "speaker.slash" : "speaker.wave.2").frame(width: 14)
+          }.help("音量").accessibilityLabel("音量")
+            .popover(isPresented: $showingVolume) {
+              Slider(value: Binding(get: { Double(playback.volume) }, set: { playback.setVolume(Float($0)) }), in: 0...1)
+                .labelsHidden().accessibilityLabel("音量").frame(width: 150).padding(16)
+            }
+          if let toggleFullscreen {
+            Button(action: toggleFullscreen) {
+              Image(systemName: fullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right").frame(width: 14)
+            }.help(fullscreen ? "退出全屏" : "全屏播放")
+              .accessibilityLabel(fullscreen ? "退出全屏" : "全屏播放")
+          }
+        }.toolbarButtons()
+      }.padding(.horizontal, 10).padding(.top, 5).padding(.bottom, 8)
+        .background(.black.opacity(0.68), in: .rect(cornerRadius: AppLayout.itemRadius))
+        .overlay { RoundedRectangle(cornerRadius: AppLayout.itemRadius).strokeBorder(.white.opacity(0.14)).allowsHitTesting(false) }
     }.onAppear { position = playback.positionSeconds }
-      .task(id: extras?.shots?.urls.first) {
-        if let url = extras?.shots?.urls.first { _ = try? await PreviewSheets.shared.image(url) }
-      }
       .onChange(of: playback.positionSeconds) { _, value in if !dragging { position = value } }
       .onChange(of: showingVolume) { _, showing in onEditingChanged?(showing) }
       .onChange(of: playback.generation) { dragging = false; position = 0; onEditingChanged?(false) }

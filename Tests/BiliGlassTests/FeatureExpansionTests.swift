@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import BiliGlass
 
@@ -72,6 +73,30 @@ private final class ExpansionProtocol: URLProtocol, @unchecked Sendable {
     let model = VideoExtras(); model.lines = [.init(start: 0, end: 2, text: "first"), .init(start: 2, end: 4, text: "second")]
     #expect(model.text(at: 1.99) == "first"); #expect(model.text(at: 2) == "second"); #expect(model.text(at: 4).isEmpty)
     model.reset(); #expect(model.text(at: 1).isEmpty)
+  }
+  @Test @MainActor func recommendationsLoadOncePerVideoAndRespectVisibility() async throws {
+    let requests = Mutex([String]())
+    ExpansionProtocol.response = { request in
+      let path = request.url?.path ?? ""
+      requests.withLock { $0.append(path) }
+      if path == "/x/web-interface/archive/related" {
+        return Data(#"{"code":0,"data":[{"bvid":"BV1xx411c7mD"},{"bvid":"BV1nWns6xELb"},{"bvid":"BV1nWns6xELb"}]}"#.utf8)
+      }
+      return Data(#"{"code":0,"data":[{"tag_id":1,"tag_name":"测试标签"}]}"#.utf8)
+    }
+    defer { ExpansionProtocol.response = nil }
+    let detail = Detail(video: try #require(Video.parse(["bvid": "BV1xx411c7mD"])), description: "", pages: [])
+    let model = VideoExtras()
+    let client = api()
+    await model.loadDiscovery(detail: detail, api: client, includeRelated: false)
+    #expect(model.related.isEmpty)
+    #expect(model.tags.map(\.title) == ["测试标签"])
+    #expect(requests.withLock { $0 } == ["/x/tag/archive/tags"])
+    await model.loadDiscovery(detail: detail, api: client)
+    await model.loadDiscovery(detail: detail, api: client)
+    #expect(model.related.map(\.bvid) == ["BV1nWns6xELb"])
+    #expect(requests.withLock { $0.filter { $0 == "/x/web-interface/archive/related" }.count } == 1)
+    #expect(!model.loadingRecommendations)
   }
   @Test func currentRegionPayloadRetainsCoverAuthorAndVideoIdentity() throws {
     let video = try #require(Video.parse(["bvid": "BV1xx411c7mD", "aid": 42, "cover": "https://i0.hdslb.com/test.jpg", "author": ["mid": 7, "name": "作者"], "duration": 60]))

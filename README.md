@@ -6,11 +6,15 @@ macOS 新手指南和更新说明可从“帮助”菜单或“设置 → 关于
 
 <img src="Assets/Bilibili-NEXT-macOS.svg" width="128" alt="Bilibili NEXT icon">
 
-源码支持 macOS 15+、iOS / iPadOS 26+（macOS 26 使用 Liquid Glass） 的非官方哔哩哔哩客户端，主要使用 SwiftUI、Liquid Glass 和 AVPlayer。本次双端版本为 macOS 1.1.9（build 21，Apple silicon）与 iOS / iPadOS 0.1.8 开发预览（build 13，需要自签的 IPA）。安装文件以 [v1.1.9 发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.9) 的 Assets 为准。
+源码支持 macOS 15+、iOS / iPadOS 26+（macOS 26 使用 Liquid Glass） 的非官方哔哩哔哩客户端，主要使用 SwiftUI、Liquid Glass 和 AVPlayer。本次双端版本为 macOS 1.1.10（build 22，Apple silicon）与 iOS / iPadOS 0.1.9 开发预览（build 14，需要自签的 IPA）。安装文件以 [v1.1.10 发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.10) 的 Assets 为准。
 
 从 [GitHub Releases](https://github.com/wzk112/Bilibili-NEXT/releases/latest) 下载 Apple silicon 发布包，解压后将 `Bilibili NEXT.app` 放入应用程序目录。扫码登录后，登录信息保存在 macOS 钥匙串。开发构建使用本机已有的 Apple Development 签名；从早期临时签名版本迁移时，系统可能要求重新授权一次。
 
 当前发布包未进行 Developer ID 公证，其他 Mac 的系统信任流程尚未验证；也可以下载源码自行构建。
+
+## macOS 1.1.10 / iOS 0.1.9
+
+Mac 侧栏和主内容同步滑动，设置分类平滑切换，保留打开和退出视频、小窗切换的过渡。统一工具栏和播放按钮的尺寸与材质；宽窗口的相关推荐放在右侧，窄窗口及宽屏播放模式放在下方。播放页按需加载评论，修复恢复观看进度时暂停被误判的问题。
 
 ## macOS 1.1.9 / iOS 0.1.8
 

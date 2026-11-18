@@ -11,7 +11,7 @@ struct MacSidebar: View {
   var body: some View {
     let footerHeight: CGFloat = compact ? 100 : 60
     let count = preferences.sidebarPages.count
-    let navigationHeight = CGFloat(count) * 44 + CGFloat(max(0, count - 1)) * 4 + 16
+    let navigationHeight = CGFloat(count) * 40 + CGFloat(max(0, count - 1)) * 4 + 16
     VStack(spacing: 0) {
       Spacer(minLength: 0)
       ScrollView {
@@ -27,11 +27,11 @@ struct MacSidebar: View {
                   }
                 }
                 .font(.system(size: 14, weight: store.destination == destination && !store.showPlayer ? .semibold : .regular))
-                .frame(maxWidth: .infinity).frame(height: 44)
+                .frame(maxWidth: .infinity).frame(height: 40)
                 .padding(.horizontal, compact ? 4 : 10)
                 .background(store.destination == destination && !store.showPlayer ? biliPink.opacity(0.19) : .clear,
-                  in: .rect(cornerRadius: AppLayout.panelRadius - (compact ? 4 : 8)))
-                .contentShape(.rect(cornerRadius: AppLayout.panelRadius - (compact ? 4 : 8)))
+                  in: .rect(cornerRadius: AppLayout.controlRadius))
+                .contentShape(.rect(cornerRadius: AppLayout.controlRadius))
               }
               .buttonStyle(NavigationButtonStyle()).help(destination.rawValue)
               .accessibilityLabel(destination.rawValue).accessibilityIdentifier("sidebar-" + page.rawValue)
@@ -40,10 +40,10 @@ struct MacSidebar: View {
         }.padding(compact ? 4 : 8).floatingGlass(AppLayout.panelRadius)
       }
       .frame(height: min(navigationHeight, max(0, availableHeight - footerHeight - 14)))
-      .scrollIndicators(.hidden).compositingGroup().clipped()
+      .scrollIndicators(.hidden)
       Spacer(minLength: 0)
       MacAccountFooter(store: store, compact: compact).padding(.top, 14)
-    }.frame(maxHeight: .infinity).interfaceAnimation(compact)
+    }.frame(maxHeight: .infinity).interfaceFade(compact)
   }
 }
 

@@ -93,29 +93,67 @@ extension Array where Element == Double {
   var error: String?
   var subtitleError: String?
   var loading = false
+  var loadingRecommendations = false
   private var key = ""
+  private var discoveryKey: String?
   private var generation = UUID()
+  private var discoveryGeneration = UUID()
   private var subtitleGeneration = UUID()
   func reset() {
-    generation = UUID(); subtitleGeneration = UUID(); key = ""
+    generation = UUID(); discoveryGeneration = UUID(); subtitleGeneration = UUID()
+    key = ""; discoveryKey = nil
     related = []; tags = []; subtitles = []; chapters = []; shots = nil; lines = []
-    selectedSubtitle = ""; error = nil; subtitleError = nil; loading = false
+    selectedSubtitle = ""; error = nil; subtitleError = nil; loading = false; loadingRecommendations = false
   }
   func load(detail: Detail, cid: Int, api: API, refresh: Bool = false) async {
+    async let discovery: () = loadDiscovery(detail: detail, api: api, refresh: refresh)
+    async let media: () = loadPlayback(detail: detail, cid: cid, api: api, refresh: refresh)
+    _ = await (discovery, media)
+  }
+  func loadDiscovery(detail: Detail, api: API, includeRelated: Bool = true, refresh: Bool = false) async {
+    let bvid = detail.video.bvid
+    let nextKey = "\(bvid):\(includeRelated)"
+    guard refresh || discoveryKey != nextKey else { return }
+    discoveryKey = nextKey; discoveryGeneration = UUID()
+    let token = discoveryGeneration
+    loadingRecommendations = includeRelated
+    error = nil
+    if !includeRelated { related = [] }
+    async let recommendations: () = fetchRecommendations(bvid: bvid, api: api, token: token, enabled: includeRelated)
+    let result = await Result { try await api.request("/x/tag/archive/tags", ["bvid": bvid]) }
+    if token == discoveryGeneration, !Task.isCancelled, case .success(let data) = result {
+      tags = (data["items"] as? [[String: Any]] ?? []).compactMap {
+        guard let id = $0["tag_id"] as? Int, let name = $0["tag_name"] as? String else { return nil }
+        return VideoTag(id: id, title: name)
+      }
+    }
+    await recommendations
+    if token == discoveryGeneration, Task.isCancelled { discoveryKey = nil }
+  }
+  private func fetchRecommendations(bvid: String, api: API, token: UUID, enabled: Bool) async {
+    guard enabled else { return }
+    let result = await Result { try await api.request("/x/web-interface/archive/related", ["bvid": bvid]) }
+    guard token == discoveryGeneration else { return }
+    loadingRecommendations = false
+    guard !Task.isCancelled else { return }
+    switch result {
+    case .success(let data):
+      related = Video.deduplicated((data["items"] as? [[String: Any]] ?? []).compactMap(Video.parse), excluding: [bvid])
+    case .failure(let failure): error = failure.localizedDescription
+    }
+  }
+  func loadPlayback(detail: Detail, cid: Int, api: API, refresh: Bool = false) async {
     let nextKey = detail.video.bvid + ":" + String(cid)
     guard refresh || key != nextKey else { return }
-    reset(); key = nextKey; loading = true
+    key = nextKey; generation = UUID(); subtitleGeneration = UUID()
+    subtitles = []; chapters = []; shots = nil; lines = []
+    selectedSubtitle = ""; subtitleError = nil; loading = true
     let token = generation
-    async let recommendations = Result { try await api.request("/x/web-interface/archive/related", ["bvid": detail.video.bvid]) }
-    async let metadata = Result { try await api.request("/x/player/wbi/v2", ["bvid": detail.video.bvid, "cid": String(cid)], signed: true) }
-    async let tagResult = Result { try await api.request("/x/tag/archive/tags", ["bvid": detail.video.bvid]) }
-    async let previews = Result { try await api.previewShots(aid: detail.aid, cid: cid) }
-    let (r, m, t, p) = await (recommendations, metadata, tagResult, previews)
+    async let previews: () = fetchPreviews(detail: detail, cid: cid, api: api, token: token)
+    let metadata = await Result { try await api.request("/x/player/wbi/v2", ["bvid": detail.video.bvid, "cid": String(cid)], signed: true) }
     guard token == generation else { return }
     guard !Task.isCancelled else { key = ""; loading = false; return }
-    if case .success(let data) = r { related = Video.deduplicated((data["items"] as? [[String: Any]] ?? []).compactMap(Video.parse), excluding: [detail.video.bvid]) }
-    else if case .failure(let failure) = r { error = failure.localizedDescription }
-    if case .success(let data) = m {
+    if case .success(let data) = metadata {
       subtitles = ((data["subtitle"] as? [String: Any])?["subtitles"] as? [[String: Any]] ?? []).compactMap {
         guard let url = API.publicMediaURL($0["subtitle_url"] as? String ?? "") else { return nil }
         return VideoSubtitle(id: ($0["id_str"] as? String) ?? String(($0["id"] as? NSNumber)?.int64Value ?? 0), title: $0["lan_doc"] as? String ?? "字幕", url: url)
@@ -124,15 +162,15 @@ extension Array where Element == Double {
         guard let start = ($0["from"] as? NSNumber)?.doubleValue, start.isFinite, start >= 0 else { return nil }
         return VideoChapter(start: start, title: $0["content"] as? String ?? "章节")
       }.sorted { $0.start < $1.start }
-    } else if case .failure(let failure) = m { subtitleError = failure.localizedDescription }
-    if case .success(let data) = t {
-      tags = (data["items"] as? [[String: Any]] ?? []).compactMap {
-        guard let id = $0["tag_id"] as? Int, let name = $0["tag_name"] as? String else { return nil }
-        return VideoTag(id: id, title: name)
-      }
-    }
-    if case .success(let previews) = p { shots = previews }
+    } else if case .failure(let failure) = metadata { subtitleError = failure.localizedDescription }
     loading = false
+    await previews
+    if token == generation, Task.isCancelled { key = "" }
+  }
+  private func fetchPreviews(detail: Detail, cid: Int, api: API, token: UUID) async {
+    guard let previews = try? await api.previewShots(aid: detail.aid, cid: cid),
+      token == generation, !Task.isCancelled else { return }
+    shots = previews
   }
   func selectSubtitle(_ id: String, api: API) async {
     subtitleGeneration = UUID(); let token = subtitleGeneration
@@ -265,7 +303,6 @@ struct PlaybackFeatureControls: View {
 }
 struct VideoDiscovery: View {
   @Bindable var store: Store
-  @AppStorage("showRelatedVideos") private var showRelatedVideos = true
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       if !store.extras.tags.isEmpty {
@@ -278,17 +315,6 @@ struct VideoDiscovery: View {
       }
       if !store.playQueue.isEmpty && store.playback.detail?.collection == nil {
         sequence("播放列表 · " + store.queueTitle, items: store.playQueue, parts: false)
-      }
-      if showRelatedVideos {
-        HStack { Text("相关推荐").font(.title3.bold()); Spacer(); if store.extras.loading { ProgressView().controlSize(.small) } }
-        if let error = store.extras.error {
-          ErrorBanner(text: error) { Task { if let detail = store.playback.detail { await store.extras.load(detail: detail, cid: store.playback.selectedCID, api: store.api, refresh: true) } } }
-        }
-        ScrollView(.horizontal) {
-          LazyHStack(alignment: .top, spacing: 12) { ForEach(store.extras.related) { video in
-            Button { store.open(video.bvid) } label: { VideoCard(video: video).frame(width: 240) }.buttonStyle(.pointerPlain).contextMenu { VideoContextActions(store: store, video: video) }
-          } }
-        }.frame(height: store.extras.related.isEmpty ? 0 : 250)
       }
     }
   }
@@ -320,6 +346,78 @@ struct VideoDiscovery: View {
     }.padding(14).floatingGlass(AppLayout.panelRadius).clipShape(.rect(cornerRadius: AppLayout.panelRadius))
   }
 
+}
+
+struct RelatedVideos: View {
+  @Bindable var store: Store
+  let inSidebar: Bool
+  @State private var expanded = false
+
+  var body: some View {
+    let videos = store.extras.related
+    if !videos.isEmpty || store.extras.loadingRecommendations || store.extras.error != nil {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack {
+          Text("相关推荐").font(.headline).accessibilityAddTraits(.isHeader)
+          Spacer(minLength: 0)
+          if store.extras.loadingRecommendations { ProgressView().controlSize(.small) }
+        }
+        if let error = store.extras.error {
+          Text(error).font(.caption).foregroundStyle(.secondary)
+          Button("重试") {
+            Task {
+              guard let detail = store.playback.detail else { return }
+              await store.extras.loadDiscovery(detail: detail, api: store.api, refresh: true)
+            }
+          }
+        }
+        if inSidebar {
+          LazyVStack(spacing: 6) {
+            ForEach(videos.prefix(expanded ? videos.count : 8)) { video in
+              selection(video) { compactRow(video) }
+            }
+          }
+          if videos.count > 8 && !expanded { Button("查看更多推荐") { expanded = true } }
+        } else if !videos.isEmpty {
+          ScrollView(.horizontal) {
+            LazyHStack(alignment: .top, spacing: 10) {
+              ForEach(videos) { video in
+                selection(video) { VideoCard(video: video).frame(width: 204) }
+              }
+            }.padding(.vertical, 2)
+          }.scrollIndicators(.hidden)
+        }
+      }
+      .padding(inSidebar ? 12 : 0)
+      .background(.primary.opacity(inSidebar ? 0.035 : 0), in: .rect(cornerRadius: AppLayout.itemRadius))
+      .interfaceFade(videos.isEmpty)
+      .accessibilityIdentifier(inSidebar ? "player-related-sidebar" : "player-related-inline")
+    }
+  }
+
+  private func selection<Content: View>(_ video: Video, @ViewBuilder content: () -> Content) -> some View {
+    Button { store.open(video.bvid) } label: { content() }
+      .buttonStyle(InterfacePressStyle())
+      .contextMenu { VideoContextActions(store: store, video: video) }
+  }
+
+  private func compactRow(_ video: Video) -> some View {
+    HStack(alignment: .top, spacing: 9) {
+      Thumbnail(url: video.cover, mode: .fill)
+        .frame(width: 96, height: 54)
+        .overlay(alignment: .bottomTrailing) {
+          Text(Duration.seconds(max(0, video.duration)).formatted(.time(pattern: .minuteSecond)))
+            .font(.caption2.monospacedDigit()).foregroundStyle(.white)
+            .padding(.horizontal, 4).padding(.vertical, 2).background(.black.opacity(0.78), in: .rect(cornerRadius: 3))
+            .padding(3)
+        }.clipShape(.rect(cornerRadius: AppLayout.controlRadius))
+      VStack(alignment: .leading, spacing: 4) {
+        Text(video.title).font(.callout.weight(.medium)).lineLimit(2).multilineTextAlignment(.leading)
+        Text(video.author).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+      }.frame(maxWidth: .infinity, alignment: .leading)
+    }.padding(4).contentShape(.rect(cornerRadius: AppLayout.controlRadius))
+      .help(video.title)
+  }
 }
 
 #endif

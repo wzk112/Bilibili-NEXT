@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 import CoreImage
 
 enum AppLayout {
-  static let sidebarWidth: CGFloat = 192
+  static let sidebarWidth: CGFloat = 176
   static let toolbarHeight: CGFloat = 56
   static let mainToolbarHeight: CGFloat = 32
   static let mainToolbarTopInset: CGFloat = 8
@@ -24,6 +24,52 @@ struct NavigationButtonStyle: ButtonStyle {
   }
 }
 
+struct MacControlButtonStyle: ButtonStyle {
+  var prominent = false
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .padding(.horizontal, 9)
+      .frame(minWidth: AppMetrics.controlHeight, minHeight: AppMetrics.controlHeight)
+      .modifier(MacControlSurface(prominent: prominent, pressed: configuration.isPressed))
+  }
+}
+
+/// Menus keep their native presentation and use the same surface as buttons.
+struct MacControlMenuStyle: MenuStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    Menu(configuration).menuStyle(.borderlessButton).controlSize(.regular).tint(.primary)
+      .fixedSize(horizontal: true, vertical: false)
+      .padding(.horizontal, 4)
+      .frame(minHeight: AppMetrics.controlHeight)
+      .modifier(MacControlSurface(prominent: false, pressed: false))
+  }
+}
+
+private struct MacControlSurface: ViewModifier {
+  let prominent: Bool
+  let pressed: Bool
+  @Environment(\.isEnabled) private var enabled
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @AppStorage("interfaceAnimations") private var animations = true
+  @State private var hovered = false
+
+  func body(content: Content) -> some View {
+    let shape = RoundedRectangle(cornerRadius: AppLayout.controlRadius)
+    let opacity = pressed ? 0.16 : hovered && enabled ? 0.11 : 0.065
+    return content.font(.callout.weight(.medium))
+      .foregroundStyle(prominent ? .white : .primary)
+      .background(shape.fill(prominent ? biliPink.opacity(pressed ? 0.76 : 1) : .primary.opacity(opacity)))
+      .overlay { shape.strokeBorder(.primary.opacity(0.10), lineWidth: 1).allowsHitTesting(false) }
+      .contentShape(shape)
+      .opacity(enabled ? 1 : 0.48)
+      .scaleEffect(pressed && animations && !reduceMotion ? 0.97 : 1)
+      .animation(animations ? .easeOut(duration: 0.14) : nil, value: pressed)
+      .animation(animations ? .easeOut(duration: 0.14) : nil, value: hovered)
+      .onHover { hovered = $0 }
+      .interactivePointer()
+  }
+}
+
 extension View {
   func floatingGlass(_ radius: CGFloat = AppLayout.panelRadius) -> some View { modifier(FloatingPanel(radius: radius)) }
   func appGlass(_ radius: CGFloat = 14, tint: Color = .clear, interactive: Bool = false, regular: Bool = false) -> some View {
@@ -31,7 +77,7 @@ extension View {
   }
   func appAppearance() -> some View { modifier(AppAppearance()) }
   func appWindowBackground() -> some View { modifier(AppWindowBackground()) }
-  func toolbarButtons() -> some View { modifier(ThemedToolbarButtons()) }
+  func toolbarButtons() -> some View { buttonStyle(.pointerGlass).menuStyle(MacControlMenuStyle()) }
   func cardHover() -> some View { modifier(CardHover()) }
 }
 private struct FloatingPanel: ViewModifier {
@@ -62,24 +108,6 @@ private struct GlassSurface: ViewModifier {
         .overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(.primary.opacity(0.07), lineWidth: 1)
           .allowsHitTesting(false))
     }
-  }
-}
-private struct ThemedToolbarButtons: ViewModifier {
-  @AppStorage("appTheme") private var theme = AppTheme.original
-  func body(content: Content) -> some View {
-    if theme == .original {
-      content.buttonStyle(.pointerGlass).buttonBorderShape(.roundedRectangle(radius: AppLayout.controlRadius)).tint(.primary)
-    }
-    else { content.buttonStyle(NeutralToolbarButtonStyle()).foregroundStyle(.primary) }
-  }
-}
-private struct NeutralToolbarButtonStyle: ButtonStyle {
-  func makeBody(configuration: Configuration) -> some View {
-    configuration.label.padding(.horizontal, 6)
-      .frame(minWidth: AppMetrics.controlHeight, minHeight: AppMetrics.controlHeight)
-      .background(.primary.opacity(configuration.isPressed ? 0.12 : 0.045), in: .rect(cornerRadius: AppLayout.controlRadius))
-      .contentShape(.rect(cornerRadius: AppLayout.controlRadius))
-      .interactivePointer()
   }
 }
 private struct AppAppearance: ViewModifier {

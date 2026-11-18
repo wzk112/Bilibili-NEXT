@@ -6,12 +6,17 @@ struct CommentsView: View {
   let resourceType: Int
   let model: Comments?
   let verificationURL: URL?
-  init(store: Store, aid: Int, type: Int = 1, model: Comments? = nil, verificationURL: URL? = nil) {
+  let loadsWhenVisible: Bool
+  @State private var headerVisible = false
+  @State private var requestedInitialPage = false
+  init(store: Store, aid: Int, type: Int = 1, model: Comments? = nil, verificationURL: URL? = nil,
+       loadsWhenVisible: Bool = false) {
     self.store = store
     self.aid = aid
     resourceType = type
     self.model = model
     self.verificationURL = verificationURL
+    self.loadsWhenVisible = loadsWhenVisible
   }
   var body: some View {
     @Bindable var comments = model ?? store.comments
@@ -27,7 +32,7 @@ struct CommentsView: View {
         }.labelsHidden().pickerStyle(.segmented).frame(width: 150).onChange(of: comments.sort) {
           comments.load(aid: aid, type: resourceType, api: store.api)
         }
-      }
+      }.onScrollVisibilityChange(threshold: 0.1) { headerVisible = $0 }
       MacCommentComposer(store: store, aid: aid, comments: comments, verificationURL: verificationURL)
       CommentSubmissionReceipt(comments: comments)
       ForEach(comments.items) { reply in
@@ -56,11 +61,15 @@ struct CommentsView: View {
                      count: comments.items.count, title: "加载更多评论") {
         comments.load(aid: aid, type: resourceType, api: store.api, more: !comments.items.isEmpty)
       }
-      if !comments.loading && comments.items.isEmpty && comments.error == nil {
+      if requestedInitialPage && !comments.loading && comments.items.isEmpty && comments.error == nil {
         Text("还没有评论").foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(20)
       }
     }.scrollTargetLayout()
-      .task(id: "\(resourceType):\(aid)") { comments.loadIfNeeded(aid: aid, type: resourceType, api: store.api) }
+      .task(id: "\(resourceType):\(aid):\(!loadsWhenVisible || headerVisible)") {
+        guard !loadsWhenVisible || headerVisible else { return }
+        comments.loadIfNeeded(aid: aid, type: resourceType, api: store.api)
+        requestedInitialPage = true
+      }
       .sheet(isPresented: Binding(get: { comments.replyingTo != nil }, set: { if !$0 { comments.replyingTo = nil } })) {
         MacReplyComposerSheet(store: store, aid: aid, comments: comments, verificationURL: verificationURL)
       }

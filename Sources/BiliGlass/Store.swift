@@ -355,10 +355,11 @@ private struct FeedSnapshot: Codable {
     } else { open(item.bvid, initialCID: item.cid, keepQueue: true, present: present, continuing: automatic) }
   }
   func openFeedVideo(_ video: Video) {
-    let queue = videos.map { PlaybackQueueItem(bvid: $0.bvid, title: $0.title) }
-    let title = destination.rawValue
     open(video.bvid)
-    if [.later, .favorites].contains(destination) { playQueue = queue; queueTitle = title }
+    if [.later, .favorites].contains(destination) {
+      playQueue = videos.map { PlaybackQueueItem(bvid: $0.bvid, title: $0.title) }
+      queueTitle = destination.rawValue
+    }
   }
   func openHistory(_ entry: AccountHistoryEntry) {
     isPlaybackOpen = true

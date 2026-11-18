@@ -54,60 +54,77 @@ struct PreferencesView: View {
   @AppStorage("cacheDirectory") private var cacheDirectory = ""
   @State private var cleared = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.colorScheme) private var colorScheme
   private let categories = [("外观与交互", "paintpalette"), ("播放与网络", "play.rectangle"), ("弹幕", "text.bubble"), ("缓存与下载", "arrow.down.circle"), ("关于", "info.circle")]
   var body: some View {
     ZStack {
       GlassBackdrop()
       HStack(alignment: .top, spacing: 20) {
-        VStack(alignment: .leading, spacing: 20) {
-          Label("设置", systemImage: "slider.horizontal.3").font(.title2.weight(.semibold)).padding(.horizontal, 10)
-          AppGlassContainer(spacing: 8) {
-            VStack(spacing: 8) {
-              ForEach(categories.indices, id: \.self) { index in
-                Button { store.preferencesTab = index } label: {
-                  Label(categories[index].0, systemImage: categories[index].1)
-                    .font(.body.weight(store.preferencesTab == index ? .semibold : .regular))
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(12).contentShape(.rect(cornerRadius: AppLayout.itemRadius))
-                }.buttonStyle(NavigationButtonStyle()).tint(.primary)
-                  .appGlass(AppLayout.itemRadius, tint: store.preferencesTab == index ? biliPink.opacity(0.2) : .clear)
-              }
-            }
+        settingsSidebar
+        ScrollViewReader { scroll in
+          ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+              Text(categories[store.preferencesTab].0).font(AppLayout.pageTitle)
+                .accessibilityAddTraits(.isHeader).id("settings-top")
+              settingsPage
+            }.frame(maxWidth: 760, alignment: .leading).padding(.trailing, 8)
+              .padding(.vertical, 6).frame(maxWidth: .infinity).interfaceFade(store.preferencesTab)
           }
-          Spacer()
-          Text("Bilibili NEXT").font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.horizontal, 10)
-        }.padding(14).frame(width: 200).frame(maxHeight: .infinity).floatingGlass(AppLayout.panelRadius)
-        VStack(alignment: .leading, spacing: 16) {
-          Text(categories[store.preferencesTab].0).font(.title2.weight(.semibold)).padding(.horizontal, 6).padding(.top, 4)
-          ZStack(alignment: .top) {
-            ScrollView {
-              AppGlassContainer(spacing: 16) {
-              VStack(alignment: .leading, spacing: 16) {
-                switch store.preferencesTab {
-                case 0: appearanceSettings
-                case 1: playbackSettings
-                case 2: danmakuSettings
-                case 3: cacheSettings
-                default: aboutSettings
-                }
-                }.padding(AppLayout.pageInset)
-              }
-            }.scrollIndicators(.hidden)
-              .id(store.preferencesTab).interfaceTransition()
-          }.frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipShape(.rect(cornerRadius: AppLayout.panelRadius)).interfaceAnimation(store.preferencesTab)
-        }.frame(maxWidth: .infinity, maxHeight: .infinity)
-      }.padding(24)
-    }.frame(minWidth: 940, idealWidth: 980, minHeight: 700, idealHeight: 740)
+          .onChange(of: store.preferencesTab) {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { scroll.scrollTo("settings-top", anchor: .top) }
+          }
+        }
+      }.padding(20)
+    }.frame(minWidth: 820, idealWidth: 940, minHeight: 650, idealHeight: 720)
       .background { SettingsWindowChrome().frame(width: 0, height: 0) }
-      .appWindowBackground().appAppearance().buttonStyle(.appGlassButton).tint(biliPink)
+      .appWindowBackground().appAppearance().toolbarButtons().tint(biliPink)
+  }
+  private var settingsSidebar: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      ForEach(categories.indices, id: \.self) { index in
+        let selected = store.preferencesTab == index
+        Button { store.preferencesTab = index } label: {
+          HStack(spacing: 10) {
+            Image(systemName: categories[index].1)
+              .foregroundStyle(selected ? biliPink : .secondary).frame(width: 18)
+            Text(categories[index].0).lineLimit(1)
+            Spacer(minLength: 0)
+          }.font(.callout.weight(selected ? .semibold : .medium))
+            .padding(.horizontal, 10).frame(height: 36)
+            .background {
+              RoundedRectangle(cornerRadius: AppLayout.controlRadius)
+                .fill(selected ? biliPink.opacity(0.16) : .clear)
+                .animation(animations && !reduceMotion ? .easeOut(duration: 0.14) : nil, value: selected)
+            }
+            .contentShape(.rect(cornerRadius: AppLayout.controlRadius))
+        }.buttonStyle(.pointerPlain)
+          .accessibilityIdentifier("settings-category-\(index)")
+          .accessibilityAddTraits(selected ? .isSelected : [])
+      }
+      Spacer(minLength: 0)
+    }.padding(8).frame(width: AppLayout.sidebarWidth).frame(maxHeight: .infinity)
+      .background(AppTheme.surface(colorScheme).opacity(0.74), in: .rect(cornerRadius: AppLayout.panelRadius))
+  }
+  @ViewBuilder private var settingsPage: some View {
+    switch store.preferencesTab {
+    case 0: appearanceSettings
+    case 1: playbackSettings
+    case 2: danmakuSettings
+    case 3: cacheSettings
+    default: aboutSettings
+    }
   }
   private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content)
     -> some View
   {
-    VStack(alignment: .leading, spacing: 18) {
-      Text(title).font(.headline)
+    VStack(alignment: .leading, spacing: 14) {
+      Text(title).font(.headline).accessibilityAddTraits(.isHeader)
       content()
-    }.padding(22).frame(maxWidth: .infinity, alignment: .leading).floatingGlass(AppLayout.panelRadius)
+    }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+      .background(AppTheme.surface(colorScheme).opacity(0.88), in: .rect(cornerRadius: AppLayout.itemRadius))
+      .overlay { RoundedRectangle(cornerRadius: AppLayout.itemRadius).strokeBorder(.primary.opacity(0.08)).allowsHitTesting(false) }
   }
   private var playbackSettings: some View {
     VStack(spacing: 18) {
