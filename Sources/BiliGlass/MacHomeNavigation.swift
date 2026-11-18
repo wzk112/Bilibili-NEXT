@@ -2,6 +2,14 @@ import SwiftUI
 
 enum MacSidebarCollapseMode: String { case icons, hidden }
 
+private enum MacSidebarGeometry {
+  static let rowHeight: CGFloat = 40
+  static let rowSpacing: CGFloat = 4
+  static func inset(compact: Bool) -> CGFloat { compact ? 6 : 8 }
+  static func panelRadius(compact: Bool) -> CGFloat { compact ? AppLayout.compactSidebarWidth / 2 : AppLayout.panelRadius }
+  static func rowRadius(compact: Bool) -> CGFloat { panelRadius(compact: compact) - inset(compact: compact) }
+}
+
 struct MacSidebar: View {
   @Bindable var store: Store
   let preferences: BrowsePreferences
@@ -11,11 +19,14 @@ struct MacSidebar: View {
   var body: some View {
     let footerHeight: CGFloat = compact ? 100 : 60
     let count = preferences.sidebarPages.count
-    let navigationHeight = CGFloat(count) * 40 + CGFloat(max(0, count - 1)) * 4 + 16
+    let inset = MacSidebarGeometry.inset(compact: compact)
+    let rowShape = RoundedRectangle(cornerRadius: MacSidebarGeometry.rowRadius(compact: compact))
+    let navigationHeight = CGFloat(count) * MacSidebarGeometry.rowHeight
+      + CGFloat(max(0, count - 1)) * MacSidebarGeometry.rowSpacing + inset * 2
     VStack(spacing: 0) {
       Spacer(minLength: 0)
       ScrollView {
-        VStack(spacing: 4) {
+        VStack(spacing: MacSidebarGeometry.rowSpacing) {
           ForEach(preferences.sidebarPages) { page in
             if let destination = Destination(rawValue: page.title) {
               Button { store.navigate(destination) } label: {
@@ -27,17 +38,17 @@ struct MacSidebar: View {
                   }
                 }
                 .font(.system(size: 14, weight: store.destination == destination && !store.showPlayer ? .semibold : .regular))
-                .frame(maxWidth: .infinity).frame(height: 40)
+                .frame(maxWidth: .infinity).frame(height: MacSidebarGeometry.rowHeight)
                 .padding(.horizontal, compact ? 4 : 10)
                 .background(store.destination == destination && !store.showPlayer ? biliPink.opacity(0.19) : .clear,
-                  in: .rect(cornerRadius: AppLayout.controlRadius))
-                .contentShape(.rect(cornerRadius: AppLayout.controlRadius))
+                  in: rowShape)
+                .contentShape(rowShape)
               }
               .buttonStyle(NavigationButtonStyle()).help(destination.rawValue)
               .accessibilityLabel(destination.rawValue).accessibilityIdentifier("sidebar-" + page.rawValue)
             }
           }
-        }.padding(compact ? 4 : 8).floatingGlass(AppLayout.panelRadius)
+        }.padding(inset).floatingGlass(MacSidebarGeometry.panelRadius(compact: compact))
       }
       .frame(height: min(navigationHeight, max(0, availableHeight - footerHeight - 14)))
       .scrollIndicators(.hidden)
@@ -56,7 +67,7 @@ struct MacAccountFooter: View {
       else { HStack(spacing: 10) { identity; settings } }
     }
     .padding(compact ? 8 : 12).frame(maxWidth: .infinity)
-    .floatingGlass(AppLayout.panelRadius)
+    .floatingGlass(MacSidebarGeometry.panelRadius(compact: compact))
   }
   private var identity: some View {
     Button { store.navigate(.profile) } label: {

@@ -99,6 +99,10 @@ extension Array where Element == Double {
   private var generation = UUID()
   private var discoveryGeneration = UUID()
   private var subtitleGeneration = UUID()
+  func hasRecommendationSection(for bvid: String?) -> Bool {
+    guard let bvid else { return true }
+    return discoveryKey != "\(bvid):true" || loadingRecommendations || !related.isEmpty || error != nil
+  }
   func reset() {
     generation = UUID(); discoveryGeneration = UUID(); subtitleGeneration = UUID()
     key = ""; discoveryKey = nil
@@ -374,10 +378,14 @@ struct RelatedVideos: View {
         if inSidebar {
           LazyVStack(spacing: 6) {
             ForEach(videos.prefix(expanded ? videos.count : 8)) { video in
-              selection(video) { compactRow(video) }
+              selection(video) { compactRow(video) }.help(video.title)
             }
           }
-          if videos.count > 8 && !expanded { Button("查看更多推荐") { expanded = true } }
+          if videos.count > 8 && !expanded {
+            Button { expanded = true } label: {
+              Label("查看更多推荐", systemImage: "chevron.down").frame(maxWidth: .infinity)
+            }.buttonStyle(.pointerGlass)
+          }
         } else if !videos.isEmpty {
           ScrollView(.horizontal) {
             LazyHStack(alignment: .top, spacing: 10) {
@@ -416,7 +424,6 @@ struct RelatedVideos: View {
         Text(video.author).font(.caption).foregroundStyle(.secondary).lineLimit(1)
       }.frame(maxWidth: .infinity, alignment: .leading)
     }.padding(4).contentShape(.rect(cornerRadius: AppLayout.controlRadius))
-      .help(video.title)
   }
 }
 

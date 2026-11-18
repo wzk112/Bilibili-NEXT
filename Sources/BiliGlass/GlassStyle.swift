@@ -5,6 +5,7 @@ import CoreImage
 
 enum AppLayout {
   static let sidebarWidth: CGFloat = 176
+  static let compactSidebarWidth: CGFloat = 52
   static let toolbarHeight: CGFloat = 56
   static let mainToolbarHeight: CGFloat = 32
   static let mainToolbarTopInset: CGFloat = 8

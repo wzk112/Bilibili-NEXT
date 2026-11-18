@@ -1,6 +1,6 @@
 # iOS / iPadOS 安装
 
-本次手机安装包为 **0.1.9 开发预览（build 14）**，对应 [v1.1.10 双端版本](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.10)。可用文件以页面 Assets 为准。支持 iPhone / iPad，最低 iOS / iPadOS 26，真机架构 arm64。
+本次手机安装包为 **0.1.9 开发预览（build 14）**，对应 [v1.1.11 发布页](https://github.com/wzk112/Bilibili-NEXT/releases/tag/v1.1.11)。可用文件以页面 Assets 为准。支持 iPhone / iPad，最低 iOS / iPadOS 26，真机架构 arm64。
 
 ## 0.1.5 的导入兼容调整
 
@@ -20,7 +20,7 @@
 ## 提示“IPA 不完整”或无法安装
 
 - 从 Release 的 **Assets** 下载 `.ipa`，不要下载源码 ZIP、网页或尚未完成的下载文件，也不要只修改它们的后缀名。
-- 核对同一 Release 的 `Bilibili-NEXT-1.1.10-SHA256SUMS.txt`。Mac 可执行 `shasum -a 256 文件名.ipa`；Windows PowerShell 可执行 `Get-FileHash 文件名.ipa -Algorithm SHA256`。不一致时重新下载。
+- 核对同一 Release 的 `Bilibili-NEXT-1.1.11-SHA256SUMS.txt`。Mac 可执行 `shasum -a 256 文件名.ipa`；Windows PowerShell 可执行 `Get-FileHash 文件名.ipa -Algorithm SHA256`。不一致时重新下载。
 - 校验一致后仍报错，请提供签名工具名称与版本、iOS 版本、失败阶段（导入、签名或安装）和完整错误截图。不要提供 Apple Account 密码、私钥、证书密码或描述文件。
 - “无法验证完整性”也可能发生在签名或安装阶段；仅凭这句提示不能判断 ZIP 是否损坏。核实自己的证书、描述文件、设备及 Bundle ID 是否匹配，避免删除旧应用后丢失数据。
 

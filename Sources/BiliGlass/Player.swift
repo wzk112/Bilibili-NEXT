@@ -74,7 +74,7 @@ struct PlaybackResume {
   private var stallMonitor: Task<Void, Never>?
   private var automaticRecoveries = 0
   private var watchdog: Task<Void, Never>?
-  private var requestedBVID: String?
+  private(set) var requestedBVID: String?
   private var localURL: URL?
   private var asset: PreparedPlaybackAsset?
   private var statusObservation: NSKeyValueObservation?
@@ -99,7 +99,7 @@ struct PlaybackResume {
   func focusPlayer() {
     #if os(macOS)
     DispatchQueue.main.async { [weak self] in
-      guard let view = self?.nativeView, !view.isHidden, let window = view.window, window.attachedSheet == nil else { return }
+      guard let view = self?.nativeView, view.isPlaybackSurfaceActive, let window = view.window, window.attachedSheet == nil else { return }
       window.makeFirstResponder(view)
     }
     #endif
@@ -647,6 +647,7 @@ struct PlaybackResume {
   func openLocal(_ url: URL, video: Video, cid: Int = 0, sidecar: URL? = nil, restoring: PlaybackResume? = nil) {
     stop(preservingCountdown: true)
     detail = Detail(video: video, description: "", pages: [])
+    requestedBVID = video.bvid
     streams = nil
     isOffline = true
     selectedCID = cid
@@ -841,6 +842,7 @@ struct PlaybackResume {
   var keyboardInteraction: (() -> Void)?
   var keyboard: PlayerKeyboard?
   var handlesPlaybackShortcuts = false
+  var isPlaybackSurfaceActive = true
   var onVideoLayout: (() -> Void)?
   private weak var videoLayer: AVPlayerLayer?
   private var wheelMonitor: Any?
@@ -883,15 +885,16 @@ struct PlaybackResume {
     }
     guard let window else { keyboard?.cancelHeldKey(); return }
     DispatchQueue.main.async { [weak self, weak window] in
-      guard let self, self.window === window, !self.isHidden, window?.attachedSheet == nil else { return }
+      guard let self, self.window === window, self.isPlaybackSurfaceActive, window?.attachedSheet == nil else { return }
       window?.makeFirstResponder(self)
     }
     wheelMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
       let handled = MainActor.assumeIsolated {
-        guard let self, event.window === self.window, !self.isHidden,
+        guard let self, event.window === self.window, self.isPlaybackSurfaceActive,
+          let scrollView = self.enclosingScrollView,
           self.visibleRect.contains(self.convert(event.locationInWindow, from: nil))
         else { return false }
-        self.enclosingScrollView?.scrollWheel(with: event)
+        scrollView.scrollWheel(with: event)
         return true
       }
       return handled ? nil : event
@@ -900,7 +903,10 @@ struct PlaybackResume {
   override func mouseDown(with event: NSEvent) {
     window?.makeFirstResponder(self)
   }
-  override var acceptsFirstResponder: Bool { true }
+  override var acceptsFirstResponder: Bool { isPlaybackSurfaceActive || handlesPlaybackShortcuts }
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    isPlaybackSurfaceActive ? super.hitTest(point) : nil
+  }
   override func keyDown(with event: NSEvent) {
     guard let player = videoLayer?.player else { return }
     switch event.keyCode {
@@ -952,7 +958,7 @@ struct NativePlayer: NSViewRepresentable {
       [weak v, weak playback] layer, _ in
       let ready = layer.isReadyForDisplay
       Task { @MainActor [weak v, weak playback] in
-        guard let v, let playback, v === playback.nativeView, !v.isHidden else { return }
+        guard let v, let playback, v === playback.nativeView, v.isPlaybackSurfaceActive else { return }
         v.needsLayout = true
         playback.renderedFrame = ready
       }
@@ -963,11 +969,13 @@ struct NativePlayer: NSViewRepresentable {
     view.toggleDanmaku = toggleDanmaku
     view.keyboardInteraction = keyboardInteraction
     let active = isInlineVisible && (!playback.isFullscreen || fullscreen)
-    let wasHidden = view.isHidden
-    view.isHidden = !active
+    let wasActive = view.isPlaybackSurfaceActive
+    // Hiding the first responder here makes AppKit rebuild SwiftUI's focus graph during layout.
+    // Detach the video below and keep the host in the key-view loop for mini-player shortcuts.
+    view.isPlaybackSurfaceActive = active
     view.handlesPlaybackShortcuts = active || controlsScrollMiniPlayer
     if view.handlesPlaybackShortcuts { playback.nativeView = view }
-    if active && wasHidden && context.coordinator.wasInlineVisible { playback.focusPlayer() }
+    if active && !wasActive && context.coordinator.wasInlineVisible { playback.focusPlayer() }
     context.coordinator.wasInlineVisible = isInlineVisible
     if !active {
       if !view.handlesPlaybackShortcuts { view.keyboard?.cancelHeldKey() }

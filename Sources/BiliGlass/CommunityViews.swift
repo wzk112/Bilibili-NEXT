@@ -64,8 +64,7 @@ struct CommentsView: View {
       if requestedInitialPage && !comments.loading && comments.items.isEmpty && comments.error == nil {
         Text("还没有评论").foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(20)
       }
-    }.scrollTargetLayout()
-      .task(id: "\(resourceType):\(aid):\(!loadsWhenVisible || headerVisible)") {
+    }.task(id: "\(resourceType):\(aid):\(!loadsWhenVisible || headerVisible)") {
         guard !loadsWhenVisible || headerVisible else { return }
         comments.loadIfNeeded(aid: aid, type: resourceType, api: store.api)
         requestedInitialPage = true

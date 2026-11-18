@@ -14,7 +14,7 @@ struct RootView: View {
   @AppStorage("recommendationBlockedKeywords") private var blockedKeywords = ""
   private var compactSidebar: Bool { !sidebarVisible && sidebarMode == .icons }
   private var showsSidebar: Bool { sidebarVisible || sidebarMode == .icons }
-  private var visibleSidebarWidth: CGFloat { showsSidebar ? (compactSidebar ? 52 : AppLayout.sidebarWidth) : 0 }
+  private var visibleSidebarWidth: CGFloat { showsSidebar ? (compactSidebar ? AppLayout.compactSidebarWidth : AppLayout.sidebarWidth) : 0 }
   private var showsNavigationMiniPlayer: Bool { navigationMiniPlayer && store.showsMiniPlayer }
   private var navigation = NavigationCustomization()
   @State private var diagnosticChallenge: InteractionChallenge?
@@ -43,7 +43,7 @@ struct RootView: View {
           }
           MacSidebar(store: store, preferences: navigation.preferences, compact: compactSidebar,
             availableHeight: max(0, viewport.size.height - AppLayout.mainHeaderHeight - 28))
-            .frame(width: compactSidebar ? 52 : AppLayout.sidebarWidth)
+            .frame(width: compactSidebar ? AppLayout.compactSidebarWidth : AppLayout.sidebarWidth)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading).clipped()
             .opacity(showsSidebar ? 1 : 0)
             .allowsHitTesting(showsSidebar).accessibilityHidden(!showsSidebar)
@@ -466,60 +466,23 @@ struct ErrorBanner: View {
     }.padding(16).floatingGlass(AppLayout.panelRadius)
   }
 }
-struct ScrollingVideoTitle: View {
-  let title: String
-  @AppStorage("interfaceAnimations") private var animations = true
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var position = ScrollPosition(x: 0)
-  @State private var textWidth: CGFloat = 0
-  @State private var viewportWidth: CGFloat = 0
-  @State private var hovering = false
-  private struct ScrollRequest: Equatable {
-    let title: String
-    let overflow: CGFloat
-    let active: Bool
-  }
-  var body: some View {
-    let overflow = max(0, textWidth - viewportWidth)
-    ScrollView(.horizontal) {
-      Text(title).font(.title2.weight(.semibold)).lineLimit(1).fixedSize()
-        .textSelection(.enabled).accessibilityIdentifier("player-video-title")
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { textWidth = $0 }
-    }
-    .scrollIndicators(.hidden).scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-    .scrollPosition($position).frame(height: 28).help(title)
-    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
-    .onHover { hovering = $0 }
-    .accessibilityHint(overflow > 1 ? "可横向滚动查看完整标题" : "")
-    .task(id: ScrollRequest(title: title, overflow: overflow,
-      active: hovering && animations && !reduceMotion)) {
-      position.scrollTo(x: 0)
-      guard hovering, animations, !reduceMotion, overflow > 1 else { return }
-      do {
-        try await Task.sleep(for: .milliseconds(700))
-        try Task.checkCancellation()
-        withAnimation(.linear(duration: max(2, Double(overflow) / 45))) {
-          position.scrollTo(x: overflow)
-        }
-      } catch { }
-    }
-  }
-}
-
 struct PlayerPage: View {
   @Bindable var store: Store
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var scrollPosition = ScrollPosition(idType: Int.self)
+  @AppStorage("interfaceAnimations") private var interfaceAnimations = true
+  @State private var scrollPosition = ScrollPosition(edge: .top)
   @State private var videoAboveViewport = false
   @State private var dismissedScrollMiniPlayer = false
   @State private var offlineDanmakuManager = false
   @State private var displayedVideoWidth: CGFloat = 0
+  @State private var videoBottom: CGFloat = 0
+  private let contentCoordinates = "mac-player-scroll-content"
   @AppStorage("showScrollMiniPlayer") private var scrollMiniPlayer = true
   @AppStorage("widePlaybackViewport") private var widePlaybackViewport = false
   @AppStorage("showRelatedVideos") private var showRelatedVideos = true
 
   private var usesScrollMiniPlayer: Bool {
-    scrollMiniPlayer && videoAboveViewport && !store.playback.pictureInPicture.isPresented
+    scrollMiniPlayer && store.playback.detail != nil && videoAboveViewport && !store.playback.pictureInPicture.isPresented
   }
 
   private var showsScrollMiniPlayer: Bool {
@@ -530,7 +493,8 @@ struct PlayerPage: View {
     let p = store.playback
     GeometryReader { viewport in
       let availableWidth = max(0, viewport.size.width - AppMetrics.pageInset * 2)
-      let hasRecommendations = showRelatedVideos && (!p.isOffline || !store.extras.related.isEmpty)
+      let hasRecommendations = showRelatedVideos && (p.isOffline ? !store.extras.related.isEmpty
+        : store.extras.hasRecommendationSection(for: p.detail?.video.bvid))
       let sidebar = hasRecommendations && !widePlaybackViewport && availableWidth >= 980
       let sidebarWidth = min(304, max(246, availableWidth * 0.25))
       ScrollView {
@@ -545,14 +509,21 @@ struct PlayerPage: View {
             }
           }.frame(maxWidth: .infinity, alignment: .leading).clipped()
         }.interfaceAnimation(sidebar, animation: .easeInOut(duration: 0.28)).padding(AppMetrics.pageInset)
-      }.scrollPosition($scrollPosition, anchor: .top)
+          .coordinateSpace(name: contentCoordinates)
+      }.scrollPosition($scrollPosition)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+          videoBottom > 0 && geometry.visibleRect.minY >= videoBottom
+        } action: { _, aboveViewport in
+          videoAboveViewport = aboveViewport
+          if !aboveViewport { dismissedScrollMiniPlayer = false }
+        }
         .clipShape(.rect(cornerRadius: AppLayout.panelRadius))
         .background(.primary.opacity(0.035), in: .rect(cornerRadius: AppLayout.panelRadius))
         .overlay(alignment: .bottomTrailing) {
           ZStack(alignment: .bottomTrailing) {
             if showsScrollMiniPlayer {
               MiniPlayer(store: store, onReturn: {
-                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+                withAnimation(interfaceAnimations && !reduceMotion ? .easeInOut(duration: 0.25) : nil) {
                   scrollPosition.scrollTo(edge: .top)
                 }
               }, onClose: {
@@ -563,11 +534,8 @@ struct PlayerPage: View {
           }.interfaceAnimation(showsScrollMiniPlayer)
         }
     }
-    .onChange(of: p.detail?.video.bvid) { _, bvid in
-      guard bvid != nil else { return }
-      dismissedScrollMiniPlayer = false
-      scrollPosition.scrollTo(edge: .top)
-    }
+    .onChange(of: store.playerFocus) { resetScroll() }
+    .onChange(of: p.requestedBVID) { resetScroll() }
     .sheet(isPresented: $offlineDanmakuManager) { DanmakuManagement(store: store) }
     .task(id: p.selectedCID) {
       #if DEBUG
@@ -590,6 +558,12 @@ struct PlayerPage: View {
     }
   }
 
+  private func resetScroll() {
+    dismissedScrollMiniPlayer = false
+    videoAboveViewport = false
+    scrollPosition.scrollTo(edge: .top)
+  }
+
   private func playerColumn(viewportHeight: CGFloat, showsInlineRecommendations: Bool) -> some View {
     let p = store.playback
     let compactPlaybackControls = displayedVideoWidth < 670
@@ -597,17 +571,14 @@ struct PlayerPage: View {
         PlaybackViewportLayout(viewportHeight: viewportHeight, fillsWidth: widePlaybackViewport) {
           Group {
             if let detail = p.detail { header(detail) }
-            else { Color.clear.frame(height: 28) }
+            else { Color.clear.frame(height: 44) }
           }
           InlinePlaybackSurface(store: store, isInlineVisible: !usesScrollMiniPlayer,
             controlsScrollMiniPlayer: showsScrollMiniPlayer, usesCompactControls: compactPlaybackControls)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { displayedVideoWidth = $0 }
-            .onGeometryChange(for: Bool.self) { proxy in
-              proxy.frame(in: .scrollView(axis: .vertical)).maxY <= 0
-            } action: { aboveViewport in
-              videoAboveViewport = aboveViewport
-              if !aboveViewport { dismissedScrollMiniPlayer = false }
-            }
+            .onGeometryChange(for: CGFloat.self) { proxy in
+              proxy.frame(in: .named(contentCoordinates)).maxY
+            } action: { videoBottom = $0 }
           VStack(alignment: .leading, spacing: 14) {
             if let detail = p.detail, detail.aid > 0 { DanmakuComposer(store: store, aid: detail.aid) }
             if let error = p.error {
@@ -710,11 +681,13 @@ struct PlayerPage: View {
   }
 
   private func header(_ detail: Detail) -> some View {
-    HStack(spacing: 12) {
-      ScrollingVideoTitle(title: detail.video.title).frame(maxWidth: .infinity)
+    VStack(alignment: .leading, spacing: 5) {
+      Text(detail.video.title).font(.title2.weight(.semibold))
+        .fixedSize(horizontal: false, vertical: true)
+        .textSelection(.enabled).accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("player-video-title")
       author(detail).font(.caption).foregroundStyle(.secondary)
-        .frame(maxWidth: 120, alignment: .trailing).fixedSize(horizontal: true, vertical: false)
-    }
+    }.frame(maxWidth: .infinity, alignment: .leading)
   }
   private func author(_ detail: Detail) -> some View {
     Button { store.showProfile(detail.ownerID) } label: {

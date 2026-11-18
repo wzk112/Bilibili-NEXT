@@ -55,7 +55,7 @@ actor PersonMaskWorker {
   private func configure() {
     task?.cancel(); task = nil; token = UUID()
     enabled = UserDefaults.standard.bool(forKey: "danmakuPersonAvoidance")
-    guard let player, let view, !view.isHidden, enabled, let current = player.currentItem else {
+    guard let player, let view, view.isPlaybackSurfaceActive, enabled, let current = player.currentItem else {
       detachOutput(); latestMask = nil; self.view?.danmaku.layer?.mask = nil; return
     }
     if item !== current {
