@@ -55,9 +55,9 @@ struct GuidePage: Identifiable {
 }
 
 enum GuideContent {
-  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.11"
+  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.12"
   // Increment only when guide content changes, not on every build.
-  static let revision = "2026-11-19-release-1.1.11"
+  static let revision = "2026-11-19-release-1.1.12"
   static let tutorial: [GuidePage] = [
     .init(id: "account", title: "登录与账号", location: "左下角个人中心 → 账户信息", symbol: "person.crop.circle", paragraphs: [
       "点击“登录”，用哔哩哔哩 App 扫描二维码，并在手机上确认。同一次扫码会完成浏览与互动所需的登录，凭证保存在本机钥匙串。",
@@ -113,6 +113,9 @@ enum GuideContent {
       "使用指南和更新说明会在首次安装或对应版本首次打开时展示一次。之后可从“帮助”菜单或“设置 → 关于”重新打开。"], settingsTab: 0)
   ]
   static let currentUpdates: [GuidePage] = [
+    .init(id: "update-1112-navigation", title: "侧栏与快速切换", location: "macOS 1.1.12", symbol: "sidebar.left", paragraphs: [
+      "侧栏收展时，图标位置、圆角和底部按钮连续变化，文字随侧栏宽度淡入或淡出。",
+      "快速切换主栏或设置分类时，只保留当前页面的过渡。播放页进出和小窗动画仍可用。"]),
     .init(id: "update-1111-playback", title: "长标题与播放位置", location: "macOS 1.1.11", symbol: "text.alignleft", paragraphs: [
       "播放页长标题会自动换行，UP 主显示在标题下方。打开新视频会从播放器开始；往下滚动可以看评论。",
       "开启滚动小窗后，离开播放器区域仍可点小窗返回视频。"]),

@@ -41,13 +41,13 @@ struct RootView: View {
             }
             content.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
           }
-          MacSidebar(store: store, preferences: navigation.preferences, compact: compactSidebar,
+          MacSidebar(store: store, preferences: navigation.preferences,
             availableHeight: max(0, viewport.size.height - AppLayout.mainHeaderHeight - 28))
-            .frame(width: compactSidebar ? AppLayout.compactSidebarWidth : AppLayout.sidebarWidth)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading).clipped()
+            .frame(width: sidebarMode == .hidden ? AppLayout.sidebarWidth : nil)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing).clipped()
             .opacity(showsSidebar ? 1 : 0)
             .allowsHitTesting(showsSidebar).accessibilityHidden(!showsSidebar)
-        }.interfaceAnimation(visibleSidebarWidth, animation: .easeInOut(duration: 0.28))
+        }.interfaceAnimation(visibleSidebarWidth, animation: InterfaceMotion.sidebar)
       }
         .padding(.horizontal, 16).padding(.bottom, 16)
         .opacity(store.isAnyFullscreen ? 0 : 1)
@@ -219,7 +219,7 @@ struct RootView: View {
       store.reload()
     }
     .onChange(of: store.navigationRevision) {
-      if !store.showPlayer { searchFocused = false; NSApp.keyWindow?.makeFirstResponder(nil) }
+      if !store.showPlayer && searchFocused { searchFocused = false }
     }
   }
   private func dismissSearch() {
@@ -274,14 +274,14 @@ struct RootView: View {
   @ViewBuilder private var content: some View {
     ZStack {
       browsingContent.id(store.destination).clipShape(.rect(cornerRadius: AppLayout.panelRadius))
-        .interfaceTransition().opacity(store.showPlayer ? 0 : 1)
+        .transition(.identity).interfacePageArrival(store.destination)
+        .opacity(store.showPlayer ? 0 : 1)
         .allowsHitTesting(!store.showPlayer).accessibilityHidden(store.showPlayer)
         .zIndex(0)
       if store.showPlayer { PlayerPage(store: store).interfaceTransition().zIndex(1) }
     }
     .geometryGroup()
     .interfaceAnimation(store.showPlayer)
-    .interfaceAnimation(store.destination)
     .onChange(of: navigation.preferences) { normalizeDestination() }
   }
   private func normalizeDestination() {

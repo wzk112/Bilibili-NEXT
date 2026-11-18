@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Shared timing for deliberate interface actions; playback progress and incoming lists stay immediate.
 enum InterfaceMotion {
+  static let sidebar = Animation.smooth(duration: 0.30, extraBounce: 0)
   static let navigation = Animation.spring(response: 0.40, dampingFraction: 0.84)
   static let press = Animation.spring(response: 0.24, dampingFraction: 0.72)
 }
@@ -50,7 +51,26 @@ extension View {
     modifier(InterfaceAnimation(value: value, animation: animation))
   }
   func interfaceTransition(mini: Bool = false) -> some View { modifier(InterfaceTransition(mini: mini)) }
+  func interfacePageArrival<V: Equatable>(_ trigger: V) -> some View { modifier(InterfacePageArrival(trigger: trigger)) }
   func interfaceFade<V: Equatable>(_ trigger: V) -> some View { modifier(InterfaceFade(trigger: trigger)) }
+}
+
+/// Only the active page is rendered, even when another selection interrupts the motion.
+private struct InterfacePageArrival<Trigger: Equatable>: ViewModifier {
+  let trigger: Trigger
+  @AppStorage("interfaceAnimations") private var enabled = true
+  @Environment(\.accessibilityReduceMotion) private var reduced
+
+  @ViewBuilder func body(content: Content) -> some View {
+    if enabled && !reduced {
+      content.keyframeAnimator(initialValue: 1.0, trigger: trigger) { view, progress in
+        view.opacity(0.86 + progress * 0.14).offset(x: (1 - progress) * 8)
+      } keyframes: { _ in
+        MoveKeyframe(0)
+        CubicKeyframe(1, duration: 0.20, startVelocity: 0, endVelocity: 0)
+      }
+    } else { content }
+  }
 }
 
 /// Animate the current view's opacity without keeping an outgoing layout alive.

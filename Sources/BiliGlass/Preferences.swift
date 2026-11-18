@@ -68,7 +68,7 @@ struct PreferencesView: View {
                 .accessibilityAddTraits(.isHeader).id("settings-top")
               settingsPage
             }.frame(maxWidth: 760, alignment: .leading).padding(.trailing, 8)
-              .padding(.vertical, 6).frame(maxWidth: .infinity).interfaceFade(store.preferencesTab)
+              .padding(.vertical, 6).frame(maxWidth: .infinity).interfacePageArrival(store.preferencesTab)
           }
           .onChange(of: store.preferencesTab) {
             var transaction = Transaction(animation: nil)

@@ -219,7 +219,7 @@ private struct FeedSnapshot: Codable {
         loadingFeedKey = nil
         let elapsed = began.duration(to: .now).components
         feedMilliseconds = Int(elapsed.seconds * 1_000 + elapsed.attoseconds / 1_000_000_000_000_000)
-        rememberFeed()
+        rememberFeed(persistHome: true)
       } catch {
         guard token == feedID, !Task.isCancelled else { return }
         busy = false
@@ -449,11 +449,11 @@ private struct FeedSnapshot: Codable {
       videos = cached.items; page = cached.page; hasMore = cached.hasMore
     } else { reload() }
   }
-  private func rememberFeed() {
+  private func rememberFeed(persistHome: Bool = false) {
     guard activeQuery.isEmpty, [.recommend, .popular, .regions].contains(destination), !videos.isEmpty, !busy else { return }
     let snapshot = FeedSnapshot(items: videos, page: page, hasMore: hasMore, date: Date(), owner: feedOwner)
     feedSnapshots[browseKey] = snapshot
-    if destination == .recommend, page == 1, let data = try? JSONEncoder().encode(snapshot) {
+    if persistHome, destination == .recommend, page == 1, let data = try? JSONEncoder().encode(snapshot) {
       UserDefaults.standard.set(data, forKey: "homeFeedSnapshot")
     }
   }
