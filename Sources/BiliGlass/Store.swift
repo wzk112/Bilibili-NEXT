@@ -59,6 +59,9 @@ private struct FeedSnapshot: Codable {
   @ObservationIgnored lazy var coverPreview = CoverPreview(api: api)
   let playback = Playback()
   let fullscreen = FullscreenPlayerController()
+  #if os(macOS)
+  let liveFullscreen = LiveFullscreenController()
+  #endif
   let downloads = Downloads()
   let comments = Comments()
   let videoActions = VideoActionsModel()
@@ -105,7 +108,14 @@ private struct FeedSnapshot: Codable {
   var isPlaybackOpen = false
   var showsMiniPlayer: Bool {
     (UserDefaults.standard.object(forKey: "showNavigationMiniPlayer") as? Bool ?? true)
-      && isPlaybackOpen && !showPlayer && !fullscreen.isPresented && !playback.pictureInPicture.isPresented
+      && isPlaybackOpen && !showPlayer && !isAnyFullscreen && !playback.pictureInPicture.isPresented
+  }
+  var isAnyFullscreen: Bool {
+    #if os(macOS)
+    fullscreen.isPresented || liveFullscreen.isPresented
+    #else
+    fullscreen.isPresented
+    #endif
   }
   var qrImage: NSImage?
   var loginStatus = ""

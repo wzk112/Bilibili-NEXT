@@ -265,6 +265,7 @@ struct PlaybackFeatureControls: View {
 }
 struct VideoDiscovery: View {
   @Bindable var store: Store
+  @AppStorage("showRelatedVideos") private var showRelatedVideos = true
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       if !store.extras.tags.isEmpty {
@@ -278,15 +279,17 @@ struct VideoDiscovery: View {
       if !store.playQueue.isEmpty && store.playback.detail?.collection == nil {
         sequence("播放列表 · " + store.queueTitle, items: store.playQueue, parts: false)
       }
-      HStack { Text("相关推荐").font(.title3.bold()); Spacer(); if store.extras.loading { ProgressView().controlSize(.small) } }
-      if let error = store.extras.error {
-        ErrorBanner(text: error) { Task { if let detail = store.playback.detail { await store.extras.load(detail: detail, cid: store.playback.selectedCID, api: store.api, refresh: true) } } }
+      if showRelatedVideos {
+        HStack { Text("相关推荐").font(.title3.bold()); Spacer(); if store.extras.loading { ProgressView().controlSize(.small) } }
+        if let error = store.extras.error {
+          ErrorBanner(text: error) { Task { if let detail = store.playback.detail { await store.extras.load(detail: detail, cid: store.playback.selectedCID, api: store.api, refresh: true) } } }
+        }
+        ScrollView(.horizontal) {
+          LazyHStack(alignment: .top, spacing: 12) { ForEach(store.extras.related) { video in
+            Button { store.open(video.bvid) } label: { VideoCard(video: video).frame(width: 240) }.buttonStyle(.pointerPlain).contextMenu { VideoContextActions(store: store, video: video) }
+          } }
+        }.frame(height: store.extras.related.isEmpty ? 0 : 250)
       }
-      ScrollView(.horizontal) {
-        LazyHStack(alignment: .top, spacing: 12) { ForEach(store.extras.related) { video in
-          Button { store.open(video.bvid) } label: { VideoCard(video: video).frame(width: 240) }.buttonStyle(.pointerPlain).contextMenu { VideoContextActions(store: store, video: video) }
-        } }
-      }.frame(height: store.extras.related.isEmpty ? 0 : 250)
     }
   }
   private func sequence(_ title: String, items: [PlaybackQueueItem], parts: Bool) -> some View {

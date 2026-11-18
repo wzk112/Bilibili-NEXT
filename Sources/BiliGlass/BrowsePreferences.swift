@@ -1,4 +1,114 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+struct RecommendationKeywordField: View {
+  @Binding var keywords: String
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      TextField("推荐屏蔽关键词", text: $keywords)
+        .textFieldStyle(.roundedBorder)
+      Text("用逗号分隔，匹配推荐视频的标题与 UP 主。")
+        .font(.caption).foregroundStyle(.secondary)
+    }
+  }
+}
+
+struct SettingsTransferButtons: View {
+  @State private var importing = false
+  @State private var exporting = false
+  @State private var document: SettingsTransfer?
+  @State private var message = ""
+  var body: some View {
+    HStack {
+      Button("导出设置…") { document = SettingsTransfer.snapshot(); exporting = true }
+      Button("导入设置…") { importing = true }
+    }.buttonStyle(.appGlassButton)
+    Text("迁移外观、首页、播放和弹幕偏好。账号请在新设备扫码登录。")
+      .font(.caption).foregroundStyle(.secondary)
+    if !message.isEmpty { Text(message).font(.caption) }
+    Color.clear.frame(height: 0)
+      .fileExporter(isPresented: $exporting, document: document, contentType: .json,
+        defaultFilename: "Bilibili NEXT Settings") { result in
+          switch result {
+          case .success: message = "设置已导出"
+          case .failure(let error): message = error.localizedDescription
+          }
+        }
+      .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
+        do {
+          let url = try result.get()
+          let accessed = url.startAccessingSecurityScopedResource()
+          defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+          guard let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+            size <= 65_536 else { throw BiliError(text: "设置文件过大") }
+          let imported = try JSONDecoder().decode(SettingsTransfer.self, from: Data(contentsOf: url))
+          try imported.apply()
+          message = "设置已导入"
+        } catch { message = error.localizedDescription }
+      }
+  }
+}
+
+struct SettingsTransfer: FileDocument, Codable {
+  static let readableContentTypes: [UTType] = [.json]
+  var schema = 1
+  var switches: [String: Bool]
+  var strings: [String: String]
+  private static let switchKeys = ["interfaceAnimations", "autoLoadMore", "refreshHomeOnReturn",
+    "autoPlay", "autoPlayParts", "autoPlayNext", "rememberPosition", "showRelatedVideos",
+    "danmakuEnabled", "continuePlaybackOnReturn", "automaticPictureInPicture",
+    "showNavigationMiniPlayer", "showScrollMiniPlayer", "compactDesktopFeed"]
+  private static let stringChoices: [String: Set<String>] = [
+    "appearance": ["system", "light", "dark"], "videoCodecPreference": ["auto", "av1", "hevc"],
+    "glassStyle": ["clear", "regular"], "appTheme": ["original", "light", "dark", "system"],
+  ]
+  static func snapshot(_ defaults: UserDefaults = .standard) -> Self {
+    let switches = Dictionary(uniqueKeysWithValues: switchKeys.compactMap { key in
+      (defaults.object(forKey: key) as? Bool).map { (key, $0) }
+    })
+    let strings = Dictionary(uniqueKeysWithValues: (Array(stringChoices.keys) + ["recommendationBlockedKeywords"]).compactMap { key in
+      defaults.string(forKey: key).map { (key, $0) }
+    })
+    return Self(switches: switches, strings: strings)
+  }
+  func apply(_ defaults: UserDefaults = .standard) throws {
+    guard schema == 1 else { throw BiliError(text: "不支持此设置文件版本") }
+    for (key, value) in switches where Self.switchKeys.contains(key) { defaults.set(value, forKey: key) }
+    for (key, value) in strings {
+      if Self.stringChoices[key]?.contains(value) == true ||
+        (key == "recommendationBlockedKeywords" && value.utf8.count <= 8_192) {
+        defaults.set(value, forKey: key)
+      }
+    }
+  }
+  init(switches: [String: Bool], strings: [String: String]) {
+    self.switches = switches
+    self.strings = strings
+  }
+  init(configuration: ReadConfiguration) throws {
+    guard let data = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
+    self = try JSONDecoder().decode(Self.self, from: data)
+  }
+  func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    return FileWrapper(regularFileWithContents: try encoder.encode(self))
+  }
+}
+
+extension Array where Element == Video {
+  func excludingRecommendationKeywords(_ raw: String) -> [Video] {
+    let terms = raw.components(separatedBy: CharacterSet(charactersIn: ",，\n"))
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }.prefix(100)
+    guard !terms.isEmpty else { return self }
+    return filter { video in
+      !terms.contains { term in
+        video.title.localizedCaseInsensitiveContains(term) || video.author.localizedCaseInsensitiveContains(term)
+      }
+    }
+  }
+}
 
 enum StartPage: String, CaseIterable, Identifiable {
   case recommend, popular, regions, live, bangumi, cinema, dynamic, messages, history, favorites, later, downloads, profile, web

@@ -468,9 +468,13 @@ struct MobileFavorites: View {
 struct MobileHistory: View {
   @Bindable var store: Store
   @State private var local = false
+  @State private var query = ""
+  @State private var unfinishedOnly = false
+  @State private var removal: AccountHistoryEntry?
   private var rows: [AccountHistoryEntry] {
     AccountHistoryEntry.merged(
       remote: local ? [] : store.accountHistory.items, local: store.history, accountID: store.owner)
+      .filter { $0.matches(query: query, unfinishedOnly: unfinishedOnly) }
   }
   var body: some View {
     List {
@@ -478,6 +482,7 @@ struct MobileHistory: View {
         Text("账号与本机").tag(false)
         Text("仅本机").tag(true)
       }.pickerStyle(.segmented)
+      Toggle("只看未看完", isOn: $unfinishedOnly)
       ForEach(rows) { entry in
         Button {
           store.open(entry.video.bvid, initialCID: entry.cid > 0 ? entry.cid : nil)
@@ -487,14 +492,14 @@ struct MobileHistory: View {
               .rect(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 7) {
               Text(entry.video.title).lineLimit(2)
-              Text(
-                entry.isLocal
-                  ? "本机 · \(clock(Double(entry.progress)))"
-                  : "账号 · \(clock(Double(max(0,entry.progress))))"
-              ).font(.caption).foregroundStyle(.secondary)
+              Text((entry.isLocal ? "本机 · " : "账号 · ") + entry.progressLabel)
+                .font(.caption).foregroundStyle(.secondary)
             }
           }
         }.buttonStyle(.plain)
+          .swipeActions {
+            if local { Button("移除本机记录", systemImage: "trash") { removal = entry }.tint(.red) }
+          }
       }
       if !local {
         if store.accountHistory.loading { ProgressView() }
@@ -514,7 +519,18 @@ struct MobileHistory: View {
           "暂无观看记录", systemImage: "clock",
           description: Text("播放过的视频会显示在这里。"))
       }
-    }.navigationTitle("观看记录").task(id: store.account?.mid) {
+    }.navigationTitle("观看记录")
+      .searchable(text: $query, prompt: "标题、UP 主或 BV 号")
+      .confirmationDialog("移除这条本机观看记录？", isPresented: Binding(
+        get: { removal != nil }, set: { if !$0 { removal = nil } }), presenting: removal) { entry in
+          Button("移除本机记录", role: .destructive) {
+            store.history.removeAll { $0.video.bvid == entry.video.bvid &&
+              ($0.accountID == nil || $0.accountID == "guest" || $0.accountID == store.owner) }
+            if let data = try? JSONEncoder().encode(store.history) {
+              UserDefaults.standard.set(data, forKey: "history")
+            }
+          }
+        }.task(id: store.account?.mid) {
       if store.account != nil { await store.accountHistory.loadIfNeeded(api: store.api) }
     }.refreshable {
       if !local && store.account != nil {
@@ -629,6 +645,8 @@ struct MobileSettings: View {
   @AppStorage("autoPlayNext") private var autoNext = false
   @AppStorage("backgroundPlayback") private var backgroundPlayback = true
   @AppStorage("automaticPictureInPicture") private var automaticPiP = true
+  @AppStorage("showRelatedVideos") private var showRelatedVideos = true
+  @AppStorage("recommendationBlockedKeywords") private var blockedKeywords = ""
   @AppStorage("continuePlaybackOnReturn") private var continuePlaybackOnReturn = true
   @AppStorage("mobileHomeColumns") private var homeColumns = 0
   @AppStorage("rememberPosition") private var remember = true
@@ -659,12 +677,14 @@ struct MobileSettings: View {
       }
       Section("首页与导航") {
         BrowsePreferenceFields()
+        RecommendationKeywordField(keywords: $blockedKeywords)
         Picker("视频列表布局", selection: $homeColumns) {
           Text("自动").tag(0)
           Text("单列").tag(1)
           Text("双列").tag(2)
         }.accessibilityIdentifier("video-list-columns")
       }
+      Section("设置迁移") { SettingsTransferButtons() }
       Section("播放") {
         Picker("首选编码", selection: $codec) {
           ForEach(VideoCodecPreference.allCases) { Text($0.title).tag($0.rawValue) }
@@ -682,6 +702,7 @@ struct MobileSettings: View {
           .onChange(of: backgroundPlayback) { store.updateBackgroundPlayback() }
         Toggle("离开应用时自动画中画", isOn: $automaticPiP)
           .accessibilityIdentifier("automatic-picture-in-picture")
+        Toggle("显示相关推荐", isOn: $showRelatedVideos)
         Text("关闭后仍可在播放器菜单中手动打开画中画；后台播放开关单独控制后台音频。")
           .font(.caption).foregroundStyle(.secondary)
         Toggle("分 P 自动连播", isOn: $autoParts)

@@ -374,6 +374,7 @@ struct MobileMiniPlayer: View {
 struct MobilePlayerContent: View {
   @Environment(\.columnNavigation) private var columns
   @Environment(\.dynamicTypeSize) private var textSize
+  @AppStorage("showRelatedVideos") private var showRelatedVideos = true
   @Bindable var store: Store
   @Bindable var visit: MobileVideoVisit
   @State private var interaction: String?
@@ -531,7 +532,7 @@ struct MobilePlayerContent: View {
           .frame(maxWidth: .infinity)
         if wide, let detail = displayedDetail {
           ScrollView { playbackInformation(detail) }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
             .accessibilityIdentifier("tablet-player-actions")
         }
       }.frame(maxWidth: .infinity, alignment: .topLeading)
@@ -747,7 +748,7 @@ struct MobilePlayerContent: View {
         }
       }
     }
-    if !store.extras.related.isEmpty {
+    if showRelatedVideos && !store.extras.related.isEmpty {
       Text("相关推荐").font(.headline)
       MobileVideoGrid(videos: store.extras.related, store: store)
     }

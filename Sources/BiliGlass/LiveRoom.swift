@@ -172,6 +172,7 @@ extension API {
   var volume: Double = 1 { didSet { player.volume = Float(volume) } }
   var danmakuEnabled = true
   var chatAutoScroll = true
+  var handedToFullscreen = false
   private var messageSequence = 0
   private var generation = UUID()
   private var chatGeneration = UUID()
@@ -387,10 +388,28 @@ extension API {
     #if os(macOS)
     activity.setPlaying(false)
     #endif
+    handedToFullscreen = false
+  }
+  /// The macOS sheet is dismissed when the room hands its player to the fullscreen layer.
+  func sheetDidDisappear() {
+    guard !handedToFullscreen else { return }
+    stop()
+  }
+  func adjustVolume(by delta: Double) {
+    volume = min(1, max(0, volume + delta))
+  }
+  var qualityTitle: String {
+    qualities.first(where: { $0.id == quality })?.title ?? "画质"
+  }
+  func selectQuality(_ id: Int) {
+    Task { await loadPlayback(id) }
+  }
+  func togglePlayback() {
+    if player.timeControlStatus == .paused { player.play() } else { player.pause() }
   }
 }
 
-private struct LiveDanmakuOverlay: View {
+struct LiveDanmakuOverlay: View {
   let messages: [LiveChatMessage]
   var body: some View {
     TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
@@ -419,6 +438,9 @@ struct CatalogLivePlayer: View {
   #if os(iOS)
   private var fullscreen: Bool { model.fullscreen }
   private var orientation: MobilePlayerOrientation { model.orientation }
+  #else
+  @State private var sheetWindow: NSWindow?
+  @State private var keys = LiveRoomKeys()
   #endif
   init(store: Store, room: CatalogItem) {
     self.store = store; self.room = room
@@ -452,15 +474,28 @@ struct CatalogLivePlayer: View {
       }
       .onDisappear {
         #if os(macOS)
-        model.stop()
+        model.sheetDidDisappear()
         #endif
       }
       .sheet(isPresented: $showWebsite) { website }
       #if os(iOS)
       .onChange(of: fullscreen) { if !fullscreen { orientation.restore() } }
       .background(MobilePlayerWindowReader(orientation: orientation))
+      #else
+      .background(LiveWindowReader { sheetWindow = $0; keys.window = $0 })
+      .onAppear {
+        keys.onTogglePlayback = { model.togglePlayback() }
+        keys.onVolume = { model.adjustVolume(by: $0) }
+        keys.install()
+      }
+      .onDisappear { keys.stop() }
       #endif
   }
+  #if os(macOS)
+  private func enterFullscreen() {
+    if store.liveFullscreen.open(model: model, window: sheetWindow) { dismiss() }
+  }
+  #endif
   private var roomContent: some View {
     GeometryReader { geometry in
       let wide = geometry.size.width >= 900
@@ -514,7 +549,8 @@ struct CatalogLivePlayer: View {
       #if os(iOS)
       MobileLiveVideo(player: model.player)
       #else
-      VideoPlayer(player: model.player)
+      LiveVideoSurface(player: model.player)
+        .overlay { LiveClickRegion(onDoubleClick: enterFullscreen) }
       #endif
     }
       .overlay(alignment: .topTrailing) {
@@ -556,6 +592,13 @@ struct CatalogLivePlayer: View {
       model.fullscreen = true
     } label: { Label("全屏", systemImage: "arrow.up.left.and.arrow.down.right") }
       .buttonStyle(.appGlassButton).moduleControl().fixedSize()
+      .accessibilityIdentifier("live-enter-fullscreen")
+    #else
+    Button(action: enterFullscreen) {
+      Image(systemName: "arrow.up.left.and.arrow.down.right").frame(width: 20, height: 20)
+    }
+      .buttonStyle(.appGlassButton).moduleControl().fixedSize()
+      .help("全屏播放").accessibilityLabel("全屏播放")
       .accessibilityIdentifier("live-enter-fullscreen")
     #endif
   }

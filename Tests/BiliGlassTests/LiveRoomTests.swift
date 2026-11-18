@@ -1,3 +1,5 @@
+import AVKit
+import AppKit
 import Foundation
 import Synchronization
 import Testing
@@ -110,4 +112,114 @@ private final class LiveSendProtocol: URLProtocol, @unchecked Sendable {
     #expect(model.chatStatus == "弹幕已连接")
     #expect(model.info.uid > 0 && !model.info.name.isEmpty)
   }
+}
+
+@Suite(.serialized) @MainActor struct LiveFullscreenTests {
+  private func model() -> LiveRoomModel {
+    LiveRoomModel(api: API(loadCredentials: false),
+      room: CatalogItem(id: 1, title: "测试直播间", cover: "", subtitle: "", badge: ""))
+  }
+  @Test func volumeAdjustmentClampsWithinRange() {
+    let room = model()
+    room.volume = 0.5
+    room.adjustVolume(by: 0.2)
+    #expect(abs(room.volume - 0.7) < 0.001)
+    room.adjustVolume(by: 0.9)
+    #expect(room.volume == 1)
+    room.adjustVolume(by: -3)
+    #expect(room.volume == 0)
+  }
+  @Test func handingTheRoomToFullscreenKeepsPlaybackAlive() {
+    let room = model()
+    let item = AVPlayerItem(url: URL(fileURLWithPath: "/nonexistent/live.m3u8"))
+    room.player.replaceCurrentItem(with: item)
+    room.handedToFullscreen = true
+    room.sheetDidDisappear()
+    #expect(room.player.currentItem === item)
+    room.handedToFullscreen = false
+    room.sheetDidDisappear()
+    #expect(room.player.currentItem == nil)
+  }
+  @Test func fullscreenEntryWithoutAWindowKeepsTheSheetOpen() {
+    let room = model()
+    let controller = LiveFullscreenController()
+    #expect(controller.open(model: room, window: nil) == false)
+    #expect(controller.isPresented == false)
+    #expect(controller.model == nil)
+    #expect(room.handedToFullscreen == false)
+    #expect(controller.takeReturnedModel() == nil)
+  }
+  @Test func repeatedEntryIsIgnoredWhilePresented() {
+    _ = NSApplication.shared
+    let room = model()
+    let controller = LiveFullscreenController()
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    controller.open(model: room, window: window)
+    defer {
+      controller.close()
+      _ = controller.takeReturnedModel()
+      room.stop()
+    }
+    #expect(controller.isPresented)
+    #expect(room.handedToFullscreen)
+    let other = model()
+    #expect(controller.open(model: other, window: window) == false)
+    #expect(other.handedToFullscreen == false)
+    other.stop()
+  }
+  @Test func escapeLeavesFullscreenAndTypingKeepsItsKeys() throws {
+    _ = NSApplication.shared
+    let window = LiveFullscreenKeyWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 200),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    let keys = LiveRoomKeys()
+    keys.window = window
+    var closed = 0, toggled = 0, volume = 0.0
+    keys.onEscape = { closed += 1 }
+    keys.onFullscreen = { closed += 1 }
+    keys.onTogglePlayback = { toggled += 1 }
+    keys.onVolume = { volume += $0 }
+    func event(_ text: String, _ code: UInt16) throws -> NSEvent {
+      try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+        timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: text,
+        charactersIgnoringModifiers: text, isARepeat: false, keyCode: code))
+    }
+    #expect(keys.handle(try event("\u{1b}", 53)))
+    #expect(keys.handle(try event(" ", 49)))
+    #expect(keys.handle(try event("\u{f700}", 126)))
+    #expect(keys.handle(try event("\u{f701}", 125)))
+    #expect(keys.handle(try event("f", 3)))
+    #expect(closed == 2 && toggled == 1 && abs(volume) < 0.001)
+    let text = NSTextView(frame: NSRect(x: 0, y: 0, width: 100, height: 20))
+    window.contentView = text
+    _ = window.makeFirstResponder(text)
+    #expect(keys.handle(try event(" ", 49)) == false)
+    #expect(toggled == 1)
+    #expect(keys.handle(try event("\u{1b}", 53)))
+    #expect(closed == 3)
+    window.orderOut(nil)
+  }
+  @Test func roomSheetLeavesFAndEscapeToTheWindow() throws {
+    _ = NSApplication.shared
+    let window = LiveFullscreenKeyWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 200),
+      styleMask: .borderless, backing: .buffered, defer: false)
+    let keys = LiveRoomKeys()
+    keys.window = window
+    keys.onTogglePlayback = {}
+    keys.onVolume = { _ in }
+    func event(_ text: String, _ code: UInt16) throws -> NSEvent {
+      try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [],
+        timestamp: 0, windowNumber: window.windowNumber, context: nil, characters: text,
+        charactersIgnoringModifiers: text, isARepeat: false, keyCode: code))
+    }
+    // Fullscreen is entered by button or double click only; Escape still closes the sheet.
+    #expect(keys.handle(try event("f", 3)) == false)
+    #expect(keys.handle(try event("\u{1b}", 53)) == false)
+    #expect(keys.handle(try event("\u{f700}", 126)))
+    window.orderOut(nil)
+  }
+}
+
+private final class LiveFullscreenKeyWindow: NSWindow {
+  override var isKeyWindow: Bool { true }
 }

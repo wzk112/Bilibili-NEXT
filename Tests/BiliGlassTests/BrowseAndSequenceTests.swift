@@ -2,6 +2,33 @@ import Foundation
 import Testing
 @testable import BiliGlass
 
+struct FeedbackPreferenceTests {
+  @Test func importedSettingsCannotChangeSessionOrWatchHistory() throws {
+    let name = "settings-transfer-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    defaults.set(Data([0x01]), forKey: "history")
+    let incoming = SettingsTransfer(switches: ["showRelatedVideos": false, "history": true],
+      strings: ["appearance": "dark", "glassStyle": "invalid", "SESSDATA": "fixture"])
+    let decoded = try JSONDecoder().decode(SettingsTransfer.self, from: JSONEncoder().encode(incoming))
+    try decoded.apply(defaults)
+    #expect(defaults.object(forKey: "showRelatedVideos") as? Bool == false)
+    #expect(defaults.string(forKey: "appearance") == "dark")
+    #expect(defaults.object(forKey: "glassStyle") == nil)
+    #expect(defaults.object(forKey: "SESSDATA") == nil)
+    #expect(defaults.data(forKey: "history") == Data([0x01]))
+  }
+
+  @Test func recommendationKeywordsMatchTitleAndAuthorWithMixedSeparators() {
+    let videos = [
+      Video(bvid: "A", title: "New release", cover: "", author: "示例", duration: 0, views: 0),
+      Video(bvid: "B", title: "弹幕测试", cover: "", author: "其他人", duration: 0, views: 0),
+      Video(bvid: "C", title: "观看记录", cover: "", author: "Example", duration: 0, views: 0),
+    ]
+    #expect(videos.excludingRecommendationKeywords(" RELEASE，\nexample, ").map(\.bvid) == ["B"])
+  }
+}
+
 struct PlaybackSequenceTests {
   private let video = Video(bvid: "A", title: "A", cover: "", author: "", duration: 60, views: 0)
   private var detail: Detail {

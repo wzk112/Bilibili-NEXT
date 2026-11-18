@@ -180,7 +180,7 @@ struct CatalogPage: View {
   @State private var followed = false
   @State private var selected: CatalogItem?
   @State private var pendingEpisode: String?
-  @State private var liveRoom: CatalogItem?
+  @State private var liveRoom: LiveRoomModel?
   @State private var roomNumber = ""
   @State private var submittedLiveQuery = ""
   init(store: Store, kind: CatalogKind, onPlay: ((String) -> Void)? = nil) {
@@ -257,7 +257,14 @@ struct CatalogPage: View {
         }
       }
       #if os(macOS)
-      .sheet(item: $liveRoom) { room in CatalogLivePlayer(store: store, room: room) }
+      .sheet(item: $liveRoom) { model in CatalogLivePlayer(store: store, model: model) }
+      .onChange(of: store.liveFullscreen.isPresented) { _, presented in
+        guard !presented, let model = store.liveFullscreen.takeReturnedModel() else { return }
+        let wasPlaying = model.player.timeControlStatus != .paused
+        liveRoom = model
+        // Remounting the inline AVKit view can pause the shared player.
+        if wasPlaying { DispatchQueue.main.async { model.player.play() } }
+      }
       #endif
       #if DEBUG && os(iOS)
       .task {
@@ -278,7 +285,7 @@ struct CatalogPage: View {
     #if os(iOS)
     store.liveRoom = LiveRoomModel(api: store.api, room: item)
     #else
-    liveRoom = item
+    liveRoom = LiveRoomModel(api: store.api, room: item)
     #endif
   }
   private func load(reset: Bool = false) async {

@@ -192,6 +192,7 @@ struct MobileVideoList: View {
   let loader: @MainActor (Int) async throws -> [Video]
   @State private var model: VideoListModel
   @AppStorage("autoLoadMore") private var autoLoadMore = true
+  @AppStorage("recommendationBlockedKeywords") private var blockedKeywords = ""
   init(
     title: String, store: Store, model: VideoListModel? = nil, refreshOnReturn: Bool = false,
     showsNavigationTitle: Bool = true,
@@ -207,7 +208,7 @@ struct MobileVideoList: View {
   var body: some View {
     ScrollView {
       LazyVStack(spacing: 20) {
-        MobileVideoGrid(videos: model.items, store: store,
+        MobileVideoGrid(videos: refreshOnReturn ? model.items.excludingRecommendationKeywords(blockedKeywords) : model.items, store: store,
           onRecommendationFeedback: refreshOnReturn ? { video, reason in
             Task { await recommendationFeedback(video, reason: reason) }
           } : nil)
@@ -535,11 +536,37 @@ struct MobileHome: View {
         }.padding(.horizontal, 20).padding(.vertical, 16)
       }
       if destination == nil {
-        Picker("浏览", selection: $tab) {
-          ForEach(navigation.preferences.visible.filter(\.isHome)) { page in
-            Text(page.title).tag(page == .recommend ? 0 : page == .popular ? 1 : 2)
+        VStack(spacing: 8) {
+          HStack(spacing: 8) {
+            NavigationLink {
+              MobileSearch(store: store)
+            } label: {
+              Label("搜索视频、用户或 BV 号", systemImage: "magnifyingglass")
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.horizontal, 14)
+                .background(.quaternary, in: .capsule)
+            }.buttonStyle(.plain).accessibilityLabel("搜索").accessibilityIdentifier("home-search")
+            if CatalogKind.allCases.contains(where: { navigation.preferences.allows($0.page) }) {
+              Menu {
+                ForEach(CatalogKind.allCases.filter { navigation.preferences.allows($0.page) }) { kind in
+                  Button(kind.rawValue, systemImage: kind.symbol) { selectedCatalog = kind }
+                }
+              } label: { Image(systemName: "play.tv").frame(width: 44, height: 44) }
+                .accessibilityLabel("直播、追番与影视")
+            }
           }
-        }.pickerStyle(.segmented).frame(maxWidth: 640)
+          Picker("浏览", selection: $tab) {
+            ForEach(navigation.preferences.visible.filter(\.isHome)) { page in
+              Text(page.title).tag(page == .recommend ? 0 : page == .popular ? 1 : 2)
+            }
+          }.pickerStyle(.segmented)
+          if store.isPlaybackOpen && !store.showPlayer {
+            Button { store.showPlayer = true } label: {
+              Label("返回正在播放", systemImage: "play.rectangle")
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            }.buttonStyle(.plain).accessibilityIdentifier("home-resume-player")
+          }
+        }.frame(maxWidth: 740)
           .padding(.horizontal).padding(.bottom, 10).frame(maxWidth: .infinity)
       }
       if tab == 2 {
@@ -557,7 +584,7 @@ struct MobileHome: View {
       }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
         .interfaceAnimation(tab).interfaceAnimation(region)
     }.navigationTitle(destination == nil ? "Bilibili NEXT" : title)
-    .navigationBarTitleDisplayMode(.large)
+    .navigationBarTitleDisplayMode(.inline)
     .toolbar(destination == nil ? .automatic : .hidden, for: .navigationBar)
     .onChange(of: store.account?.mid) { _, _ in store.homeFeeds = MobileHomeFeeds() }
     .onChange(of: navigation.preferences) { normalizeTab() }
@@ -570,24 +597,6 @@ struct MobileHome: View {
     .onAppear { normalizeTab(); store.phoneHomeTab = destination ?? self.tab }
     .navigationDestination(item: $selectedCatalog) { kind in
       CatalogHub(store: store, initialKind: kind) { store.open($0) }
-    }
-    .toolbar {
-      if destination == nil {
-        ToolbarItemGroup(placement: .topBarTrailing) {
-          if CatalogKind.allCases.contains(where: { navigation.preferences.allows($0.page) }) {
-            Menu {
-              ForEach(CatalogKind.allCases.filter { navigation.preferences.allows($0.page) }) { kind in
-                Button(kind.rawValue, systemImage: kind.symbol) { selectedCatalog = kind }
-              }
-            } label: { Image(systemName: "play.tv") }.accessibilityLabel("直播、追番与影视")
-          }
-          NavigationLink {
-            MobileSearch(store: store)
-          } label: {
-            Image(systemName: "magnifyingglass")
-          }.accessibilityLabel("搜索").accessibilityIdentifier("home-search")
-        }
-      }
     }
   }
   private func normalizeTab() {

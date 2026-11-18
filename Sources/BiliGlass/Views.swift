@@ -6,9 +6,12 @@ struct RootView: View {
   @Bindable var store: Store
   @Environment(\.scenePhase) private var phase
   @FocusState private var searchFocused: Bool
+  @State private var searchRequested = false
   @AppStorage("macSidebarVisible") private var sidebarVisible = true
   @AppStorage("macSidebarCollapseMode") private var sidebarMode = MacSidebarCollapseMode.icons
   @AppStorage("showNavigationMiniPlayer") private var navigationMiniPlayer = true
+  @AppStorage("compactDesktopFeed") private var compactFeed = false
+  @AppStorage("recommendationBlockedKeywords") private var blockedKeywords = ""
   private var compactSidebar: Bool { !sidebarVisible && sidebarMode == .icons }
   private var showsSidebar: Bool { sidebarVisible || sidebarMode == .icons }
   private var navigation = NavigationCustomization()
@@ -19,7 +22,7 @@ struct RootView: View {
   @State private var searchPanelFrame = CGRect.zero
   var body: some View {
     ZStack {
-      if !store.fullscreen.isPresented { GlassBackdrop() }
+      if !store.isAnyFullscreen { GlassBackdrop() }
       GeometryReader { viewport in
       VStack(spacing: 12) {
         AppGlassContainer { topbar }.padding(.leading, 80).padding(.top, AppLayout.mainToolbarTopInset)
@@ -44,13 +47,19 @@ struct RootView: View {
         }
       }.interfaceAnimation(sidebarVisible).interfaceAnimation(sidebarMode)
         .padding(.horizontal, 16).padding(.bottom, 16)
-        .opacity(store.fullscreen.isPresented ? 0 : 1)
-        .allowsHitTesting(!store.fullscreen.isPresented)
-        .accessibilityHidden(store.fullscreen.isPresented)
+        .opacity(store.isAnyFullscreen ? 0 : 1)
+        .allowsHitTesting(!store.isAnyFullscreen)
+        .accessibilityHidden(store.isAnyFullscreen)
       }
       if store.fullscreen.isPresented {
         FullscreenPlayerContent(store: store, close: { store.fullscreen.close() }).ignoresSafeArea()
       }
+      #if os(macOS)
+      if let model = store.liveFullscreen.model {
+        LiveFullscreenContent(model: model, canSend: store.account != nil) { store.liveFullscreen.close() }
+          .ignoresSafeArea()
+      }
+      #endif
     }
     .overlay(alignment: .bottomTrailing) {
       ZStack(alignment: .bottomTrailing) {
@@ -60,7 +69,7 @@ struct RootView: View {
       }.interfaceAnimation(store.showsMiniPlayer)
     }
     .overlay(alignment: .topLeading) {
-      if !store.fullscreen.isPresented && searchFocused && searchFieldFrame.width > 0 {
+      if !store.isAnyFullscreen && searchFocused && searchRequested && searchFieldFrame.width > 0 {
         SearchAssistance(store: store) { term in
           store.query = term
           dismissSearch()
@@ -196,8 +205,11 @@ struct RootView: View {
     .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
       store.playback.saveCurrentProgress()
     }
-    .onChange(of: store.searchFocus) { searchFocused = true }
-    .onChange(of: store.playerFocus) { searchFocused = false; store.playback.focusPlayer() }
+    .onChange(of: store.searchFocus) { searchRequested = true; searchFocused = true }
+    .onChange(of: searchFocused) { if !searchFocused { searchRequested = false } }
+    .onChange(of: store.query) { if searchFocused { searchRequested = true } }
+    .onChange(of: store.showPlayer) { if store.showPlayer { dismissSearch() } }
+    .onChange(of: store.playerFocus) { searchRequested = false; searchFocused = false; store.playback.focusPlayer() }
     .onChange(of: store.selectedFolder) {
       guard store.destination == .favorites else { return }
       store.videos = []
@@ -208,6 +220,7 @@ struct RootView: View {
     }
   }
   private func dismissSearch() {
+    searchRequested = false
     searchFocused = false
     NSApp.keyWindow?.makeFirstResponder(nil)
   }
@@ -232,6 +245,7 @@ struct RootView: View {
       HStack(spacing: 10) {
         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
         TextField("搜索视频或粘贴 BV 号", text: $store.query).focused($searchFocused).textFieldStyle(.plain)
+          .simultaneousGesture(TapGesture().onEnded { searchRequested = true })
           .onSubmit { dismissSearch(); store.search() }
           .onExitCommand { dismissSearch() }
         if !store.query.isEmpty {
@@ -242,7 +256,7 @@ struct RootView: View {
           }.buttonStyle(.pointerPlain).help("清除搜索")
         }
       }.padding(.horizontal, 12).frame(maxWidth: 520).frame(height: AppLayout.mainToolbarHeight)
-        .background(.primary.opacity(0.06), in: .rect(cornerRadius: 8))
+        .background(.primary.opacity(0.06), in: .capsule)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { searchFieldFrame = $0 }
       }.onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { headerLeadingFrame = $0 }
       Spacer(minLength: 0)
@@ -291,11 +305,13 @@ struct RootView: View {
   private var browse: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
-        HStack(alignment: .firstTextBaseline) {
-          Text(store.activeQuery.isEmpty ? store.destination.rawValue : "搜索结果").font(AppLayout.pageTitle)
-          if !store.activeQuery.isEmpty { Text(store.activeQuery).foregroundStyle(.secondary) }
-          Spacer()
-          if store.busy { ProgressView().controlSize(.small) }
+        if !compactFeed || !store.activeQuery.isEmpty || ![.recommend, .popular, .regions].contains(store.destination) {
+          HStack(alignment: .firstTextBaseline) {
+            Text(store.activeQuery.isEmpty ? store.destination.rawValue : "搜索结果").font(AppLayout.pageTitle)
+            if !store.activeQuery.isEmpty { Text(store.activeQuery).foregroundStyle(.secondary) }
+            Spacer()
+            if store.busy { ProgressView().controlSize(.small) }
+          }
         }
         if !store.activeQuery.isEmpty { SearchFilters(store: store) }
         if store.destination == .regions && store.activeQuery.isEmpty { RegionSelector(store: store) }
@@ -323,11 +339,15 @@ struct RootView: View {
       .overlay { if store.busy && store.videos.isEmpty { ProgressView("正在加载") } }
   }
   private func videoGrid(_ videos: [Video]) -> some View {
-    LazyVGrid(
-      columns: [GridItem(.adaptive(minimum: 230, maximum: 360), spacing: 14)], alignment: .leading,
-      spacing: 18
+    let isHome = store.activeQuery.isEmpty && [.recommend, .popular, .regions].contains(store.destination)
+    let dense = isHome && compactFeed
+    let shown = store.activeQuery.isEmpty && store.destination == .recommend
+      ? videos.excludingRecommendationKeywords(blockedKeywords) : videos
+    return LazyVGrid(
+      columns: [GridItem(.adaptive(minimum: dense ? 190 : 230, maximum: dense ? 300 : 360), spacing: 14)],
+      alignment: .leading, spacing: dense ? 12 : 18
     ) {
-      ForEach(videos.filter { !store.blockedAuthors.contains($0.ownerID ?? 0) }) { video in
+      ForEach(shown.filter { !store.blockedAuthors.contains($0.ownerID ?? 0) }) { video in
         Button {
           store.openFeedVideo(video)
         } label: {
@@ -501,7 +521,7 @@ struct PlayerPage: View {
   }
 
   private var showsScrollMiniPlayer: Bool {
-    store.isPlaybackOpen && usesScrollMiniPlayer && !dismissedScrollMiniPlayer && !store.fullscreen.isPresented
+    store.isPlaybackOpen && usesScrollMiniPlayer && !dismissedScrollMiniPlayer && !store.isAnyFullscreen
   }
 
   var body: some View {

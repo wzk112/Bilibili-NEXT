@@ -30,6 +30,9 @@ struct PreferencesView: View {
   @AppStorage("autoPlay") private var autoPlay = true
   @AppStorage("showNavigationMiniPlayer") private var navigationMiniPlayer = true
   @AppStorage("showScrollMiniPlayer") private var scrollMiniPlayer = true
+  @AppStorage("showRelatedVideos") private var showRelatedVideos = true
+  @AppStorage("compactDesktopFeed") private var compactFeed = false
+  @AppStorage("recommendationBlockedKeywords") private var blockedKeywords = ""
   @AppStorage("autoPlayParts") private var autoParts = true
   @AppStorage("autoPlayNext") private var autoNext = false
   @AppStorage("videoCodecPreference") private var codec = "auto"
@@ -119,6 +122,7 @@ struct PreferencesView: View {
         toggleRow("打开视频后自动播放", value: $autoPlay)
         toggleRow("切换页面时显示小窗", value: $navigationMiniPlayer)
         toggleRow("向下浏览播放页时显示小窗", value: $scrollMiniPlayer)
+        toggleRow("显示相关推荐", value: $showRelatedVideos)
         Text("关闭小窗只隐藏画面，音频继续播放；可从“正在播放”返回播放器或暂停。")
           .font(.caption).foregroundStyle(.secondary)
         toggleRow("分 P 自动连播", value: $autoParts)
@@ -164,7 +168,12 @@ struct PreferencesView: View {
   }
   private var appearanceSettings: some View {
     VStack(spacing: 18) {
-      section("首页与导航") { BrowsePreferenceFields() }
+      section("首页与导航") {
+        BrowsePreferenceFields()
+        toggleRow("紧凑首页", value: $compactFeed)
+        RecommendationKeywordField(keywords: $blockedKeywords)
+      }
+      section("设置迁移") { SettingsTransferButtons() }
       section("外观") {
         ThemePicker(selection: $theme)
         Text("白色、暗色和跟随系统使用简洁底色，强调色保持粉色；默认主题保留渐变、玻璃与自定义背景。")

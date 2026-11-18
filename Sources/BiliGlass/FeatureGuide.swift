@@ -55,9 +55,9 @@ struct GuidePage: Identifiable {
 }
 
 enum GuideContent {
-  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.8"
+  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1.9"
   // Increment only when guide content changes, not on every build.
-  static let revision = "2026-11-11-release-1.1.8"
+  static let revision = "2026-11-19-release-1.1.9"
   static let tutorial: [GuidePage] = [
     .init(id: "account", title: "登录与账号", location: "左下角个人中心 → 账户信息", symbol: "person.crop.circle", paragraphs: [
       "点击“登录”，用哔哩哔哩 App 扫描二维码，并在手机上确认。同一次扫码会完成浏览与互动所需的登录，凭证保存在本机钥匙串。",
@@ -113,6 +113,12 @@ enum GuideContent {
       "使用指南和更新说明会在首次安装或对应版本首次打开时展示一次。之后可从“帮助”菜单或“设置 → 关于”重新打开。"], settingsTab: 0)
   ]
   static let currentUpdates: [GuidePage] = [
+    .init(id: "update-119-playback", title: "直播全屏与播放设置", location: "macOS 1.1.9 / iOS 0.1.8", symbol: "play.rectangle", paragraphs: [
+      "Mac 直播间支持全屏，普通视频可以切换宽屏。切换页面和向下滚动时的小窗可以分别关闭。",
+      "手机首页常驻搜索，收起播放器后可点“返回正在播放”。控制条闲置时自动收起，自动画中画可以单独关闭。"]),
+    .init(id: "update-119-browse", title: "浏览与记录", location: "macOS 1.1.9 / iOS 0.1.8", symbol: "line.3.horizontal.decrease.circle", paragraphs: [
+      "设置里可以关闭相关推荐，或按标题和 UP 主关键词屏蔽首页推荐。Mac 可以开启紧凑首页。",
+      "观看记录支持搜索、只看未看完和移除单条本机记录。外观、播放和弹幕开关等设置可以导入导出。"]),
     .init(id: "update-118-ui", title: "界面尺寸与播放首屏", location: "macOS 1.1.8 / iOS 0.1.7", symbol: "rectangle.3.group", paragraphs: [
       "统一面板、媒体和内部项目的圆角与模块标题，Mac 工具栏按钮与搜索框同高，手机刷新按钮保留至少 44 点触控范围。",
       "Mac 搜索历史与联想悬浮显示，不挤动内容；播放器按标题和操作区之外的可用空间安排 16:9 视频。"]),
@@ -299,9 +305,14 @@ struct FeatureGuideView: View {
         HStack {
           Text("\(selected + 1) / \(pages.count)").font(.callout).monospacedDigit().foregroundStyle(.secondary)
           Spacer()
-          Button("上一页") { selected -= 1 }.disabled(selected == 0)
-          if selected + 1 < pages.count { Button("下一页") { selected += 1 }.buttonStyle(.appGlassProminent) }
-          Button(selected + 1 == pages.count ? "完成" : "关闭") { close() }.keyboardShortcut(.cancelAction)
+          Button { selected -= 1 } label: { Text("上一页").frame(minWidth: 52) }
+            .disabled(selected == 0)
+          if selected + 1 < pages.count {
+            Button { selected += 1 } label: { Text("下一页").frame(minWidth: 52) }
+              .buttonStyle(.appGlassProminent)
+          }
+          Button { close() } label: { Text(selected + 1 == pages.count ? "完成" : "关闭").frame(minWidth: 52) }
+            .keyboardShortcut(.cancelAction)
         }.buttonStyle(.appGlassButton)
       }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity)
     }.background(Color(nsColor: .windowBackgroundColor)).tint(biliPink).appAppearance()

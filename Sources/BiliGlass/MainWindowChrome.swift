@@ -51,7 +51,7 @@ struct MainWindowChrome: NSViewRepresentable {
         object: window, queue: .main) { [weak self] _ in
           MainActor.assumeIsolated { self?.windowInactive() }
         }
-      mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+      mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .scrollWheel]) { [weak self] event in
         let handled = MainActor.assumeIsolated { self?.handleMouseDown(event) ?? false }
         return handled ? nil : event
       }
@@ -65,7 +65,7 @@ struct MainWindowChrome: NSViewRepresentable {
       let point = NSPoint(x: location.x, y: content.isFlipped ? location.y : content.bounds.height - location.y)
       if searchActive && !searchRegions.contains(where: { $0.contains(point) }) {
         dismissSearch()
-        window.makeFirstResponder(nil)
+        if event.type != .scrollWheel { window.makeFirstResponder(nil) }
       }
       guard event.type == .leftMouseDown, !event.modifierFlags.contains(.control),
         !window.styleMask.contains(.fullScreen), point.y >= 0, point.y < AppLayout.mainHeaderHeight,

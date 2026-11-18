@@ -8,6 +8,17 @@ struct AccountHistoryEntry: Identifiable {
   let viewedAt: Date
   let part: String
   var isLocal = false
+  var progressLabel: String {
+    if progress < 0 || (video.duration > 0 && progress >= video.duration) { return "已看完" }
+    return "看到 " + String(format: "%d:%02d", progress / 60, progress % 60)
+  }
+  func matches(query: String, unfinishedOnly: Bool) -> Bool {
+    if unfinishedOnly && (progress < 0 || (video.duration > 0 && progress >= video.duration)) { return false }
+    let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    return keyword.isEmpty || [video.title, video.author, video.bvid, part].contains {
+      $0.localizedCaseInsensitiveContains(keyword)
+    }
+  }
   /// The account feed and this device can contain different episodes of one video.
   /// Keep the most recently watched episode, without assigning an unknown legacy CID.
   static func merged(remote: [Self], local: [HistoryEntry], accountID: String?) -> [Self] {
@@ -99,9 +110,13 @@ struct HistoryPage: View {
   @Bindable var store: Store
   @AppStorage("historySource") private var source = "account"
   @AppStorage("syncWatchHistory") private var syncWatchHistory = true
+  @State private var query = ""
+  @State private var unfinishedOnly = false
+  @State private var removal: AccountHistoryEntry?
   private var combined: [AccountHistoryEntry] {
-    AccountHistoryEntry.merged(remote: store.accountHistory.items, local: store.history,
-      accountID: store.api.cookies["DedeUserID"])
+    AccountHistoryEntry.merged(remote: source == "local" ? [] : store.accountHistory.items,
+      local: store.history, accountID: store.api.cookies["DedeUserID"])
+      .filter { $0.matches(query: query, unfinishedOnly: unfinishedOnly) }
   }
   var body: some View {
     ScrollView {
@@ -116,6 +131,10 @@ struct HistoryPage: View {
           if source == "local" && !store.history.isEmpty {
             Button("清空本机记录") { store.history = []; store.persistHistory() }
           }
+        }
+        HStack {
+          TextField("搜索标题、UP 主或 BV 号", text: $query).textFieldStyle(.roundedBorder)
+          Toggle("只看未看完", isOn: $unfinishedOnly)
         }
         if source == "account" {
           if !store.api.signedIn {
@@ -139,7 +158,7 @@ struct HistoryPage: View {
                         Text(entry.viewedAt.formatted(AppDateFormat.timestamp))
                         if entry.isLocal { Text("本机").font(.caption2) }
                         Spacer()
-                        Text(entry.progress < 0 ? "已看完" : "看到 \(String(format: "%d:%02d", max(0, entry.progress) / 60, max(0, entry.progress) % 60))")
+                        Text(entry.progressLabel)
                       }.font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
                     }.contentShape(.rect(cornerRadius: 22))
                   }.buttonStyle(.plain)
@@ -159,14 +178,29 @@ struct HistoryPage: View {
           if store.history.isEmpty { ContentUnavailableView("还没有本机记录", systemImage: "clock") }
           AppGlassContainer(spacing: 0) {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 240, maximum: 390), spacing: 18)], spacing: 20) {
-              ForEach(store.history) { entry in
-                Button { store.open(entry.video.bvid) } label: { VideoCard(video: entry.video) }.buttonStyle(.plain)
+              ForEach(combined) { entry in
+                VStack(alignment: .leading, spacing: 4) {
+                  Button { store.openHistory(entry) } label: { VideoCard(video: entry.video) }.buttonStyle(.plain)
+                  HStack {
+                    Text(entry.progressLabel).font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button { removal = entry } label: { Image(systemName: "trash") }
+                      .accessibilityLabel("移除本机记录")
+                  }.padding(.horizontal, 12)
+                }
               }
             }
           }
         }
       }.padding(AppLayout.pageInset)
-    }.task(id: source + "\(store.account?.mid ?? 0)") {
+    }.confirmationDialog("移除这条本机观看记录？", isPresented: Binding(
+      get: { removal != nil }, set: { if !$0 { removal = nil } }), presenting: removal) { entry in
+        Button("移除本机记录", role: .destructive) {
+          store.history.removeAll { $0.video.bvid == entry.video.bvid &&
+            ($0.accountID == nil || $0.accountID == "guest" || $0.accountID == store.api.cookies["DedeUserID"]) }
+          store.persistHistory()
+        }
+      }.task(id: source + "\(store.account?.mid ?? 0)") {
       if source == "account" { await store.accountHistory.loadIfNeeded(api: store.api) }
     }
   }
